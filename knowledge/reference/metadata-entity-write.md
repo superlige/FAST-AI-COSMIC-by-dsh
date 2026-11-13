@@ -195,4 +195,3 @@ DB_ENTITY=<单据标识> DB_FILTER=<字段标识片段> node .claude/skills/long
 [PROBE]   fk_demo_bgsm  VARCHAR(100,0)
 [PROBE]   fk_demo_bgsl  DECIMAL(23,3)
 ```
-

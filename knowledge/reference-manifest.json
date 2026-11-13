@@ -3,7 +3,7 @@
   "source": {
     "dir": "knowledge/reference"
   },
-  "snapshotId": "a491f72e7d59876e53938b0dd50f911c",
+  "snapshotId": "c21c7c2fca45b55df2c1069ebb73fb11",
   "counts": {
     "documents": 31,
     "skills": 30,
@@ -51,7 +51,7 @@
         "print-template-write",
         "runtime-traces"
       ],
-      "lines": 2324
+      "lines": 2323
     },
     "C": {
       "title": "插件开发",
@@ -224,8 +224,8 @@
       "class": "B",
       "description": "实体与字段元数据（写入）。什么时候读：字段改名、新增、复制或删除；已有单据上加分录。先读写入总则。",
       "descriptionChars": 49,
-      "sourceSha256": "a4ce9b457a5968ed7db3b75e3d38bb8e2261de718a01b8908b5e2a8e8b1de9c2",
-      "sourceLines": 192
+      "sourceSha256": "9e7c7034587ca7fa96adc6ce55157bccc6a4146fa94ebbe4219bda604c03e2f1",
+      "sourceLines": 191
     },
     {
       "name": "cosmic-metadata-entity",
@@ -712,8 +712,8 @@
     },
     {
       "path": "cosmic-metadata-entity-write/SKILL.md",
-      "bytes": 13266,
-      "sha256": "0884c523e04681e7fa81a4852c6e98a09a5f46499eb16b502c96b2978131333d"
+      "bytes": 13265,
+      "sha256": "e63f3608e4c886ec08cd127f5eafb5e06cbadae011ebc7e4af5036da6c006416"
     },
     {
       "path": "cosmic-metadata-entity/SKILL.md",

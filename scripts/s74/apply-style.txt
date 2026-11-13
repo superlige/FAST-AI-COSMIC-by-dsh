@@ -1,0 +1,6 @@
+# S74 真机落库样本：电脑端、移动端各写边框样式，验完用备份退回
+set billno.Style={"border":"1px_solid_#e5e5e5","margin":{"top":"10px"},"padding":{"left":"8px","right":"8px"}}
+set contentpanel.Style={"border":{"bottom":"2px_solid_#000000"}}
+layout mobile
+set layoutflexap.Style={"border":{"bottom":"0.5px_solid_#e5e5e5"},"padding":{"left":"12px","bottom":"12px"}}
+set billno.Style={"margin":"6px"}

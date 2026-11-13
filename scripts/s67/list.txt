@@ -1,0 +1,1 @@
+add plugin zlgd.bpm.ywsp.plugin.alusalesmpr.list.AluSalesMprListPlugin to list

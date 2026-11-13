@@ -1,0 +1,27 @@
+{
+	"name": "fast-ai-cosmic",
+	"private": true,
+	"version": "0.1.0",
+	"description": "fast-ai-cosmic: Kingdee Cosmic development agent, packaged as an out-of-tree bundle for deepseek-harness",
+	"type": "module",
+	"scripts": {
+		"check": "npm run typecheck && npm run lint && npm run test",
+		"typecheck": "tsgo --noEmit -p tsconfig.json",
+		"lint": "biome check .",
+		"lint:fix": "biome check --write .",
+		"test": "vitest --run",
+		"knowledge:export": "node scripts/export-knowledge.mjs",
+		"reference:export": "node scripts/export-reference.mjs",
+		"resources:export": "node scripts/export-resources.mjs",
+		"api:measure": "node scripts/measure-api-doc.mjs"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "2.3.5",
+		"@types/node": "24.13.3",
+		"@typescript/native-preview": "7.0.0-dev.20260120.1",
+		"vitest": "4.1.11"
+	},
+	"engines": {
+		"node": ">=24.9.0"
+	}
+}

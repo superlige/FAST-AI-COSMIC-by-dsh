@@ -1,0 +1,4 @@
+# S78 真机试算：关系表名写错的几种（都该拒）
+add field MulBasedataField pps6_tmpa after pps6_capacity 前缀不对 base=bos_user table=t_demo_rel
+add field MulBasedataField pps6_tmpb after pps6_capacity 太长 base=bos_user table=tk_pps6_a_very_long_relation_t
+add field TextField pps6_tmpc after pps6_capacity 文本不收 table=tk_pps6_tmpc

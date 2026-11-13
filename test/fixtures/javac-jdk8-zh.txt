@@ -1,0 +1,27 @@
+D:\proj\scratchpad\HallucinatedApi.java:4: 错误: 程序包kd.bos.nosuchpackage不存在
+import kd.bos.nosuchpackage.Whatever;
+                           ^
+D:\proj\scratchpad\HallucinatedApi.java:8: 错误: 找不到符号
+        DynamicObject obj = BusinessDataServiceHelper.loadSingleeee("zlgd_x", "id");
+                                                     ^
+  符号:   方法 loadSingleeee(String,String)
+  位置: 类 BusinessDataServiceHelper
+D:\proj\scratchpad\HallucinatedApi.java:9: 错误: 对于QFilter(String,int), 找不到合适的构造器
+        QFilter f = new QFilter("id", 1);
+                    ^
+    构造器 QFilter.QFilter()不适用
+      (实际参数列表和形式参数列表长度不同)
+    构造器 QFilter.QFilter(String,Object[])不适用
+      (参数不匹配; int无法转换为Object[])
+    构造器 QFilter.QFilter(String,String,Object)不适用
+      (实际参数列表和形式参数列表长度不同)
+    构造器 QFilter.QFilter(String,String,Object,QFilterHint)不适用
+      (实际参数列表和形式参数列表长度不同)
+    构造器 QFilter.QFilter(String,String,Object,boolean)不适用
+      (实际参数列表和形式参数列表长度不同)
+D:\proj\scratchpad\HallucinatedApi.java:10: 错误: 找不到符号
+        String s = obj.getStringNope("name");
+                      ^
+  符号:   方法 getStringNope(String)
+  位置: 类型为DynamicObject的变量 obj
+4 个错误

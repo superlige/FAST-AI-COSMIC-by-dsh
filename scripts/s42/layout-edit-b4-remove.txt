@@ -1,0 +1,8 @@
+# S42 批 4 删字段样本：在 layout-edit-b4.txt 落库之后跑，把加的七个字段全删掉（数据库列留着）
+remove field zlgd_s42txt
+remove field zlgd_s42dec
+remove field zlgd_s42cmb
+remove field zlgd_s42usr
+remove field zlgd_s42etxt
+remove field zlgd_yqsyq_m
+remove field zlgd_ypbh

@@ -1,0 +1,2 @@
+remove zlgd_bar_history
+remove op zlgd_ophistory

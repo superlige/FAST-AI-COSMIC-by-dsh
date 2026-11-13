@@ -1,0 +1,86 @@
+/*
+ * 给 driver.mjs 用的 gradle init script（-I 传入，不改动工程里任何 build 文件）。
+ *
+ * 苍穹的运行时 classpath 是 4400+ 个 jar、约 380KB，Windows 命令行上限 32KB，
+ * 而 JDK8 的 java 又不支持 @argfile，所以：
+ *   - 启动 JVM 走 pathing jar（只有 MANIFEST 的空 jar，Class-Path 指向全部依赖）
+ *   - 编译走 javac 的 @argfile（javac 从 JDK6 就支持，只有 java 是 JDK9 才支持）
+ *
+ * 模块名和启动类不写死在这里，由 driver.mjs 用 -P 传进来（值来自 config.mjs 的探测/配置）。
+ * 所以别手工 `gradle -I runtime/cosmic-run.gradle …`，缺参数会直接抛错。
+ *
+ * classpath 顺序是有意排的，别打乱（实测数据见 reference/probes.md）：
+ * 代码模块原本在 runtimeClasspath 里出现两次 —— lib/cus 里上次 deploy 的旧 jar 排第 4499,
+ * build/libs 里刚编出来的新 jar 排第 4535，先出现的赢，所以「build 成功了跑的还是旧逻辑」。
+ * 这里把代码模块的 classes 输出目录提到最前、并把它的两份 jar 全部剔除，于是：
+ *   1. 那个坑从机制上消失，不再靠「改了代码记得先 deploy」的纪律兜底；
+ *   2. 单文件改动可以用 javac 直接编进 classes 目录（6.5 秒），不必再走 deploy 打包（3~4 分钟）。
+ * deploy 仍然需要 —— 但只在要把成果交出去时做，不在改一行看一眼的循环里。
+ */
+gradle.projectsEvaluated {
+    def root = gradle.rootProject
+    def props = gradle.startParameter.projectProperties
+
+    def debugName = props['cosmicDebugModule']
+    def codeNames = (props['cosmicCodeModules'] ?: '').split(',').findAll { it }
+    def mainClass = props['cosmicMainClass']
+    if (!debugName || codeNames.isEmpty() || !mainClass) {
+        throw new GradleException('cosmic-run.gradle 缺参数：需要 -PcosmicDebugModule / '
+            + '-PcosmicCodeModules / -PcosmicMainClass。这些由 driver.mjs 传入，'
+            + '别手工调 gradle —— 用 node .claude/skills/long-cosmic-dev/driver.mjs build')
+    }
+
+    def p = root.project(":${debugName}")
+    def codeProjects = codeNames.collect { root.project(":${it}") }
+    //剔除代码模块的 jar（lib/cus 的旧的 + build/libs 的新的），只认下面的 classes 目录。
+    //jar 名按模块名的**末段**（嵌套模块 `apps:order` 打出来的是 order-1.0.jar）
+    def jarNames = codeNames.collect { it.tokenize(':').last() }
+    def codeJarPattern = ~/^(${jarNames.join('|')})-.*\.jar$/
+
+    def cp = {
+        //classes/java/main + resources/main，排在所有 jar 之前
+        def head = codeProjects.collectMany { it.sourceSets.main.output.files.toList() }
+        def tail = p.sourceSets.main.runtimeClasspath.files.findAll {
+            !(it.name ==~ codeJarPattern)
+        }
+        head + tail
+    }
+
+    def classesTasks = [p.tasks.named('classes')] + codeProjects.collect { it.tasks.named('classes') }
+
+    //MANIFEST 的 Class-Path 里，不以 / 结尾的 URL 一律当 jar 读。File.toURI() 只在目录**此刻已存在**时才补 /，
+    //而 manifest 在配置阶段就算好了：刚克隆的工程 classes 目录还没编出来，那一项就成了「jar」，
+    //探针报 ClassNotFoundException: ...DebugApplication。除 jar/zip 外一律按目录补 /。
+    def cpUri = { File f ->
+        def u = f.toURI().toString()
+        (u.endsWith('/') || f.name ==~ /(?i).*\.(jar|zip)$/) ? u : u + '/'
+    }
+
+    p.tasks.register('cosmicPathingJar', Jar) {
+        group 'cosmic-run'
+        description '打一个只含 MANIFEST 的 pathing jar，绕开 Windows 命令行长度上限'
+        dependsOn classesTasks
+        destinationDirectory = root.buildDir
+        archiveFileName = 'cosmic-pathing.jar'
+        manifest {
+            attributes(
+                'Main-Class': mainClass,
+                'Class-Path': cp().collect { cpUri(it) }.join(' ')
+            )
+        }
+    }
+
+    p.tasks.register('cosmicJavacArgs') {
+        group 'cosmic-run'
+        description '导出 javac 用的 @argfile，供编译探针使用'
+        dependsOn classesTasks
+        doLast {
+            //argfile 里反斜杠是转义符，必须换成正斜杠，否则路径全废
+            def paths = cp().collect { it.absolutePath.replace('\\', '/') }.join(File.pathSeparator)
+            def f = new File(root.buildDir, 'cosmic-javac.args')
+            f.parentFile.mkdirs()
+            f.text = "-cp \"${paths}\"\n"
+            println "COSMIC_JAVAC_ARGS=${f.absolutePath} (${cp().size()} entries)"
+        }
+    }
+}

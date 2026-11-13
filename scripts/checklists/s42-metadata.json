@@ -1,0 +1,252 @@
+{
+	"name": "S42 元数据需求：实验室检测单变更历史记录",
+	"requirement": "scripts/s42/b5-requirement.md",
+	"note": "规则只看会话记录：apply=真写入（APPLY 且成功）的改动清单，final=最后一段交付说明，afterApply=最后一次真写入之后的调用，code=写进 .java 的内容。拍板点看写入前的确认单和提问（beforeWrite）里有没有提到，没有再看交付说明。规则判的结论要人复核。",
+	"items": [
+		{
+			"id": "h1",
+			"text": "表头：检测单 id",
+			"any": [
+				{ "re": "^add field \\w+ zlgd_\\w+ (?:into|after|before) \\S+ 检测单\\s*(?:id|ID|内码|主键)?(?:\\s|$)" }
+			]
+		},
+		{
+			"id": "h2",
+			"text": "表头：检测单单号（文本）",
+			"any": [{ "re": "^add field TextField zlgd_\\w+ (?:into|after|before) \\S+ 检测单(?:单号|编号)(?:\\s|$)" }]
+		},
+		{
+			"id": "h3",
+			"text": "表头：加工单 id",
+			"any": [
+				{ "re": "^add field \\w+ zlgd_\\w+ (?:into|after|before) \\S+ 加工单\\s*(?:id|ID|内码|主键)?(?:\\s|$)" }
+			]
+		},
+		{
+			"id": "h4",
+			"text": "表头：加工单单号（文本）",
+			"any": [{ "re": "^add field TextField zlgd_\\w+ (?:into|after|before) \\S+ 加工单(?:单号|编号)(?:\\s|$)" }]
+		},
+		{
+			"id": "h5",
+			"text": "表头：状态下拉，修改中 / 已完成",
+			"any": [{ "re": "^add field ComboField zlgd_\\w+ (?:into|after|before) \\S+ 状态 items=.*修改中.*已完成" }]
+		},
+		{
+			"id": "h6",
+			"text": "表头：反审核人（用户）",
+			"any": [
+				{ "re": "^add field UserField zlgd_\\w+ (?:into|after|before) \\S+ 反审核人(?:\\s|$)" },
+				{ "re": "^add field BasedataField zlgd_\\w+ (?:into|after|before) \\S+ 反审核人 .*base=bos_user" }
+			]
+		},
+		{
+			"id": "h7",
+			"text": "表头：反审核时间（日期时间）",
+			"any": [{ "re": "^add field DateTimeField zlgd_\\w+ (?:into|after|before) \\S+ 反审核(?:时间|日期)(?:\\s|$)" }]
+		},
+		{
+			"id": "h8",
+			"text": "表头：完成时间（日期时间）",
+			"any": [{ "re": "^add field DateTimeField zlgd_\\w+ (?:into|after|before) \\S+ 完成(?:时间|日期)(?:\\s|$)" }]
+		},
+		{
+			"id": "h9",
+			"text": "表头：快照，大文本，界面隐藏",
+			"any": [
+				{ "re": "^add field LargeTextField zlgd_\\w+ into fs_hideninfo 快照" },
+				{ "re": "^add field LargeTextField (zlgd_\\w+) .*快照[\\s\\S]*^set \\1\\.Invisible=true" }
+			]
+		},
+		{
+			"id": "a1",
+			"text": "附件面板：新加一个，或复用原有并在交付说明写明",
+			"any": [
+				{ "re": "^add AttachmentPanelAp " },
+				{ "re": "^set attachmentpanel\\.Name=" },
+				{ "in": "final", "re": "(?:复用|原有|自带|原本)[^\\n]{0,30}附件|附件[^\\n]{0,30}(?:复用|原有|自带|原本)" }
+			]
+		},
+		{
+			"id": "e0",
+			"text": "分录改名为变更明细",
+			"any": [{ "re": "^set (?:zlgd_bgentry|advconap)\\.Name=变更明细$" }]
+		},
+		{
+			"id": "e1",
+			"text": "分录：第几次提交（整数）",
+			"any": [{ "re": "^add field IntegerField zlgd_\\w+ (?:into|after|before) \\S+ 第几次提交(?:\\s|$)" }]
+		},
+		{
+			"id": "e2",
+			"text": "分录：提交人（用户）",
+			"any": [
+				{ "re": "^add field UserField zlgd_\\w+ (?:into|after|before) \\S+ 提交人(?:\\s|$)" },
+				{ "re": "^add field BasedataField zlgd_\\w+ (?:into|after|before) \\S+ 提交人 .*base=bos_user" }
+			]
+		},
+		{
+			"id": "e3",
+			"text": "分录：提交时间（日期时间）",
+			"any": [{ "re": "^add field DateTimeField zlgd_\\w+ (?:into|after|before) \\S+ 提交(?:时间|日期)(?:\\s|$)" }]
+		},
+		{
+			"id": "e4",
+			"text": "分录：所属单据下拉，检测单 / 加工单",
+			"any": [{ "re": "^add field ComboField zlgd_\\w+ (?:into|after|before) \\S+ 所属单据 items=.*检测单.*加工单" }]
+		},
+		{
+			"id": "e5",
+			"text": "分录：分录名称（文本）",
+			"any": [{ "re": "^add field TextField zlgd_\\w+ (?:into|after|before) \\S+ 分录名称(?:\\s|$)" }]
+		},
+		{
+			"id": "e6",
+			"text": "分录：行号（整数）",
+			"any": [{ "re": "^add field IntegerField zlgd_\\w+ (?:into|after|before) \\S+ 行号(?:\\s|$)" }]
+		},
+		{
+			"id": "e7",
+			"text": "分录：行业务标识（文本）",
+			"any": [{ "re": "^add field TextField zlgd_\\w+ (?:into|after|before) \\S+ 行业务标识(?:\\s|$)" }]
+		},
+		{
+			"id": "e8",
+			"text": "分录：变更类型下拉，修改 / 新增行 / 删除行",
+			"any": [
+				{ "re": "^add field ComboField zlgd_\\w+ (?:into|after|before) \\S+ 变更类型 items=.*修改.*新增行.*删除行" }
+			]
+		},
+		{
+			"id": "e9",
+			"text": "分录：字段标识（文本）",
+			"any": [{ "re": "^add field TextField zlgd_\\w+ (?:into|after|before) \\S+ 字段标识(?:\\s|$)" }]
+		},
+		{
+			"id": "e10",
+			"text": "分录：字段名称（文本）",
+			"any": [{ "re": "^add field TextField zlgd_\\w+ (?:into|after|before) \\S+ 字段名称(?:\\s|$)" }]
+		},
+		{
+			"id": "e11",
+			"text": "分录：旧值，放得下较长文字（大文本、多行文本，或文本长度 ≥ 1000）",
+			"any": [
+				{ "re": "^add field (?:LargeTextField|TextAreaField) zlgd_\\w+ (?:into|after|before) \\S+ 旧值(?:\\s|$)" },
+				{
+					"re": "^add field TextField (zlgd_\\w+) (?:into|after|before) \\S+ 旧值(?:\\s|$)[\\s\\S]*^set \\1\\.MaxLength=\\d{4,}$"
+				}
+			]
+		},
+		{
+			"id": "e12",
+			"text": "分录：新值，放得下较长文字（大文本、多行文本，或文本长度 ≥ 1000）",
+			"any": [
+				{ "re": "^add field (?:LargeTextField|TextAreaField) zlgd_\\w+ (?:into|after|before) \\S+ 新值(?:\\s|$)" },
+				{
+					"re": "^add field TextField (zlgd_\\w+) (?:into|after|before) \\S+ 新值(?:\\s|$)[\\s\\S]*^set \\1\\.MaxLength=\\d{4,}$"
+				}
+			]
+		},
+		{
+			"id": "r1",
+			"text": "只读：单据上的新增、删除、保存、修改按钮拿掉",
+			"all": [
+				{ "re": "^(?:set bar_new\\.Invisible=true|remove bar_new)$", "label": "bar_new" },
+				{ "re": "^(?:set bar_del\\.Invisible=true|remove bar_del)$", "label": "bar_del" },
+				{ "re": "^(?:set bar_save\\.Invisible=true|remove bar_save)$", "label": "bar_save" },
+				{ "re": "^(?:set bar_modify\\.Invisible=true|remove bar_modify)$", "label": "bar_modify" }
+			]
+		},
+		{
+			"id": "r2",
+			"text": "只读：分录的增行、删行拿掉，或整条分录锁定",
+			"any": [
+				{
+					"re": "^(?:set tb_new\\.Invisible=true|remove tb_new)$[\\s\\S]*^(?:set tb_del\\.Invisible=true|remove tb_del)$"
+				},
+				{ "re": "^set zlgd_bgentry\\.Lock=" }
+			]
+		},
+		{
+			"id": "r3",
+			"text": "只读：列表上的新增、删除按钮拿掉",
+			"all": [
+				{ "re": "^(?:set tblnew\\.Invisible=true|remove tblnew)$", "label": "tblnew" },
+				{ "re": "^(?:set tbldel\\.Invisible=true|remove tbldel)$", "label": "tbldel" }
+			]
+		},
+		{ "id": "b1", "text": "检测单：加\"变更历史\"操作", "any": [{ "re": "^add op zlgd_\\w+ \\w+ 变更历史$" }] },
+		{
+			"id": "b2",
+			"text": "检测单：加\"变更历史\"按钮并绑上操作",
+			"any": [{ "re": "^add BarItemAp (zlgd_\\w+) .*变更历史$[\\s\\S]*^set \\1\\.OperationKey=zlgd_\\w+$" }]
+		},
+		{
+			"id": "c1",
+			"text": "新字段、新操作、新控件的标识都带 zlgd_",
+			"none": [{ "re": "^add (?:field \\w+|op|\\w+Ap) (?!zlgd_)\\S+", "label": "有不带 zlgd_ 的新标识" }]
+		},
+		{ "id": "c2", "text": "没写、没改 Java", "none": [{ "in": "code", "re": "\\S", "label": "写了 .java" }] },
+		{
+			"id": "c3",
+			"text": "没改内部加工记录 zlgd_nbjgjl",
+			"none": [{ "re": "^LAYOUT_FORM=zlgd_nbjgjl$", "label": "改了 zlgd_nbjgjl" }]
+		},
+		{
+			"id": "c4",
+			"text": "真写入之后回读确认",
+			"any": [
+				{
+					"in": "afterApply",
+					"re": "^cosmic_probe ok .*\"name\":\"(?:FormLayoutProbe|MetaProbe|OpMetaProbe|DbColumnProbe|FormTreeProbe)\""
+				}
+			]
+		},
+		{
+			"id": "d1",
+			"text": "交付说明列了字段的标识、类型、名称",
+			"all": [
+				{ "in": "final", "re": "zlgd_\\w+", "count": 23, "label": "交付说明里不同的 zlgd_ 标识不到 23 个" },
+				{ "in": "final", "re": "Field|文本|整数|日期|下拉", "label": "没写类型" }
+			]
+		},
+		{
+			"id": "d2",
+			"text": "交付说明写了按钮和操作的标识",
+			"all": [{ "in": "final", "re": "按钮" }, { "in": "final", "re": "操作" }, { "in": "final", "re": "变更历史" }]
+		},
+		{ "id": "d3", "text": "交付说明写了只读做到哪一步", "all": [{ "in": "final", "re": "只读" }] },
+		{
+			"id": "d4",
+			"text": "交付说明写了留给代码阶段的事",
+			"all": [{ "in": "final", "re": "代码阶段|留给代码|以后写的代码|代码里" }]
+		}
+	],
+	"decisions": [
+		{ "id": "p1", "text": "附件面板新加一个，还是复用单据原有的", "mention": ["附件"] },
+		{
+			"id": "p2",
+			"text": "下拉项的存储值用什么（字母、数字、中文）",
+			"mention": ["存储值|下拉项[^\\n]{0,10}值|(?:字母|数字)[^\\n]{0,10}(?:值|编码)"]
+		},
+		{
+			"id": "p3",
+			"text": "旧值、新值用多长、什么类型",
+			"mention": ["旧值[^\\n]{0,40}(?:\\d{3,4}|大文本|长度|多行)|(?:\\d{3,4}|大文本)[^\\n]{0,20}旧值"]
+		},
+		{
+			"id": "p4",
+			"text": "检测单、加工单的 id 用什么类型（整数还是基础资料引用）",
+			"mention": [
+				"(?:检测单|加工单)\\s*id[^\\n]{0,40}(?:BigInt|长整|整数|基础资料|引用)|(?:BigInt|长整|基础资料)[^\\n]{0,30}(?:检测单|加工单)"
+			]
+		},
+		{ "id": "p5", "text": "只读用什么做法（隐藏按钮、锁定，还是都用）", "mention": ["隐藏[^\\n]{0,20}按钮|锁定"] },
+		{
+			"id": "p6",
+			"text": "按钮放在工具栏什么位置",
+			"mention": ["(?:打印|退出|关闭|审核)[^\\n]{0,6}(?:左边|右边|前面|后面|之前|之后)|位置"]
+		},
+		{ "id": "p7", "text": "新操作用什么操作类型", "mention": ["donothing|空操作|操作类型"] }
+	]
+}

@@ -1,0 +1,112 @@
+{
+  "schema": "cosmic.source-manifest/1",
+  "kind": "protocol",
+  "source": {
+    "repoPath": "D:\\claudecode\\long-cosmic-dev",
+    "ref": "c7b88156fcd0fca093d1a572c74d9ce195cf99ac",
+    "resolvedCommit": "c7b88156fcd0fca093d1a572c74d9ce195cf99ac"
+  },
+  "confirmation": {
+    "confirmedBy": "Lige <superlige666@gmail.com>",
+    "confirmedAt": "2026-09-02T02:14:11.433Z",
+    "note": "2026-09-02 用户在 IMPLEMENTATION.md S1 三选一中选择方案②「先提交后给新 ref」，并显式授权由 agent 代为提交源仓库的 6 个未提交文件（run rule form 三层显隐判据）。提交产生 c7b8815，工作区随后干净。冻结范围含第三类 protocol（S1.1 决策）。"
+  },
+  "generatedAt": "2026-09-02T02:14:11.517Z",
+  "scope": [
+    "protocol"
+  ],
+  "files": [
+    {
+      "path": "protocol/README.md",
+      "bytes": 16666,
+      "lines": 283,
+      "sha256": "e0bd4f765ddb2252abf8e9d77b9bbb44e3fc8b8edd4ecdb5595511336c6e50a3",
+      "gitSha1": "6d0a86be16d8a72b8b97f6d2a06e766afade796d"
+    },
+    {
+      "path": "protocol/spec.template.yaml",
+      "bytes": 5327,
+      "lines": 86,
+      "sha256": "0900157a90a693a5c108b7f64a22cdd680803e0ae6939bd83575883bf676971a",
+      "gitSha1": "e090914ba2ba61586fe07074e805376e465c2e34"
+    }
+  ],
+  "topLevelDispositions": [
+    {
+      "name": ".gitignore",
+      "disposition": "excluded",
+      "reason": "excluded by IMPLEMENTATION.md 5.1"
+    },
+    {
+      "name": "CLAUDE.md",
+      "disposition": "excluded",
+      "reason": "excluded by IMPLEMENTATION.md 5.1"
+    },
+    {
+      "name": "README.md",
+      "disposition": "excluded",
+      "reason": "excluded by IMPLEMENTATION.md 5.1"
+    },
+    {
+      "name": "SKILL.md",
+      "disposition": "excluded",
+      "reason": "excluded by IMPLEMENTATION.md 5.1"
+    },
+    {
+      "name": "config.example.json",
+      "disposition": "excluded",
+      "reason": "excluded by IMPLEMENTATION.md 5.1"
+    },
+    {
+      "name": "config.mjs",
+      "disposition": "code",
+      "reason": "covered by the code manifest"
+    },
+    {
+      "name": "docs",
+      "disposition": "excluded",
+      "reason": "excluded by IMPLEMENTATION.md 5.1"
+    },
+    {
+      "name": "driver.mjs",
+      "disposition": "code",
+      "reason": "covered by the code manifest"
+    },
+    {
+      "name": "probes",
+      "disposition": "code",
+      "reason": "covered by the code manifest"
+    },
+    {
+      "name": "protocol",
+      "disposition": "protocol",
+      "reason": "listed in protocol scope"
+    },
+    {
+      "name": "reference",
+      "disposition": "knowledge",
+      "reason": "covered by the knowledge manifest"
+    },
+    {
+      "name": "runtime",
+      "disposition": "code",
+      "reason": "covered by the code manifest"
+    },
+    {
+      "name": "scratchpad",
+      "disposition": "excluded",
+      "reason": "excluded by IMPLEMENTATION.md 5.1"
+    },
+    {
+      "name": "tools",
+      "disposition": "code",
+      "reason": "covered by the code manifest"
+    }
+  ],
+  "unclassified": [],
+  "totals": {
+    "files": 2,
+    "bytes": 21993,
+    "lines": 369
+  }
+}

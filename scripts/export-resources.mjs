@@ -1,0 +1,150 @@
+#!/usr/bin/env node
+
+/**
+ * Builds resources/manifest.json and src/resources/embedded.generated.ts from the
+ * agent's own Java/Gradle resources under resources/ (S3; S86).
+ *
+ * resources/ is the only source. Until S86 (2026-11-11) the files were exported
+ * from a frozen ref of the separate long-cosmic-dev repository, and every file
+ * cosmic changed afterwards had to be registered as "owned" or the next export
+ * would overwrite it. That repository was merged in and retired; nothing upstream
+ * can overwrite a file any more, so the registries went with it. Their per-file
+ * notes are archived in docs/S86-resource-file-history.json.
+ *
+ * What may be embedded is fixed here, not passed in: probes/, runtime/ and two
+ * named files under tools/. Nothing else is agent-owned, and a Cosmic JAR or a
+ * customer config must never travel this path -- scripts/audit-release.mjs is
+ * the second half of that guarantee.
+ *
+ * Usage: node scripts/export-resources.mjs [--write | --check]
+ *   (no flag)  dry-run: report what would be embedded
+ *   --write    regenerate the manifest and the embedded module
+ *   --check    exit 1 when either differs from what resources/ produces
+ */
+
+import { createHash } from "node:crypto";
+import { readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { join, resolve } from "node:path";
+
+const ROOT = resolve(new URL("..", import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1"));
+const RESOURCES = join(ROOT, "resources");
+const GENERATED = join(ROOT, "src", "resources", "embedded.generated.ts");
+
+const ALLOWED_PREFIXES = ["probes/", "runtime/"];
+// tools/ApiTool.java: reflection lookup behind lint's "closest real name" hints.
+// tools/SrcIndexTool.java: the impact index's static side (S5.3) -- javac Tree API
+// over the project sources, offline. Both are agent-owned Java that must ship with
+// the binary; naming them one by one keeps tools/ from becoming a second open prefix.
+// tools/ProdReader.java: the production read-only channel behind cosmic_prod -- plain
+// JDBC, no Cosmic runtime, every query in a read-only transaction that is rolled back.
+const ALLOWED_FILES = ["tools/ApiTool.java", "tools/SrcIndexTool.java", "tools/ProdReader.java"];
+const ALLOWED_EXTENSIONS = [".java", ".gradle"];
+
+/**
+ * Files that sit under an allowed directory but are not part of the agent. Each
+ * needs its reason: an unlisted stray file stops the export instead of being
+ * embedded or skipped quietly.
+ */
+const NOT_EMBEDDED = new Map([
+	["probes/SpikeProbe.java", "S0 spike 的探针：dist/spike 单独读它，产品不带（scripts/verify-empty-dir.mjs 验）"],
+	["probes/SpikeProbe.d.java.ts", "SpikeProbe.java 的类型桩，给编辑器看的，不是资源"],
+]);
+
+/** Every file under resources/, as forward-slash paths relative to it. */
+function walk(dir, prefix = "") {
+	const out = [];
+	for (const entry of readdirSync(dir, { withFileTypes: true })) {
+		const relative = `${prefix}${entry.name}`;
+		if (entry.isDirectory()) out.push(...walk(join(dir, entry.name), `${relative}/`));
+		else out.push(relative);
+	}
+	return out;
+}
+
+function main() {
+	const flags = process.argv.slice(2);
+	if (flags.length > 1 || flags.some((flag) => flag !== "--write" && flag !== "--check")) {
+		console.error("用法: node scripts/export-resources.mjs [--write | --check]");
+		process.exit(2);
+	}
+	const write = flags.includes("--write");
+	const check = flags.includes("--check");
+
+	const listed = walk(RESOURCES).filter((path) => path !== "manifest.json");
+	const inScope = listed.filter(
+		(path) =>
+			(ALLOWED_PREFIXES.some((prefix) => path.startsWith(prefix)) || ALLOWED_FILES.includes(path)) &&
+			!NOT_EMBEDDED.has(path),
+	);
+	const outOfScope = listed.filter((path) => !inScope.includes(path) && !NOT_EMBEDDED.has(path));
+	const rejected = inScope.filter((path) => !ALLOWED_EXTENSIONS.some((ext) => path.endsWith(ext)));
+	if (outOfScope.length > 0 || rejected.length > 0) {
+		// A .jar or a .json appearing under probes/ is exactly what must not be
+		// embedded, so it stops the run rather than being skipped quietly.
+		console.error(
+			`[FAIL] resources/ 下有不该带进产品、也没在 NOT_EMBEDDED 登记的文件：\n  ${[...outOfScope, ...rejected].join("\n  ")}`,
+		);
+		process.exit(1);
+	}
+
+	const files = inScope
+		.sort((a, b) => a.localeCompare(b))
+		.map((path) => {
+			const bytes = readFileSync(join(RESOURCES, ...path.split("/")));
+			return { path, bytes, sha256: createHash("sha256").update(bytes).digest("hex") };
+		});
+	const manifest = {
+		schema: "cosmic.resources/2",
+		source: { dir: "resources" },
+		files: files.map((file) => ({ path: file.path, bytes: file.bytes.length, sha256: file.sha256 })),
+	};
+	const manifestText = `${JSON.stringify(manifest, null, 2)}\n`;
+	// One runtime source of truth: the kernel reads the generated module, never the
+	// resources/ directory, so a bundled exe and a dev run release exactly the same
+	// bytes. test/kernel/embedded-resources.test.ts proves the two agree.
+	const generatedText = [
+		"// GENERATED by scripts/export-resources.mjs -- do not edit.",
+		`// Source: resources/ (${files.length} files)`,
+		'import type { EmbeddedResource } from "../runtime/resources.ts";',
+		"",
+		"export const EMBEDDED_RESOURCES: readonly EmbeddedResource[] = [",
+		...files.map(
+			(file) =>
+				`\t{ relativePath: ${JSON.stringify(file.path)}, content: ${JSON.stringify(file.bytes.toString("utf8"))} },`,
+		),
+		"];",
+		"",
+	].join("\n");
+
+	if (check) {
+		const same = (path, expected) => {
+			try {
+				return readFileSync(path, "utf8").replace(/\r\n/g, "\n") === expected;
+			} catch {
+				return false;
+			}
+		};
+		const stale = [];
+		if (!same(join(RESOURCES, "manifest.json"), manifestText)) stale.push("resources/manifest.json");
+		if (!same(GENERATED, generatedText)) stale.push("src/resources/embedded.generated.ts");
+		if (stale.length > 0) {
+			console.error(`[FAIL] resources/ 改过，下面的文件没跟着重新生成：${stale.join("、")}`);
+			console.error("  运行: node scripts/export-resources.mjs --write");
+			process.exit(1);
+		}
+		console.log(`探针资源与内嵌模块一致（${files.length} 个文件）`);
+		return;
+	}
+	if (write) {
+		writeFileSync(join(RESOURCES, "manifest.json"), manifestText, "utf8");
+		writeFileSync(GENERATED, generatedText, "utf8");
+	}
+	const total = files.reduce((sum, file) => sum + file.bytes.length, 0);
+	console.log(`${write ? "已导出" : "dry-run"} ${files.length} 个自有资源 / ${total} 字节`);
+	for (const prefix of [...ALLOWED_PREFIXES, "tools/"]) {
+		const group = files.filter((file) => file.path.startsWith(prefix));
+		if (group.length > 0) console.log(`  ${prefix.padEnd(10)} ${group.length} 个文件`);
+	}
+}
+
+main();

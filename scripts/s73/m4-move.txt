@@ -1,0 +1,3 @@
+# 单据带的移动端布局：挪控件
+layout mobile
+move auditor before billno

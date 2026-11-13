@@ -1,0 +1,11 @@
+# S55 真机样本：该拒的几种写法，一处都不写
+# 分录控件不走 add 控件
+add EntryAp zlgd_s55a into contentpanel 分录甲
+# 放进已有分录里（子分录）
+add entry zlgd_s55b into zlgd_bgentry 分录乙
+# 表名和这张单据已有分录的表撞了
+add entry zlgd_bgentry after advconap 分录丙
+# 没带前缀
+add entry s55d after advconap 分录丁
+# 表名超长
+add entry zlgd_s55_entry_name_too_long after advconap 分录戊

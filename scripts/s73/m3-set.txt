@@ -1,0 +1,3 @@
+# 单据带的移动端布局：改控件属性
+layout mobile
+set auditor.LabelDirection=v

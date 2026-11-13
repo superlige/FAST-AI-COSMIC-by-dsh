@@ -1,0 +1,8 @@
+D:\proj\zlgd-hhx\src\main\java\demo\mes\Caller.java:9: 错误: 对于buildJSON(String,List<List<String>>), 找不到合适的方法
+        return builder.buildJSON("cm_tpmof01_rcv", rows);
+                      ^
+    方法 SendMesInfoBuilder.buildJSON(String,List<List<Object>>)不适用
+      (参数不匹配; List<List<String>>无法转换为List<List<Object>>)
+    方法 SendMesInfoBuilder.buildJSON(String,Map<String,Object>)不适用
+      (参数不匹配; List<List<String>>无法转换为Map<String,Object>)
+1 个错误

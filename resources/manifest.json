@@ -1,0 +1,398 @@
+{
+  "schema": "cosmic.resources/2",
+  "source": {
+    "dir": "resources"
+  },
+  "files": [
+    {
+      "path": "probes/ApiMetaProbe.java",
+      "bytes": 15088,
+      "sha256": "d0fd70bca47328d1fd956a387ee5a0b3eff32ba363f15571b977d98d46519ff5"
+    },
+    {
+      "path": "probes/BizRuleProbe.java",
+      "bytes": 24525,
+      "sha256": "03d8bd835d1a20dc652c62b7b9dff1c514492203ad49eab22707d665ad63b673"
+    },
+    {
+      "path": "probes/BotpRuleProbe.java",
+      "bytes": 14540,
+      "sha256": "1f2affebb1b0e91055b170482e4f677b488a96800cc41a3475fc0fd500f53cb2"
+    },
+    {
+      "path": "probes/BotpRuleSyncProbe.java",
+      "bytes": 23298,
+      "sha256": "b647c12ec7f943cfd1aafeda3fe42092f44d7a74b67656df56c838d62e1a63ce"
+    },
+    {
+      "path": "probes/CallArgs.java",
+      "bytes": 33300,
+      "sha256": "17c32989d5b454f14474f248f102b58029cc1b9ed410787d38c00d70caf7a20c"
+    },
+    {
+      "path": "probes/CallSim.java",
+      "bytes": 35670,
+      "sha256": "4ff18e7b315db7dd79bd45626f8c6d06cf3b57ffe5e192ed56970d5913c63160"
+    },
+    {
+      "path": "probes/ClassFiles.java",
+      "bytes": 3330,
+      "sha256": "33bbc45da39c46a39b847b4da72e29bc1251c0bd329a6e88cf121a70e9afacf1"
+    },
+    {
+      "path": "probes/DataProbe.java",
+      "bytes": 7399,
+      "sha256": "ad902af3782e231c71abf33511309a8a1bcc09da569fe8c691acbcfec1d0ce96"
+    },
+    {
+      "path": "probes/DataQueryProbe.java",
+      "bytes": 73270,
+      "sha256": "0ef81ec217474a3eda1e67f7391ace33c084c0e6c1a8e621b09de4e21740ba19"
+    },
+    {
+      "path": "probes/DataSeedProbe.java",
+      "bytes": 73554,
+      "sha256": "96fb14e4263370104e934ca482c575ba27f927ec700b766bbc5d06ac2ab7bcea"
+    },
+    {
+      "path": "probes/DataUpdateProbe.java",
+      "bytes": 26072,
+      "sha256": "096e85cf29ba5d6af6807195f122aa430b53e434d47fbe4650d56bb8cd47151b"
+    },
+    {
+      "path": "probes/DbColumnProbe.java",
+      "bytes": 2624,
+      "sha256": "13a92b6c023cf9cc8d5e60e888e1d6aa2da8e8bfd2a078851d5c93288a10ca77"
+    },
+    {
+      "path": "probes/EntityFieldIndexProbe.java",
+      "bytes": 20734,
+      "sha256": "4b1c2ccb2421257c054ecbd4f0ca6ae4c9b95136e4332fb59ddc02c115dec5ce"
+    },
+    {
+      "path": "probes/EnvDiagProbe.java",
+      "bytes": 9972,
+      "sha256": "47f09a90ed6742fa934c115d832fbf81a485bee8a2dc94aebfa6b5e828b89c78"
+    },
+    {
+      "path": "probes/ExpectSpec.java",
+      "bytes": 43063,
+      "sha256": "3a22e27875d09eb4b6a4819813ff767622ce59085b76cc800f4175e66f4a898c"
+    },
+    {
+      "path": "probes/FieldLimitProbe.java",
+      "bytes": 8868,
+      "sha256": "0db22209e615e201d5734a5facdc3179b67ba7409c6690504c07d2acc093c264"
+    },
+    {
+      "path": "probes/FormCallbackSim.java",
+      "bytes": 19912,
+      "sha256": "9c83b3d7ee0098ea1b8a06bbcb72fff981f2c130f441c2bfa17ec693e0b8d1da"
+    },
+    {
+      "path": "probes/FormFlowSim.java",
+      "bytes": 8211,
+      "sha256": "8efd2d6fe7e516a4ae2183adb3e2e8ac27cc77af478c21cc0a7fe497b4e27f79"
+    },
+    {
+      "path": "probes/FormLayoutProbe.java",
+      "bytes": 49888,
+      "sha256": "bbbeca4f4c39958a4f2db3d1ac299c36b12220262dbee6becce02c978a473901"
+    },
+    {
+      "path": "probes/FormLayoutWriteProbe.java",
+      "bytes": 183163,
+      "sha256": "06d9b2dba0e262d58fe24937377cdd79d511a66c84ede11fcea0c6896288792d"
+    },
+    {
+      "path": "probes/FormPluginProbe.java",
+      "bytes": 5650,
+      "sha256": "dd7f77802a0c73a5a7060a0f0229d6fcc134dafc9d3eaa537dcd7fd92f0ac65a"
+    },
+    {
+      "path": "probes/FormRegisterProbe.java",
+      "bytes": 9317,
+      "sha256": "0ce7c86cdf1be87e1653eb3d7f2f2ee9906db4bbc1fb9e915d10b3e370d557b8"
+    },
+    {
+      "path": "probes/FormRuleProbe.java",
+      "bytes": 56598,
+      "sha256": "cdeca75b774f4da63d219479e17f5dd55962c0509e53e3bec099641b5bfdd728"
+    },
+    {
+      "path": "probes/FormSim.java",
+      "bytes": 111906,
+      "sha256": "de54bafbbbf3a5a4dda08ae358472a4919812f23b93b885213a27cfbd30e50c7"
+    },
+    {
+      "path": "probes/FormTreeProbe.java",
+      "bytes": 6867,
+      "sha256": "8c5bfbc1e98d06c6ef5185317700ce679f0e9ed128c07cb8d692f972040243da"
+    },
+    {
+      "path": "probes/FormulaCheck.java",
+      "bytes": 23997,
+      "sha256": "ceea4e315632b7fd51408f267d5fb1e21ebab5028df7a943832aebbd96c9c929"
+    },
+    {
+      "path": "probes/FormulaFunctionProbe.java",
+      "bytes": 21037,
+      "sha256": "a923fe41498704dd8a3ee4a002a54e43d8637b9d30acffaefa295e4e2e340067"
+    },
+    {
+      "path": "probes/FormVisibleProbe.java",
+      "bytes": 5481,
+      "sha256": "c860f46d28eab39cca1b9e66feffeeaa53ec9c0889f62e9de10356f02d127f1c"
+    },
+    {
+      "path": "probes/HeadlessUiSupport.java",
+      "bytes": 21342,
+      "sha256": "6bd1be320a7cc73884202555dfa3c14a43d894e6a76f92f3a748751505cd1d80"
+    },
+    {
+      "path": "probes/IsvCheckProbe.java",
+      "bytes": 1688,
+      "sha256": "545fd932e01da1b991906fa6b9ed01324f45b98f918b88cdb259d430ccbb70e8"
+    },
+    {
+      "path": "probes/IsvGuard.java",
+      "bytes": 26348,
+      "sha256": "70be6968639d763fc453be5ca5e9096a93d1f1b00e0de422e9d9a1e252e4689d"
+    },
+    {
+      "path": "probes/IsvGuardProbe.java",
+      "bytes": 8434,
+      "sha256": "14398ccc2bf50413069487df22aee3a429a74d69fcbf736a38018cba08b2bdd9"
+    },
+    {
+      "path": "probes/JsonLayout.java",
+      "bytes": 5878,
+      "sha256": "7df06664d9f26394f2ef43ecade101efc7885cb355e30f65ed63e8de81d10439"
+    },
+    {
+      "path": "probes/LinkedSet.java",
+      "bytes": 18477,
+      "sha256": "4b047fd72f0d7f09bcbc2efe5b6fbfc13efa1bdaa90990d393e3a7194e883930"
+    },
+    {
+      "path": "probes/ListSim.java",
+      "bytes": 55544,
+      "sha256": "80b519626e02ddc903cb8313d159185d56621e6ee50aa000462b39a9b0d72c80"
+    },
+    {
+      "path": "probes/MetaChangeProbe.java",
+      "bytes": 8023,
+      "sha256": "99e69826443edc63ae5f6a5d8b393197dcebce7c28ab0e8b8eda821a0f5f2a25"
+    },
+    {
+      "path": "probes/MetaProbe.java",
+      "bytes": 9435,
+      "sha256": "2030fbec2d381c342c4bf6b507d81c282221be2c393e930cba2ff083dfef00ee"
+    },
+    {
+      "path": "probes/MetaResolve.java",
+      "bytes": 24386,
+      "sha256": "bd419f62263db3f5bfdc5a6efab6100b0b63d25355f94953da2c3da6ebad2efd"
+    },
+    {
+      "path": "probes/MetaRowsProbe.java",
+      "bytes": 5260,
+      "sha256": "65171bc9259d8fe57c354810bced74f3430bf6667f4b54acf75ed3e3dbc4a8db"
+    },
+    {
+      "path": "probes/MustInputProbe.java",
+      "bytes": 7458,
+      "sha256": "13f672821a56abbc38ca8f3b4d6f9f58515f7cf68b675db1fdc187c084aabd92"
+    },
+    {
+      "path": "probes/NearbyExamples.java",
+      "bytes": 7459,
+      "sha256": "e74c2996307d358763aefb21b23d317e11a9f50a6301b71a7e5d046c5f2e18a0"
+    },
+    {
+      "path": "probes/OpMetaProbe.java",
+      "bytes": 20844,
+      "sha256": "4918a9237e3fd7131758f17694dc9815e67cfcb08f7ff2c8df3c4cab17b56000"
+    },
+    {
+      "path": "probes/OpSandbox.java",
+      "bytes": 53420,
+      "sha256": "95c18a195c076c1dbbba79bc4a2a04a001358eb041be9764624080fe897b7cd4"
+    },
+    {
+      "path": "probes/PluginIndexProbe.java",
+      "bytes": 37423,
+      "sha256": "83d9ed1dab2a8be20a4b94f71ce472ed9730f0deed47ab837e81af7eeee64211"
+    },
+    {
+      "path": "probes/PrintGridDumpProbe.java",
+      "bytes": 15889,
+      "sha256": "03c7f6214d35af487a9ff233eaa3a185902c2f87ff26d91d104bcd23c650c3af"
+    },
+    {
+      "path": "probes/PrintMeasureProbe.java",
+      "bytes": 27652,
+      "sha256": "23fa538cd9d4e0f24360d1fab648d795633ad960dcb65de2b5dce810a482730f"
+    },
+    {
+      "path": "probes/PrintSim.java",
+      "bytes": 46588,
+      "sha256": "d0e5fec2cd60125edb7bb55dae3969bc88e187954b50bde501c4f2fe196b266a"
+    },
+    {
+      "path": "probes/PrintTplBackupProbe.java",
+      "bytes": 5333,
+      "sha256": "a47762761ed4c1c008bd70fe6c4794eee697173edf4b302c756b6a7dc2285cba"
+    },
+    {
+      "path": "probes/PrintTplControlAssertProbe.java",
+      "bytes": 4883,
+      "sha256": "3294b0e308e9fb7ee6f3b553ddcb9a746dae74320d14832baae2d9dd7cb4fba6"
+    },
+    {
+      "path": "probes/PrintTplDesignProbe.java",
+      "bytes": 20416,
+      "sha256": "89c9a3f72ead49b0a435db732b8883b0e8e9587c23a0f6d26def2fd739ebedce"
+    },
+    {
+      "path": "probes/PrintTplDiff.java",
+      "bytes": 16370,
+      "sha256": "853198b743de066716a82ce2114d1a59f773d3b50fbddd5c59aaf57b60133ff5"
+    },
+    {
+      "path": "probes/PrintTplFormulaTry.java",
+      "bytes": 18047,
+      "sha256": "c31b9b309007872ee9bfca4a8651347370f904d5ff8908222de232d683c9d040"
+    },
+    {
+      "path": "probes/PrintTplJsonProbe.java",
+      "bytes": 4828,
+      "sha256": "4804a5d2ff660f8e61672a026496c9e071b35f372d5eb653c706e32f585bc5cb"
+    },
+    {
+      "path": "probes/PrintTplProbe.java",
+      "bytes": 4763,
+      "sha256": "e6d532d4e7884033f77776eff18c8eac12283f0f03851008c9102160155b7de4"
+    },
+    {
+      "path": "probes/PrintTplWriteProbe.java",
+      "bytes": 46760,
+      "sha256": "e508e8da83dcd2cd031dbfa4ad0f0847894b809e84c9b182d5981d493e9262b1"
+    },
+    {
+      "path": "probes/ProbeAssert.java",
+      "bytes": 16087,
+      "sha256": "f0f84f74ead0a7b46d8d7ecce84187bbaf56909ed5e3a5a99d9f12eb183fc137"
+    },
+    {
+      "path": "probes/ProbeJson.java",
+      "bytes": 5323,
+      "sha256": "8a744e9712e710ec395aa9d7ba1b1e021148f1714de7eee36d90c76706ce10f8"
+    },
+    {
+      "path": "probes/ProjectSources.java",
+      "bytes": 7393,
+      "sha256": "51066b8141cb6eec971fa3a92cbccd7cc63120b802666554d0641926517d3800"
+    },
+    {
+      "path": "probes/PushSim.java",
+      "bytes": 14638,
+      "sha256": "ff727f2bc1a38507d298dc38fa8288938ea004dedc36fffa03ec3f4940713033"
+    },
+    {
+      "path": "probes/RuleFunctionProbe.java",
+      "bytes": 9321,
+      "sha256": "398ce0d855fbb4f4b89a7ab14d77ef6e40b286b24c399962593eac91bb3873ec"
+    },
+    {
+      "path": "probes/RuleSim.java",
+      "bytes": 68819,
+      "sha256": "2fd6b48a132d841f021f4aefa893060db68bc8c517ef3dbd53b1d9bbdbd4a82a"
+    },
+    {
+      "path": "probes/TemplateProbe.java",
+      "bytes": 4241,
+      "sha256": "3e274f497e429ea77eecc85ed92f28f0caa4de4a65801ded4794ee81011b3aee"
+    },
+    {
+      "path": "probes/UiState.java",
+      "bytes": 31274,
+      "sha256": "9ecfff34e663f048333b52215cd0f773e435c549a54b76f28bfd7b9872821e01"
+    },
+    {
+      "path": "probes/UserProbe.java",
+      "bytes": 4504,
+      "sha256": "be67739ce516bad1d26cf4c467299206360e9ad51ce2237881066f7786339735"
+    },
+    {
+      "path": "probes/Warmup.java",
+      "bytes": 2507,
+      "sha256": "078c5468706b6d2b4b7424192fb81ae8bd8070ac58bdf14de9f0caa2b094c7e4"
+    },
+    {
+      "path": "probes/WfModelProbe.java",
+      "bytes": 10119,
+      "sha256": "2b5b74f9ed1959caa70c355f3147864cba7e4959a69ebddada7504115e71d3ab"
+    },
+    {
+      "path": "probes/WfSim.java",
+      "bytes": 44507,
+      "sha256": "6937308b25ab33c5aa2c7971724c7e3aa2760d7f66bc829753a09e514371edbb"
+    },
+    {
+      "path": "probes/WfState.java",
+      "bytes": 17062,
+      "sha256": "b14cb49c2574fdb3953819361b1b9a9f8ab438f4e2dc60f61df52b6df609a6cb"
+    },
+    {
+      "path": "runtime/Booter.java",
+      "bytes": 1092,
+      "sha256": "ba3b030841f79ae75c240de8af3cc4a6e3a0538d3788428b9bcceccd8dfe2ad0"
+    },
+    {
+      "path": "runtime/ClientChannelHook.java",
+      "bytes": 11187,
+      "sha256": "320d4f08a9d49a1c039659c662d22bc85deb707d5dab79568ffed759dacb7301"
+    },
+    {
+      "path": "runtime/cosmic-run.gradle",
+      "bytes": 4606,
+      "sha256": "3cdf5d1d327d0d3fc807468178055d096e93d3f4b1d9f042614c26c5702d54bf"
+    },
+    {
+      "path": "runtime/CosmicProbe.java",
+      "bytes": 19357,
+      "sha256": "75785296ab6b1176093aff764044818dae4004bcabb94f3bb1c89b82fd1ed67c"
+    },
+    {
+      "path": "runtime/CosmicProbeServer.java",
+      "bytes": 65507,
+      "sha256": "9f6b9e85f25c86cc11bec45e133306676f214f246750f2b5099f7cecb402d875"
+    },
+    {
+      "path": "runtime/HeadlessViews.java",
+      "bytes": 9562,
+      "sha256": "3c70da664ede031e08588019de179e28d45e10d09a596fd9dfc37ad69e07eba6"
+    },
+    {
+      "path": "runtime/ServiceBridge.java",
+      "bytes": 4404,
+      "sha256": "649dd18a63062066df197692139b0048ae43dac5ac9641a33e0fdc66424d833b"
+    },
+    {
+      "path": "tools/ApiTool.java",
+      "bytes": 30925,
+      "sha256": "46bce9000d37b2cac81ecd2219d4fecba7f59addf8ff9b2947a244a0e1024f9c"
+    },
+    {
+      "path": "tools/ProdReader.java",
+      "bytes": 20034,
+      "sha256": "7859d94171870909bf374f79382035093ae293e5315db73f72de99cb11b95e39"
+    },
+    {
+      "path": "tools/SrcIndexTool.java",
+      "bytes": 106003,
+      "sha256": "9deb131cbd542819ef60c3078699f2b9bbedf8b513822d71da964ed455cb3d41"
+    }
+  ]
+}

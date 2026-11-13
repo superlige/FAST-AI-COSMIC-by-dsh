@@ -1,0 +1,3 @@
+读取实体：zlgd_qty_wtd，我增加了一个操作：zlgd_htc 行填充，现在你补充代码逻辑实现：
+执行操作后，将zlgd_syentry分录第一行的字段值，赋值到剩下的所有行的对应字段
+字段：zlgd_qxlb1、zlgd_sykd、zlgd_syhd、zlgd_diameter1、zlgd_width1、zlgd_thickness1、zlgd_raum、zlgd_wallthickness1、zlgd_outerdiameter1、zlgd_kkisluck、zlgd_iswgzc、zlgd_iswz、

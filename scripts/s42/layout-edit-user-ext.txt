@@ -1,0 +1,11 @@
+# S42 2.5 扩展单据样本：标准产品人员 bos_user 的扩展 zlgd_bos_user_ext
+# 自己字段的控件属性
+set zlgd_sapmi.ForeColor=#CC0000
+# 标准控件的属性
+set email.FontSize=14
+# 自己字段的字段属性（落在扩展实体上）
+set zlgd_sapuser.MustInput=true
+# 同一面板里调顺序：自己的字段挪到标准字段前面
+move zlgd_sapuser before name
+# 挪进另一个面板
+move zlgd_xnlsapid into fieldsetpanelap1

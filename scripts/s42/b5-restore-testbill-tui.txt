@@ -1,0 +1,3 @@
+# S42 §16.8 全屏界面复测后恢复检测单：删模型加的按钮和操作
+remove zlgd_bar_chghistory
+remove op zlgd_opchghistory

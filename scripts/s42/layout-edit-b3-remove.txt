@@ -1,0 +1,7 @@
+# S42 批 3 删除样本：在 layout-edit-b3.txt 落库之后跑。面板连同里面的附件面板、标签一起删；按钮和它绑的操作一起删；摘插件
+remove zlgd_s42hist
+remove zlgd_s42bar
+remove op zlgd_s42ophist
+remove plugin zlgd.bpm.ywsp.plugin.changewindow.form.ChangeWindowFormPlugin
+remove plugin zlgd.bpm.ywsp.plugin.alusalesmpr.list.AluSalesMprListPlugin from list
+remove plugin zlgd.sbgl.opplugin.FaultKnowledgeOpPlugin from op save

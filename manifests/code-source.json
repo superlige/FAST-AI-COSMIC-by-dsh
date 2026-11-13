@@ -1,0 +1,711 @@
+{
+  "schema": "cosmic.source-manifest/1",
+  "kind": "code",
+  "source": {
+    "repoPath": "D:\\claudecode\\long-cosmic-dev",
+    "ref": "c7b88156fcd0fca093d1a572c74d9ce195cf99ac",
+    "resolvedCommit": "c7b88156fcd0fca093d1a572c74d9ce195cf99ac"
+  },
+  "confirmation": {
+    "confirmedBy": "Lige <superlige666@gmail.com>",
+    "confirmedAt": "2026-09-02T02:14:09.168Z",
+    "note": "2026-09-02 用户在 IMPLEMENTATION.md S1 三选一中选择方案②「先提交后给新 ref」，并显式授权由 agent 代为提交源仓库的 6 个未提交文件（run rule form 三层显隐判据）。提交产生 c7b8815，工作区随后干净。冻结范围含第三类 protocol（S1.1 决策）。"
+  },
+  "generatedAt": "2026-09-02T02:14:10.803Z",
+  "scope": [
+    "driver.mjs",
+    "config.mjs",
+    "tools",
+    "probes",
+    "runtime"
+  ],
+  "files": [
+    {
+      "path": "config.mjs",
+      "bytes": 9481,
+      "lines": 216,
+      "sha256": "4a744b5a9101350552ceb5de0ea8737904c821e3465b4a3777fec2cd0a8823e6",
+      "gitSha1": "d912759ef108d922088e213da898d8bf524e1f14"
+    },
+    {
+      "path": "driver.mjs",
+      "bytes": 135548,
+      "lines": 2583,
+      "sha256": "d407d9b1389f902270f5e883ad09086d8a742533a96cdf8ce86c3be8a300f5f7",
+      "gitSha1": "f631e876d05f63f2dbe81c76803475e1e3af0c76"
+    },
+    {
+      "path": "probes/AddFieldProbe.java",
+      "bytes": 16947,
+      "lines": 372,
+      "sha256": "4f3b9a30fc23ba6ccba88348b474cd56a372b2730b6977b79360f3e2642ba979",
+      "gitSha1": "1d1a3abd7bfee9a359f7bdab1d537b2552c744d5"
+    },
+    {
+      "path": "probes/ApiMetaProbe.java",
+      "bytes": 9249,
+      "lines": 185,
+      "sha256": "e85408e2e2a96aa931766cc5c56a711e46462951de2da922779ad629f04ebf7d",
+      "gitSha1": "d26d7f695c3415ff1be291cf1bef4124f7735db5"
+    },
+    {
+      "path": "probes/BizRuleProbe.java",
+      "bytes": 20709,
+      "lines": 465,
+      "sha256": "88d65c78a470fea57db8dc232a094400747e50ee6b9b074c0a4c29cfea25c71e",
+      "gitSha1": "8be5e88c0135678035b0c330f612a9619e39285d"
+    },
+    {
+      "path": "probes/BotpRuleProbe.java",
+      "bytes": 14647,
+      "lines": 346,
+      "sha256": "f95fe20980beea0d07c4afbdfa537c5e931566c4ad6d669be2b15e6d0db8b949",
+      "gitSha1": "a0495809f2a301936e76218fc07b7314840267c3"
+    },
+    {
+      "path": "probes/BotpRuleSyncProbe.java",
+      "bytes": 21926,
+      "lines": 524,
+      "sha256": "879da939fdbd9068ffd6d890f3f31bbcc552500a8dca9121e811d6715dde4237",
+      "gitSha1": "f62a6b6639352865e757d522bde3174c1e4d4c01"
+    },
+    {
+      "path": "probes/ColumnProbe.java",
+      "bytes": 1884,
+      "lines": 41,
+      "sha256": "cbf315331da47581881c1e981573649830b1011752f860e4f7ec4ea7e76f77dc",
+      "gitSha1": "7f424a10841f67397fd7a3959ec69686cdd3803f"
+    },
+    {
+      "path": "probes/CopyFieldProbe.java",
+      "bytes": 18818,
+      "lines": 414,
+      "sha256": "aac454aa960bba893bc29d2b618b62a629e089eae8b033d1e0a63a018cd4f5a4",
+      "gitSha1": "3c4f529902504c7565e96d462d22937336bfbfc1"
+    },
+    {
+      "path": "probes/DataProbe.java",
+      "bytes": 7677,
+      "lines": 172,
+      "sha256": "c51dce8ee56e32e0d42993c74fd67cc360ce20b237d1f8f7281b6915237728e2",
+      "gitSha1": "edb22528b0e0740fc93eb21b0d0405deee5f5ac4"
+    },
+    {
+      "path": "probes/DbColumnProbe.java",
+      "bytes": 2624,
+      "lines": 65,
+      "sha256": "13a92b6c023cf9cc8d5e60e888e1d6aa2da8e8bfd2a078851d5c93288a10ca77",
+      "gitSha1": "ac832d22e3a076382af27ec064ef09b078a02a1e"
+    },
+    {
+      "path": "probes/DelFieldProbe.java",
+      "bytes": 9706,
+      "lines": 224,
+      "sha256": "2d1f4e1fdc64fb37836df10416895edfc061f61600c66f9b316995d712edf3ab",
+      "gitSha1": "e95b7ce1855438e0cd6453d80b40bba6b1b5a726"
+    },
+    {
+      "path": "probes/DesignMetaProbe.java",
+      "bytes": 3836,
+      "lines": 84,
+      "sha256": "bf75fd0c8cf027b7532aec755da1648b10cb4fd875609db6680a8681f8e771a7",
+      "gitSha1": "68f07b63806e21b2a7c0493d14b320eae71b6904"
+    },
+    {
+      "path": "probes/EntityFieldIndexProbe.java",
+      "bytes": 13469,
+      "lines": 289,
+      "sha256": "7466b0258a991b2f18ec854d3b0d1a9b17113be94a04bf2dae206b3a1bd4ae7c",
+      "gitSha1": "da188ff4250ede954165554e21121a4868ff17af"
+    },
+    {
+      "path": "probes/EnvDiagProbe.java",
+      "bytes": 9972,
+      "lines": 184,
+      "sha256": "47f09a90ed6742fa934c115d832fbf81a485bee8a2dc94aebfa6b5e828b89c78",
+      "gitSha1": "5d72bdc9597f0b877f3758eab9bf200524c95f00"
+    },
+    {
+      "path": "probes/ExpectSpec.java",
+      "bytes": 9131,
+      "lines": 221,
+      "sha256": "e47bad20ddde1b5a916c18eb174bd8ba8ca9829b3ec858196b68a0c67fb22826",
+      "gitSha1": "af0f276ed4ca60ca105d783a68717a5bed500033"
+    },
+    {
+      "path": "probes/FieldLimitProbe.java",
+      "bytes": 9035,
+      "lines": 223,
+      "sha256": "995438b2e109e73d8551b2cf58bce1c5af0d1299c4009e64a0e906ef67d2ebff",
+      "gitSha1": "419c29b5c8c587975d8034574fb6a66c1e8b67ff"
+    },
+    {
+      "path": "probes/FieldTypeProbe.java",
+      "bytes": 5741,
+      "lines": 140,
+      "sha256": "9f7311a6e3d36e919f339842343da5c117097b14b9e48fab233e576f0c185585",
+      "gitSha1": "1b352ab7a50b27f4950a19bfda7d6e025b317f96"
+    },
+    {
+      "path": "probes/FormCallbackSim.java",
+      "bytes": 9884,
+      "lines": 237,
+      "sha256": "c888c8bc51cd212997054afc136b3c92237ed5d3dfb606699ffa3833946e6345",
+      "gitSha1": "3d49e18c79e8fdf05f98499ce5e8e2b55b6f5412"
+    },
+    {
+      "path": "probes/FormFlowSim.java",
+      "bytes": 7278,
+      "lines": 157,
+      "sha256": "4700208aeadeb9da1abf24624eef764041d8b9055aabe0a5fa06e3a2bd2f14b2",
+      "gitSha1": "39ae3c08ff57bcba67757641bb3ab975a9f370be"
+    },
+    {
+      "path": "probes/FormPluginProbe.java",
+      "bytes": 3447,
+      "lines": 77,
+      "sha256": "5a54afb1aa93b4bc0d50e28a852fab912a39b859e8ccf3a6e1cd852050d1ec4d",
+      "gitSha1": "787235e80dcbf3339e3493b82aeca4e0f6b73fd1"
+    },
+    {
+      "path": "probes/FormRegisterProbe.java",
+      "bytes": 9237,
+      "lines": 196,
+      "sha256": "1695e8f2a72a829ee7b786ca937dc521875987d6c3b233214e4cef994c402686",
+      "gitSha1": "d319a2f5d10f220a52c1fd6e3b624a54ac6ddaf2"
+    },
+    {
+      "path": "probes/FormRuleProbe.java",
+      "bytes": 17810,
+      "lines": 367,
+      "sha256": "79e5e6dcf9bfb25f7809c308f47be45694a2b8e113ec9e65d4bfb660d203552a",
+      "gitSha1": "de420ccca4ea33c8cb8575872c80f6dc0f7088b2"
+    },
+    {
+      "path": "probes/FormSim.java",
+      "bytes": 51903,
+      "lines": 1177,
+      "sha256": "dc0cde91b4be13ab0230531580d3cced6cbce27c4937a79030cef6ee35ee962e",
+      "gitSha1": "72e0170db7b992030d283563360f63bb998e7067"
+    },
+    {
+      "path": "probes/FormTreeProbe.java",
+      "bytes": 6867,
+      "lines": 142,
+      "sha256": "8c5bfbc1e98d06c6ef5185317700ce679f0e9ed128c07cb8d692f972040243da",
+      "gitSha1": "4658e45f99cc5340c0d2951ee867c14b98dbbb19"
+    },
+    {
+      "path": "probes/FormVisibleProbe.java",
+      "bytes": 5481,
+      "lines": 114,
+      "sha256": "c860f46d28eab39cca1b9e66feffeeaa53ec9c0889f62e9de10356f02d127f1c",
+      "gitSha1": "108f071ba5f0777a79e4cbf9ed1febc3ea81da69"
+    },
+    {
+      "path": "probes/HeadlessUiSupport.java",
+      "bytes": 17077,
+      "lines": 433,
+      "sha256": "d1f93466d84b79f3fae201b1ea506f8a4d81923950535594981ef7664ef37963",
+      "gitSha1": "d72c274670594c9aa22b6db401a9f15e2439748b"
+    },
+    {
+      "path": "probes/IsvCheckProbe.java",
+      "bytes": 1688,
+      "lines": 37,
+      "sha256": "545fd932e01da1b991906fa6b9ed01324f45b98f918b88cdb259d430ccbb70e8",
+      "gitSha1": "395cc84f42420810089b72abd891f76f91c79e69"
+    },
+    {
+      "path": "probes/IsvGuard.java",
+      "bytes": 14993,
+      "lines": 289,
+      "sha256": "e957ffee639abfc79fe5383808955ee7f2b843f309f97d5bfc38b9ed81f3b619",
+      "gitSha1": "179f752387e223cd02b4b3c382a7363080feb369"
+    },
+    {
+      "path": "probes/IsvGuardProbe.java",
+      "bytes": 8434,
+      "lines": 183,
+      "sha256": "14398ccc2bf50413069487df22aee3a429a74d69fcbf736a38018cba08b2bdd9",
+      "gitSha1": "f1b5d152b62bf519112950d5da226431875d3191"
+    },
+    {
+      "path": "probes/ListSim.java",
+      "bytes": 49534,
+      "lines": 1192,
+      "sha256": "d368172ba975c92aad373a627e5080c4f1f3f30b02ed36403e2ed450a1cbf113",
+      "gitSha1": "222b8bc6f072bec6e9d9fabddef18c051d5932bc"
+    },
+    {
+      "path": "probes/MetaProbe.java",
+      "bytes": 4492,
+      "lines": 103,
+      "sha256": "b2955da9b5abe4dc64358966fffa6a72d7a58e58954c09ae873f17da52245573",
+      "gitSha1": "b9f9a7e83240d83b018b526e533e8bca293ab455"
+    },
+    {
+      "path": "probes/MetaResolve.java",
+      "bytes": 4167,
+      "lines": 90,
+      "sha256": "3024c90eeccf22e0a93c3e9e824310b83699f57a6a87580bf08021d2034251e2",
+      "gitSha1": "88c39bd678b6ad96b7c72cb3f6295b325275a8b4"
+    },
+    {
+      "path": "probes/OpMetaProbe.java",
+      "bytes": 7491,
+      "lines": 150,
+      "sha256": "d10da790223bdd4448ecd026883352126beec09ad4d648b6d87d4c958910ed4c",
+      "gitSha1": "771f5d85af4fad703969f80404d4665342da5f4f"
+    },
+    {
+      "path": "probes/OpSandbox.java",
+      "bytes": 23219,
+      "lines": 522,
+      "sha256": "79f2773456412589fd80ea480f0ab62484509f273ae90564266dbd9456d919ff",
+      "gitSha1": "bb1edccc0704dcf52a626d2f563a35cccafa0484"
+    },
+    {
+      "path": "probes/PluginIndexProbe.java",
+      "bytes": 11910,
+      "lines": 248,
+      "sha256": "75808fa9196d343c989e0187f22e1e6f5f1f70152787100e4dd3db211992e96a",
+      "gitSha1": "b99ffa20f49d32d2a75fbf0ec59bc823337f3d73"
+    },
+    {
+      "path": "probes/PrintGridDumpProbe.java",
+      "bytes": 8218,
+      "lines": 178,
+      "sha256": "7db60b09b21535a3f4b5bb6fe6c11dcd913c9187d30ec3a56fe723df557c896d",
+      "gitSha1": "31388e9f2f5a89adfd1736b3dcaf766a270f9050"
+    },
+    {
+      "path": "probes/PrintMeasureProbe.java",
+      "bytes": 25982,
+      "lines": 595,
+      "sha256": "e53ea0d2e49e7036ee91dd66b02e05ea4635dd2e36997b8d2cd394fc0afca316",
+      "gitSha1": "115b69dd685fae64f22a87f5232c553c57368af9"
+    },
+    {
+      "path": "probes/PrintTplBackupProbe.java",
+      "bytes": 5333,
+      "lines": 104,
+      "sha256": "a47762761ed4c1c008bd70fe6c4794eee697173edf4b302c756b6a7dc2285cba",
+      "gitSha1": "d0675cafa1929122b10b54d096d515703b5916b1"
+    },
+    {
+      "path": "probes/PrintTplControlAssertProbe.java",
+      "bytes": 4883,
+      "lines": 116,
+      "sha256": "3294b0e308e9fb7ee6f3b553ddcb9a746dae74320d14832baae2d9dd7cb4fba6",
+      "gitSha1": "314e8d6f900ce4e090da95fc27880998631c83a7"
+    },
+    {
+      "path": "probes/PrintTplDesignProbe.java",
+      "bytes": 16728,
+      "lines": 297,
+      "sha256": "8d034060c07ff0b3f1c140013e917c757867ccdc8f7be0d2383edf3d9bb0962f",
+      "gitSha1": "bacdfe30b48ddc5939ce1646baf82ac0c399a011"
+    },
+    {
+      "path": "probes/PrintTplJsonProbe.java",
+      "bytes": 4738,
+      "lines": 90,
+      "sha256": "ea25dad17f301fee4eece7d18ae7e578b1e2d6fc223e3c1a123000126b8c0b89",
+      "gitSha1": "48a7d6b37269d24fa686b2abd86568f74266b3ab"
+    },
+    {
+      "path": "probes/PrintTplProbe.java",
+      "bytes": 4763,
+      "lines": 112,
+      "sha256": "e6d532d4e7884033f77776eff18c8eac12283f0f03851008c9102160155b7de4",
+      "gitSha1": "93dbaca96f39bd7e154f5ba1946f8b757c8c2365"
+    },
+    {
+      "path": "probes/PrintTplWriteProbe.java",
+      "bytes": 16183,
+      "lines": 314,
+      "sha256": "f0e554f2461ab8051f7840fd6a3d0c93b8e811318e49c388be79f8a8a13ad758",
+      "gitSha1": "85ad7f687af02dd46855b65009707fa7a9a43562"
+    },
+    {
+      "path": "probes/ProbeAssert.java",
+      "bytes": 7513,
+      "lines": 172,
+      "sha256": "703e0f3c258adfaff5335fe988eb1d42bccfb098b3d66a5800932407538adf08",
+      "gitSha1": "8a59a1ec4fda59457a1d001b4d1728c2f5a02bf7"
+    },
+    {
+      "path": "probes/ProbeJson.java",
+      "bytes": 5323,
+      "lines": 128,
+      "sha256": "8a744e9712e710ec395aa9d7ba1b1e021148f1714de7eee36d90c76706ce10f8",
+      "gitSha1": "7eac5116065e57de0471ed80612d8c240618a1d0"
+    },
+    {
+      "path": "probes/RuleFunctionProbe.java",
+      "bytes": 9321,
+      "lines": 194,
+      "sha256": "398ce0d855fbb4f4b89a7ab14d77ef6e40b286b24c399962593eac91bb3873ec",
+      "gitSha1": "bf5f3379618b015610490a439d409bfcef8d5f9e"
+    },
+    {
+      "path": "probes/RuleSim.java",
+      "bytes": 41741,
+      "lines": 922,
+      "sha256": "ffefdaa7f91db9c78b461c04d02afed157cb8cb31bc508acb2451151cdec6084",
+      "gitSha1": "12eab53b471a4e0002b2ce198a3fad09dd5fed1d"
+    },
+    {
+      "path": "probes/StructAssertProbe.java",
+      "bytes": 11800,
+      "lines": 267,
+      "sha256": "9e28a69c186303a4285d7c22fab66f4977d41367ee7347e8681884d26dd80daa",
+      "gitSha1": "eb0a97d5d14ac17aa0184c3efc8744c04d0df57b"
+    },
+    {
+      "path": "probes/TemplateProbe.java",
+      "bytes": 4241,
+      "lines": 91,
+      "sha256": "3e274f497e429ea77eecc85ed92f28f0caa4de4a65801ded4794ee81011b3aee",
+      "gitSha1": "df0a78fe94c978a804150da44fdd8968e9d6c15e"
+    },
+    {
+      "path": "probes/UserProbe.java",
+      "bytes": 1626,
+      "lines": 36,
+      "sha256": "72fd749dc200eb4b50a51bc63f0ee1e97df226d6c50a7fca54f406d1b28bfd6f",
+      "gitSha1": "10cafd1bbc89278561fb0a6e48efedcbff8d20f2"
+    },
+    {
+      "path": "probes/WfModelProbe.java",
+      "bytes": 10119,
+      "lines": 197,
+      "sha256": "2b5b74f9ed1959caa70c355f3147864cba7e4959a69ebddada7504115e71d3ab",
+      "gitSha1": "787b94b26dab20006af94c51906c3fa2a33ff2ae"
+    },
+    {
+      "path": "runtime/cosmic-run.gradle",
+      "bytes": 4101,
+      "lines": 78,
+      "sha256": "8eeeab91728a69e784187588de475346cc0d8f316928f77d346231447eacf559",
+      "gitSha1": "06b4af465763d4207eb75c1a99bc8c49376d22e3"
+    },
+    {
+      "path": "runtime/CosmicProbe.java",
+      "bytes": 7650,
+      "lines": 158,
+      "sha256": "a6b5bfd80e1369526a47a36780fea57eb372f5bd9b244ce0001326d6d5afe0fd",
+      "gitSha1": "b24e6cbed509f31cafc747589865a2d0faa95c7b"
+    },
+    {
+      "path": "runtime/CosmicProbeServer.java",
+      "bytes": 28714,
+      "lines": 658,
+      "sha256": "0ad6865db739bf66d171d6b546b13d75a4c7256700952f5ed888076a532c5f8a",
+      "gitSha1": "2eebce095a2062c10ed2fe295c7e7ebb46e5e828"
+    },
+    {
+      "path": "runtime/ServiceBridge.java",
+      "bytes": 4329,
+      "lines": 95,
+      "sha256": "9789cef5809f7ba28629d5b5fbe6730be8d21c9bbfb4c1eb40957c9770e76685",
+      "gitSha1": "9003eab568edebb1072a0a7d136bf7ead3d5520e"
+    },
+    {
+      "path": "tools/ApiTool.java",
+      "bytes": 22842,
+      "lines": 571,
+      "sha256": "64f7304a0e0f39596a17577bebf317875ac59a2861ae789fdb2e3b847844df1b",
+      "gitSha1": "95510dbc1440aaa280bdf888fa492d6b92a45cc5"
+    },
+    {
+      "path": "tools/bundle.mjs",
+      "bytes": 13431,
+      "lines": 255,
+      "sha256": "56291f22fb256cfe6c0daf8ca674e3c86aedb019ab96b9b580f993dcde792a76",
+      "gitSha1": "17c4e95a9841a567acec46d298fdcde2df4b84d3"
+    },
+    {
+      "path": "tools/bundle.test.mjs",
+      "bytes": 9820,
+      "lines": 205,
+      "sha256": "a6190ee285c5b122576d7b188c19b09d42b19a974dabb961e43fc43677d2bed0",
+      "gitSha1": "577ce3156cf1502f7bd5fac5321a779528c5944e"
+    },
+    {
+      "path": "tools/doc-routing.test.mjs",
+      "bytes": 2612,
+      "lines": 51,
+      "sha256": "0732f9338773856c9625346ec3997d391f32c57ca73efac78a8fbe87232a0622",
+      "gitSha1": "0a7c3a58bc8fcc6884aac5bc3c70f59da0c23afb"
+    },
+    {
+      "path": "tools/doc.mjs",
+      "bytes": 9856,
+      "lines": 211,
+      "sha256": "4d35202ac2e2c0660e42ec5f40dc7ab38a6732b82b88e0373b69a19263d832b9",
+      "gitSha1": "5b5c1dabf6017258b4eca86673123f723963b7da"
+    },
+    {
+      "path": "tools/doc.test.mjs",
+      "bytes": 4272,
+      "lines": 119,
+      "sha256": "bff403815996109c1fb12c9def899f5395a9b178eeb9e9738132a9c59672f03b",
+      "gitSha1": "33ea7cef844a8c5c438f29954b31398a688274a0"
+    },
+    {
+      "path": "tools/evidence.mjs",
+      "bytes": 10293,
+      "lines": 199,
+      "sha256": "59856f425cb8d1e917f6c23f0a72cb9ce20154c1b420eef5143d0c472bc1a702",
+      "gitSha1": "79d3c02c27796b1729c5718c4c9f4bbc4644a39a"
+    },
+    {
+      "path": "tools/evidence.test.mjs",
+      "bytes": 8199,
+      "lines": 187,
+      "sha256": "be578a1897d34b80a10cfd9806375fd4ae0fa2319fa7194e0c5f56f26e0e4c33",
+      "gitSha1": "8bf0d6b9d0680fce2379a806d1b45784664de6dd"
+    },
+    {
+      "path": "tools/impact.mjs",
+      "bytes": 40659,
+      "lines": null,
+      "sha256": "da46fea2e4053cb46de4cc4af9e01bcd7ce06b0924aa5123ec8e7d73bb3610be",
+      "gitSha1": "1651357b7f0a02d6b5ae3c3e29e8415616a6f403"
+    },
+    {
+      "path": "tools/impact.test.mjs",
+      "bytes": 28888,
+      "lines": 568,
+      "sha256": "3846e6dc96f5f5a1c4d4f37897d9f36819882736ef508eb09f9c7da6b91f8c54",
+      "gitSha1": "12de6aab97f76b38ec8669906b49719f199f8773"
+    },
+    {
+      "path": "tools/knowledge.mjs",
+      "bytes": 54578,
+      "lines": 1015,
+      "sha256": "82ee470de5a91e0d4212707084d04fbe905681d72be897c1b95824e78a355403",
+      "gitSha1": "90517ef44281086d9ae43efb871fe66abdd0a8aa"
+    },
+    {
+      "path": "tools/knowledge.test.mjs",
+      "bytes": 28003,
+      "lines": 521,
+      "sha256": "3c343a0ea8504be5b5d87558c3ae464afa4b37517b6aebecc5589a2a2b38920d",
+      "gitSha1": "8ab29979f0064ac710135dffe3dd2d3587c0c308"
+    },
+    {
+      "path": "tools/metacmd.mjs",
+      "bytes": 18089,
+      "lines": 394,
+      "sha256": "ea9405560a4fe31324d033babf3a4a9b9c08642177e71570d53e6c9807798b2e",
+      "gitSha1": "518861b7d1742f56febb0785e8f14d8a96f230f8"
+    },
+    {
+      "path": "tools/metacmd.test.mjs",
+      "bytes": 10048,
+      "lines": 213,
+      "sha256": "b554d8cbd1d4f04f17736430d97a0bf8cb93d971ab004748d3ec3b252ffa8ab7",
+      "gitSha1": "1b3dc825a5faee1a5ba9a84e8ac0583d743f2afa"
+    },
+    {
+      "path": "tools/modules.mjs",
+      "bytes": 6928,
+      "lines": 152,
+      "sha256": "b9a1b07fb056d484aac8c77902d17267220277c4aa35ee9fee00a140c3848186",
+      "gitSha1": "837ecd816a1a47f1472046e26f7cb8ad4a2c79a5"
+    },
+    {
+      "path": "tools/modules.test.mjs",
+      "bytes": 5462,
+      "lines": 129,
+      "sha256": "df17d72f9c616e4619d4df45baa531cdea2ab1e869a7879b89cc980832e09723",
+      "gitSha1": "b8c61e3ed4c0466a0b2a0dc3dc3d01fa9717680e"
+    },
+    {
+      "path": "tools/probe-output.mjs",
+      "bytes": 4493,
+      "lines": 122,
+      "sha256": "8a492567808fbeb3df5bc0fd8b84a98fc4f920062c9f3591210278270c39f76d",
+      "gitSha1": "28918c1357df10b7161dc07f2ed9442864d67ac3"
+    },
+    {
+      "path": "tools/probe-output.test.mjs",
+      "bytes": 3447,
+      "lines": 82,
+      "sha256": "9a6c9c155a911dcbcfd5b57dffc7ab907cd9737336b371d0a007e37630600685",
+      "gitSha1": "9f14437b0eb5e6fb59cfbcd5b6ff1209f6938656"
+    },
+    {
+      "path": "tools/probejson.mjs",
+      "bytes": 1704,
+      "lines": 42,
+      "sha256": "3ed44ce8b283b268139e910878e2daae77c90abf7451966ab785d3838535b091",
+      "gitSha1": "8b3798b6355d1fee197fd42a2f261b28a41a0588"
+    },
+    {
+      "path": "tools/probejson.test.mjs",
+      "bytes": 3277,
+      "lines": 77,
+      "sha256": "95d31e57136a14c83d4ecaf601430c134234701564297e4cbc552d7da50f71e1",
+      "gitSha1": "d0a293664c767255664bfc6ac394009c3dcec342"
+    },
+    {
+      "path": "tools/profile.mjs",
+      "bytes": 12578,
+      "lines": 271,
+      "sha256": "0d2d8b2273bca1533ce53a215cdbcbe62d2a65f12a3b032e5c0d34d64be1cefe",
+      "gitSha1": "07266a2a2472768de1c187ea5c2145518b91d61b"
+    },
+    {
+      "path": "tools/profile.test.mjs",
+      "bytes": 9960,
+      "lines": 210,
+      "sha256": "08329b3847c774a22e81e1c57a7ced5d9cdcb97e6ff0500fcc090098e828c223",
+      "gitSha1": "9c30735375078d2987920fb7e32a9e9dceca7e14"
+    },
+    {
+      "path": "tools/project-root.mjs",
+      "bytes": 1755,
+      "lines": 44,
+      "sha256": "9731c929357592ba1108cc499232bbfcdb4e7ace677db11963ad00bb7f1ea486",
+      "gitSha1": "baaa30eadbdad867749bf67fdaa6de51f4a92f3d"
+    },
+    {
+      "path": "tools/project-root.test.mjs",
+      "bytes": 2148,
+      "lines": 46,
+      "sha256": "c9285bf901f73a0722d2802ad60b06ada2b50701f72665f434a866fbd8e8a894",
+      "gitSha1": "c50ecdee8c6f49f98a73ae7bddc9ac3709c627fa"
+    },
+    {
+      "path": "tools/run-args.mjs",
+      "bytes": 3804,
+      "lines": 84,
+      "sha256": "135e5abc2bc59e9c83f28f6bbd6cf07773dd63e1921d52c634cbf06cedbdb84d",
+      "gitSha1": "bce21832da17772d6e6880801e05dbe34edf2fc1"
+    },
+    {
+      "path": "tools/run-args.test.mjs",
+      "bytes": 4319,
+      "lines": 110,
+      "sha256": "0fcb648f61a3b998dcaeee40e16bada14ebf1f2a2ddde16c49def97ccf013cf4",
+      "gitSha1": "614f9cb678adcd4f9fb2bf5a9109dc6e896e16f4"
+    },
+    {
+      "path": "tools/spec.mjs",
+      "bytes": 59112,
+      "lines": 1096,
+      "sha256": "b1d0bc8fbe94255842451021973bd3337b8c213c067833f7f3acf733c22e9383",
+      "gitSha1": "56a5d36ac944d074ff7776719b1d50b3854bf41c"
+    },
+    {
+      "path": "tools/spec.test.mjs",
+      "bytes": 43675,
+      "lines": 931,
+      "sha256": "4bc976bc677c13e0a3fd832f0f27e54b4c7ec19b79e046510f3e12bfe64e23cb",
+      "gitSha1": "3858d85f29c39009a8b3965857b434635cf68e4a"
+    },
+    {
+      "path": "tools/SrcIndexTool.java",
+      "bytes": 36346,
+      "lines": 751,
+      "sha256": "a30ad0404f1d0c2b43cfd3eec99f708265856f2d453d9cd7d6e3d2d60ed2316d",
+      "gitSha1": "a07d527c5a8034e97f47f6bb80d64e85ae4e91f1"
+    },
+    {
+      "path": "tools/verify.mjs",
+      "bytes": 10611,
+      "lines": 239,
+      "sha256": "9cd67e2f587d2e737229aafa4aaac713f5d22f04b32e4afb7d060cc85068d2b2",
+      "gitSha1": "2c2222f9e330e0d09605eb458c2f7cf5e98a9e26"
+    },
+    {
+      "path": "tools/verify.test.mjs",
+      "bytes": 10169,
+      "lines": 225,
+      "sha256": "39be9e8f902f8a3f3f6e866c114766b1a08bed1a751bb035b338956762fbaf3e",
+      "gitSha1": "bd9f3dfdb3f21d0d5a119dda2e190d7add556134"
+    }
+  ],
+  "topLevelDispositions": [
+    {
+      "name": ".gitignore",
+      "disposition": "excluded",
+      "reason": "excluded by IMPLEMENTATION.md 5.1"
+    },
+    {
+      "name": "CLAUDE.md",
+      "disposition": "excluded",
+      "reason": "excluded by IMPLEMENTATION.md 5.1"
+    },
+    {
+      "name": "README.md",
+      "disposition": "excluded",
+      "reason": "excluded by IMPLEMENTATION.md 5.1"
+    },
+    {
+      "name": "SKILL.md",
+      "disposition": "excluded",
+      "reason": "excluded by IMPLEMENTATION.md 5.1"
+    },
+    {
+      "name": "config.example.json",
+      "disposition": "excluded",
+      "reason": "excluded by IMPLEMENTATION.md 5.1"
+    },
+    {
+      "name": "config.mjs",
+      "disposition": "code",
+      "reason": "listed in code scope"
+    },
+    {
+      "name": "docs",
+      "disposition": "excluded",
+      "reason": "excluded by IMPLEMENTATION.md 5.1"
+    },
+    {
+      "name": "driver.mjs",
+      "disposition": "code",
+      "reason": "listed in code scope"
+    },
+    {
+      "name": "probes",
+      "disposition": "code",
+      "reason": "listed in code scope"
+    },
+    {
+      "name": "protocol",
+      "disposition": "protocol",
+      "reason": "covered by the protocol manifest"
+    },
+    {
+      "name": "reference",
+      "disposition": "knowledge",
+      "reason": "covered by the knowledge manifest"
+    },
+    {
+      "name": "runtime",
+      "disposition": "code",
+      "reason": "listed in code scope"
+    },
+    {
+      "name": "scratchpad",
+      "disposition": "excluded",
+      "reason": "excluded by IMPLEMENTATION.md 5.1"
+    },
+    {
+      "name": "tools",
+      "disposition": "code",
+      "reason": "listed in code scope"
+    }
+  ],
+  "unclassified": [],
+  "totals": {
+    "files": 87,
+    "bytes": 1279996,
+    "lines": 26384
+  }
+}

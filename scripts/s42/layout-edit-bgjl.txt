@@ -1,0 +1,8 @@
+# S42 批 2 真机样本：空单据 zlgd_sys_bgjl 上改 7 处（5 项属性、2 次挪位置）
+set fs_baseinfo.BackColor=#FFF7E6
+set fs_baseinfo.Collapsible=false
+set auditor.FontSize=14
+set auditor.ForeColor=#CC0000
+set auditor.Lock=new, edit
+move auditor before billno
+move creator into fs_hideninfo

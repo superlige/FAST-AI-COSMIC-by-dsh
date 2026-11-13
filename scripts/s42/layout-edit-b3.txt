@@ -1,0 +1,12 @@
+# S42 批 3 样本（zlgd_sys_bgjl）：加面板、附件面板、标签，加操作和工具栏按钮并绑上，挂单据、列表、操作三种插件
+add FlexPanelAp zlgd_s42hist into contentpanel 变更历史
+set zlgd_s42hist.BackColor=#FFF7E6
+add AttachmentPanelAp zlgd_s42att into zlgd_s42hist 附件
+add LabelAp zlgd_s42tip before zlgd_s42att 说明
+add op zlgd_s42ophist donothing 变更历史
+add BarItemAp zlgd_s42bar into tbmain 变更历史
+set zlgd_s42bar.OperationKey=zlgd_s42ophist
+add plugin zlgd.bpm.ywsp.plugin.changewindow.form.ChangeWindowFormPlugin
+add plugin zlgd.bpm.ywsp.plugin.alusalesmpr.list.AluSalesMprListPlugin to list
+add plugin zlgd.sbgl.opplugin.FaultKnowledgeOpPlugin to op zlgd_s42ophist
+add plugin zlgd.sbgl.opplugin.FaultKnowledgeOpPlugin to op save

@@ -1,0 +1,27 @@
+{
+	"about": "按要做的事找探针的固定样本：query 是模型会怎么问，expect 是该排进前三的探针（任一个算对）。scripts/measure-probe-lookup.ts 用。",
+	"samples": [
+		{ "query": "操作插件 绑定", "expect": ["FormLayoutWriteProbe"] },
+		{ "query": "挂操作插件", "expect": ["FormLayoutWriteProbe"] },
+		{ "query": "op plugin binding write", "expect": ["FormLayoutWriteProbe"] },
+		{ "query": "给提交操作挂插件", "expect": ["FormLayoutWriteProbe"] },
+		{ "query": "列表插件 挂", "expect": ["FormLayoutWriteProbe"] },
+		{ "query": "加字段", "expect": ["FormLayoutWriteProbe"] },
+		{ "query": "加按钮 绑操作", "expect": ["FormLayoutWriteProbe"] },
+		{ "query": "界面规则 锁定字段", "expect": ["FormRuleProbe"] },
+		{ "query": "转换规则 字段映射", "expect": ["BotpRuleProbe", "BotpRuleSyncProbe"] },
+		{ "query": "打印模板 改公式", "expect": ["PrintTplWriteProbe"] },
+		{ "query": "造测试数据 新建单据", "expect": ["DataSeedProbe"] },
+		{ "query": "改已有单据的字段值", "expect": ["DataUpdateProbe"] },
+		{ "query": "按条件查数据", "expect": ["DataQueryProbe"] },
+		{ "query": "必录字段", "expect": ["MustInputProbe"] },
+		{ "query": "数据库表有哪些列", "expect": ["DbColumnProbe"] },
+		{ "query": "工作流模型", "expect": ["WfModelProbe"] },
+		{ "query": "查用户 id", "expect": ["UserProbe"] },
+		{ "query": "功能单元 登记表单", "expect": ["FormRegisterProbe"] },
+		{ "query": "下拉合法值 文本长度", "expect": ["FieldLimitProbe"] },
+		{ "query": "单据有哪些操作和按钮", "expect": ["OpMetaProbe"] },
+		{ "query": "哪些布局继承这张单", "expect": ["FormTreeProbe"] },
+		{ "query": "插件挂在哪张布局上", "expect": ["FormPluginProbe", "PluginIndexProbe"] }
+	]
+}

@@ -1,0 +1,4 @@
+# 单据带的移动端布局：加控件（最外层直接放面板，标签放进面板）
+layout mobile
+add FlexPanelAp zlgd_s73panel before layoutflexap1 S73面板
+add LabelAp zlgd_s73tip into zlgd_s73panel S73提示

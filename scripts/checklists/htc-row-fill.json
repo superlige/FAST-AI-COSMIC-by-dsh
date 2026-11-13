@@ -1,0 +1,73 @@
+{
+	"name": "行填充 Java 需求：zlgd_qty_wtd 的 zlgd_htc 操作把分录第一行复制到其余行",
+	"requirement": "scripts/checklists/htc-row-fill.md",
+	"note": "规则只看会话记录：code=写进 .java 的内容（write 全文、edit 的新文本），results=每次调用的成败和参数，lastCompile=最后一次编译的成败。拍板点看写入前的提问（beforeWrite），没有再看交付说明。规则判的结论要人复核。",
+	"items": [
+		{ "id": "j1", "text": "按操作 zlgd_htc 触发", "in": "code", "any": [{ "re": "zlgd_htc" }] },
+		{ "id": "j2", "text": "处理的是分录 zlgd_syentry", "in": "code", "any": [{ "re": "zlgd_syentry" }] },
+		{
+			"id": "j3",
+			"text": "以第一行为源",
+			"in": "code",
+			"any": [
+				{ "re": "\\.get\\(\\s*0\\s*\\)" },
+				{ "re": "getValue\\([^)]*,\\s*0\\s*\\)" },
+				{ "re": "\\[\\s*0\\s*\\]" }
+			]
+		},
+		{
+			"id": "j4",
+			"text": "写到其余每一行",
+			"in": "code",
+			"any": [
+				{ "re": "for\\s*\\(\\s*int\\s+\\w+\\s*=\\s*1\\s*;" },
+				{ "re": "\\.subList\\(\\s*1" },
+				{ "re": "\\.skip\\(\\s*1\\s*\\)" },
+				{ "re": "if\\s*\\(\\s*\\w+\\s*==\\s*0\\s*\\)\\s*\\{?\\s*continue" }
+			]
+		},
+		{
+			"id": "j5",
+			"text": "需求列的 12 个字段都复制",
+			"in": "code",
+			"all": [
+				{ "re": "zlgd_qxlb1\\b", "label": "zlgd_qxlb1" },
+				{ "re": "zlgd_sykd\\b", "label": "zlgd_sykd" },
+				{ "re": "zlgd_syhd\\b", "label": "zlgd_syhd" },
+				{ "re": "zlgd_diameter1\\b", "label": "zlgd_diameter1" },
+				{ "re": "zlgd_width1\\b", "label": "zlgd_width1" },
+				{ "re": "zlgd_thickness1\\b", "label": "zlgd_thickness1" },
+				{ "re": "zlgd_raum\\b", "label": "zlgd_raum" },
+				{ "re": "zlgd_wallthickness1\\b", "label": "zlgd_wallthickness1" },
+				{ "re": "zlgd_outerdiameter1\\b", "label": "zlgd_outerdiameter1" },
+				{ "re": "zlgd_kkisluck\\b", "label": "zlgd_kkisluck" },
+				{ "re": "zlgd_iswgzc\\b", "label": "zlgd_iswgzc" },
+				{ "re": "zlgd_iswz\\b", "label": "zlgd_iswz" }
+			]
+		},
+		{ "id": "j6", "text": "多选基础资料 zlgd_qxlb1 每行各一份，不共用同一个集合", "manual": true },
+		{
+			"id": "j7",
+			"text": "界面上能看到结果（刷新分录，或经界面模型赋值）",
+			"in": "code",
+			"any": [{ "re": "updateView" }, { "re": "getModel\\(\\)\\.setValue" }]
+		},
+		{ "id": "j8", "text": "最后一次编译通过", "any": [{ "in": "lastCompile", "re": "^ok$" }] },
+		{
+			"id": "j9",
+			"text": "带断言跑过 zlgd_htc 且通过",
+			"any": [{ "in": "results", "re": "^cosmic_run ok .*zlgd_htc.*--expect" }]
+		},
+		{ "id": "j10", "text": "没改元数据", "none": [{ "in": "apply", "re": "\\S", "label": "真写入了元数据" }] }
+	],
+	"decisions": [
+		{
+			"id": "p1",
+			"text": "代码挂在哪（表单插件还是操作插件）",
+			"mention": ["表单插件|操作插件|afterDoOperation|beforeDoOperation"]
+		},
+		{ "id": "p2", "text": "分录为空或只有一行时怎么办", "mention": ["为空|空分录|只有一行|不足两行"] },
+		{ "id": "p3", "text": "多选基础资料怎么复制", "mention": ["多选基础资料|zlgd_qxlb1"] },
+		{ "id": "p4", "text": "其余行已有值是否覆盖", "mention": ["覆盖"] }
+	]
+}

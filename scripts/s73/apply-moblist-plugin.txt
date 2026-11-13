@@ -1,0 +1,3 @@
+# 真机落库样本：移动端列表挂一个平台自带的移动端列表插件，验 run list --mobile 装上它；验完 --restore 退回
+layout mobilelist
+add plugin kd.bos.form.plugin.bdctrl.BaseDataMobListPlugin

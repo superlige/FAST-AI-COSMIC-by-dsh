@@ -1,0 +1,7 @@
+# 真机落库样本（zlgd_sys_bgjl 测试单据）：移动端布局摆字段、改属性、挂插件，移动端列表加一列；验完用 --restore 整份退回
+layout mobile
+show zlgd_testbillno into layoutflexap1
+set auditor.LabelDirection=v
+add plugin zlgd.ygwc.mob.feedback.FeedbackMobEditPlugin
+layout mobilelist
+show zlgd_testbillno into cardflexpanelap

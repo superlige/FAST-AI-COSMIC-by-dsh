@@ -1,0 +1,47 @@
+{
+	"about": "查签名按 #名字 查时该不该查得到：exists=true 是 JAR 里确实有、子类调得到的（javap 核过），false 是确实没有的。口径见 docs/S79-api-protected-inherited.md §2。",
+	"members": [
+		{
+			"query": "kd.bos.entity.validate.AbstractValidator#addErrorMessage",
+			"exists": true,
+			"why": "protected，官方示例用它；文档快照没写"
+		},
+		{
+			"query": "kd.bos.entity.validate.AbstractValidator#addWarningMessage",
+			"exists": true,
+			"why": "protected，文档快照没写"
+		},
+		{ "query": "kd.bos.entity.validate.AbstractValidator#dataEntities", "exists": true, "why": "protected 字段" },
+		{
+			"query": "kd.bos.entity.validate.AbstractValidator#addMessage2",
+			"exists": true,
+			"why": "public，文档写了（对照）"
+		},
+		{
+			"query": "kd.bos.schedule.executor.AbstractTask#feedbackProgress",
+			"exists": true,
+			"why": "protected，后台任务进度钩子"
+		},
+		{
+			"query": "kd.bos.schedule.executor.AbstractTask#checkIsStop",
+			"exists": true,
+			"why": "protected，后台任务停止钩子"
+		},
+		{
+			"query": "kd.bos.list.plugin.AbstractListPlugin#setFilter",
+			"exists": true,
+			"why": "声明在接口 IListPlugin 上"
+		},
+		{ "query": "kd.bos.metadata.form.rule.FormRule#setSeq", "exists": true, "why": "声明在父类 BizRule 上" },
+		{ "query": "kd.bos.metadata.form.rule.FormRule#setPreCondition", "exists": true, "why": "声明在父类 BizRule 上" },
+		{ "query": "kd.bos.entity.validate.AbstractValidator#addErrorMsg", "exists": false, "why": "名字写错（对照）" },
+		{ "query": "kd.bos.orm.query.QFilter#noSuchMethod", "exists": false, "why": "没有（对照）" }
+	],
+	"classes": [
+		"kd.bos.entity.validate.AbstractValidator",
+		"kd.bos.orm.query.QFilter",
+		"kd.bos.list.plugin.AbstractListPlugin",
+		"kd.bos.servicehelper.BusinessDataServiceHelper",
+		"kd.bos.form.plugin.AbstractFormPlugin"
+	]
+}

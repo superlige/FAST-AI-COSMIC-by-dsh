@@ -1,0 +1,14 @@
+# S42 批 2 真机样本：13 行各错一种，dry-run 要一次全列出来、一处都不写（空单据 zlgd_sys_bgjl）
+set auditor.FontSize=100
+set auditor.Fontsize2=1
+set auditor.ShowTitle=是
+set auditor.Key=abc
+set billno.MustInput=true
+set fs_baseinfo.Index=3
+set auditor.LabelDirection=x
+set auditor.Lock=new,oops
+move auditor into billno
+move billno into zlgd_bgentry
+move nosuch into fs_baseinfo
+move fs_baseinfo into fs_baseinfo
+frobnicate auditor

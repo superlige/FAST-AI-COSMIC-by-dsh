@@ -1,0 +1,454 @@
+{
+	"schema": "cosmic.knowledge-recall-cases/1",
+	"about": "S45 知识召回评测集：真机会话里模型真问过的 search 查询（09-11～10-05，scripts/knowledge-queries-from-sessions.ts 抽出），人工标答案在哪一篇、哪一段。doc 写 official:<知识库相对路径> 或 reference:<技能篇名>；heading 是答案所在的标题（不带 #），空串表示整篇都是答案。answers 为空 = 两份资料都没有（absent）或不该由知识库答（project）。同一查询在几次会话里重复出现只算一个样本。",
+	"cases": [
+		{
+			"id": "r01",
+			"kind": "tool",
+			"query": "FormRuleProbe RULE_UPDATE_CONDITION",
+			"seen": ["2026-09-11T08-05-40"],
+			"answers": [
+				{
+					"doc": "reference:cosmic-metadata-form-rules",
+					"heading": "新增和回滚"
+				}
+			],
+			"note": "问的是探针用法；RULE_UPDATE_CONDITION 两份资料都没有"
+		},
+		{
+			"id": "r02",
+			"kind": "mixed",
+			"query": "界面规则 既有规则 追加字段 ShowFieldAction",
+			"seen": ["2026-09-15T02-14-23"],
+			"answers": [
+				{
+					"doc": "reference:cosmic-metadata-form-rules",
+					"heading": "界面规则的动作家族"
+				}
+			]
+		},
+		{
+			"id": "r03",
+			"kind": "tool",
+			"query": "cosmic-run",
+			"seen": ["2026-09-17T07-13-37"],
+			"answers": [
+				{
+					"doc": "reference:cosmic-run",
+					"heading": ""
+				}
+			],
+			"note": "问的是 cosmic_run 工具本身"
+		},
+		{
+			"id": "r04",
+			"kind": "mixed",
+			"query": "PWGridCellBo BeforeOutputGridEvent setCellValue addFilter print plugin",
+			"seen": ["2026-09-17T08-01-42"],
+			"answers": [
+				{
+					"doc": "reference:cosmic-plugin-print-runtime",
+					"heading": "改写带绑定的格子"
+				},
+				{
+					"doc": "official:platform/api/print/core/plugin/event/bo/PWGridCellBo.md",
+					"heading": "setCellValue"
+				},
+				{
+					"doc": "official:platform/print-plugin-guide.md",
+					"heading": ""
+				}
+			]
+		},
+		{
+			"id": "r05",
+			"kind": "tool",
+			"query": "打印模板 ptpl apply 属性路径",
+			"seen": ["2026-09-18T04-41-18"],
+			"answers": [
+				{
+					"doc": "reference:cosmic-print-template-write",
+					"heading": "能改什么"
+				}
+			],
+			"note": "meta ptpl 是本工具的命令"
+		},
+		{
+			"id": "r06",
+			"kind": "identifier",
+			"query": "registerListener",
+			"seen": ["2026-09-20T04-38-51"],
+			"answers": [
+				{
+					"doc": "official:platform/scenes/event/register-listener.md",
+					"heading": ""
+				},
+				{
+					"doc": "official:platform/api/bill/AbstractBillPlugIn.md",
+					"heading": "registerListener"
+				},
+				{
+					"doc": "reference:cosmic-plugin-dev",
+					"heading": "正确处理 super 调用"
+				},
+				{
+					"doc": "reference:cosmic-anti-patterns",
+					"heading": "编译能过但语义会错"
+				}
+			]
+		},
+		{
+			"id": "r07",
+			"kind": "business",
+			"query": "打印模板 修改 单元格",
+			"seen": ["2026-09-20T08-55-24"],
+			"answers": [
+				{
+					"doc": "reference:cosmic-print-template-write",
+					"heading": "能改什么"
+				}
+			]
+		},
+		{
+			"id": "r08",
+			"kind": "identifier",
+			"query": "_enter_",
+			"seen": ["2026-09-20T08-55-24"],
+			"answers": [
+				{
+					"doc": "reference:cosmic-print-template-write",
+					"heading": "给公式追加一个字段操作数"
+				}
+			]
+		},
+		{
+			"id": "r09",
+			"kind": "mixed",
+			"query": "print formulaData 公式 换行",
+			"seen": ["2026-09-20T08-55-24"],
+			"answers": [
+				{
+					"doc": "reference:cosmic-print-template-write",
+					"heading": "给公式追加一个字段操作数"
+				}
+			]
+		},
+		{
+			"id": "r10",
+			"kind": "identifier",
+			"query": "formulaData",
+			"seen": ["2026-09-20T08-55-24"],
+			"answers": [
+				{
+					"doc": "reference:cosmic-print-template-write",
+					"heading": "给公式追加一个字段操作数"
+				}
+			]
+		},
+		{
+			"id": "r11",
+			"kind": "identifier",
+			"query": "autoAdjustHeight",
+			"seen": ["2026-09-21T06-41-56"],
+			"answers": [],
+			"note": "absent：两份资料都没有，只在 JAR 里"
+		},
+		{
+			"id": "r12",
+			"kind": "business",
+			"query": "行高 自动调整 网格 打印 分页",
+			"seen": ["2026-09-21T06-41-56"],
+			"answers": [],
+			"note": "absent：打印网格自动行高两份资料都没写；print-runtime 的「运行态尺寸」只讲单位换算"
+		},
+		{
+			"id": "r13",
+			"kind": "tool",
+			"query": "cosmic_run form 触发操作 工具栏 afterDoOperation",
+			"seen": ["2026-09-21T07-54-27"],
+			"answers": [
+				{
+					"doc": "reference:cosmic-run",
+					"heading": "run form：表单插件"
+				}
+			]
+		},
+		{
+			"id": "r14",
+			"kind": "tool",
+			"query": "SUBSTITUTE",
+			"seen": ["2026-09-21T10-23-34"],
+			"answers": [
+				{
+					"doc": "reference:cosmic-meta-cmd",
+					"heading": ""
+				}
+			],
+			"note": "打印公式函数由 meta formula print 查；官方 FunDef.md 的 substitute 是另一套 Excel 公式，不算答案"
+		},
+		{
+			"id": "r15",
+			"kind": "tool",
+			"query": "打印公式 函数",
+			"seen": ["2026-09-21T10-23-34"],
+			"answers": [
+				{
+					"doc": "reference:cosmic-meta-cmd",
+					"heading": ""
+				}
+			]
+		},
+		{
+			"id": "r16",
+			"kind": "identifier",
+			"query": "getSuccessPkIds getErrorPkIds getValidateResult 批量",
+			"seen": ["2026-09-22T05-42-44"],
+			"answers": [
+				{
+					"doc": "official:platform/scenes/operation/operation-result.md",
+					"heading": "事件/方法说明"
+				},
+				{
+					"doc": "official:platform/api/entity/operate/AbstractOperationResult.md",
+					"heading": "getSuccessPkIds"
+				}
+			]
+		},
+		{
+			"id": "r17",
+			"kind": "identifier",
+			"query": "OperationResult getSuccessPkIds getErrorPkIds",
+			"seen": ["2026-09-22T05-42-44"],
+			"answers": [
+				{
+					"doc": "official:platform/scenes/operation/operation-result.md",
+					"heading": "事件/方法说明"
+				},
+				{
+					"doc": "official:platform/api/entity/operate/AbstractOperationResult.md",
+					"heading": "getSuccessPkIds"
+				}
+			]
+		},
+		{
+			"id": "r18",
+			"kind": "identifier",
+			"query": "setOutputValue",
+			"seen": ["2026-09-22T07-51-26"],
+			"answers": [
+				{
+					"doc": "official:platform/api/print/core/plugin/event/BeforeOutputWidgetEvent.md",
+					"heading": "setOutputValue"
+				},
+				{
+					"doc": "official:platform/print-plugin-guide.md",
+					"heading": "2.7.1 通用控件操作"
+				}
+			]
+		},
+		{
+			"id": "r19",
+			"kind": "identifier",
+			"query": "LineWrapRule setLineWrapRule",
+			"seen": ["2026-09-22T08-42-54"],
+			"answers": [
+				{
+					"doc": "official:platform/api/print/core/plugin/event/bo/PWGridCellBo.md",
+					"heading": "setLineWrapRule"
+				}
+			]
+		},
+		{
+			"id": "r20",
+			"kind": "project",
+			"query": "zlgd_report_copies",
+			"seen": ["2026-09-23T06-06-49"],
+			"answers": [],
+			"note": "本工程的表名，该用探查工具，不该查知识库"
+		},
+		{
+			"id": "r21",
+			"kind": "identifier",
+			"query": "queryDataSet",
+			"seen": ["2026-09-23T06-06-49"],
+			"answers": [
+				{
+					"doc": "official:platform/scenes/data-access/query-service/query-dataset.md",
+					"heading": ""
+				},
+				{
+					"doc": "official:platform/scenes/data-access/ksql/db-direct-access.md",
+					"heading": "代码示例"
+				},
+				{
+					"doc": "official:arch/memory-oom-standard.md",
+					"heading": "MEM-09 【🔴 强制】queryDataSet 查询必须按需 select 字段，禁止使用 * 或加载全部字段"
+				}
+			]
+		},
+		{
+			"id": "r22",
+			"kind": "mixed",
+			"query": "TaskInfo 当前审批人 待办任务 查询",
+			"seen": ["2026-09-26T14-41-11"],
+			"answers": [
+				{
+					"doc": "reference:cosmic-workflow",
+					"heading": "WorkflowServiceHelper 查询方法实测"
+				}
+			]
+		},
+		{
+			"id": "r23",
+			"kind": "mixed",
+			"query": "MulBasedataProp 分录 多选基础资料 setValue 复制",
+			"seen": ["2026-09-28T07-11-31"],
+			"answers": [
+				{
+					"doc": "official:platform/scenes/event/after-f7-select-process.md",
+					"heading": "示例1：F7选择后查询关联数据并回填分录"
+				},
+				{
+					"doc": "official:platform/scenes/common/attachment-name-process.md",
+					"heading": ""
+				}
+			]
+		},
+		{
+			"id": "r24",
+			"kind": "mixed",
+			"query": "字段锁定 Lock 只读",
+			"seen": ["2026-10-01T16-47-28", "2026-10-02T07-45-15", "2026-10-04T14-32-27"],
+			"answers": [
+				{
+					"doc": "reference:cosmic-metadata-form",
+					"heading": "锁定、隐藏、删操作各管到哪一层"
+				},
+				{
+					"doc": "reference:cosmic-metadata-form-rules",
+					"heading": "界面规则的动作家族"
+				}
+			],
+			"note": "三次会话是同一份测试需求重跑，只算一个样本；写法略有不同（加「锁定性」「禁止修改」）"
+		},
+		{
+			"id": "r25",
+			"kind": "mixed",
+			"query": "LargeTextField MaxLength 大文本 长度上限",
+			"seen": ["2026-10-02T10-01-31"],
+			"answers": [
+				{
+					"doc": "reference:cosmic-metadata-entity-write",
+					"heading": "加字段：add field"
+				},
+				{
+					"doc": "official:requirements/base/KDDM/kddm-field-types.md",
+					"heading": "二、文本类字段"
+				}
+			]
+		},
+		{
+			"id": "r26",
+			"kind": "project",
+			"query": "zlgd_ydz1",
+			"seen": ["2026-10-04T11-25-56"],
+			"answers": [],
+			"note": "本工程的单据标识，该用探查工具，不该查知识库"
+		},
+		{
+			"id": "r27",
+			"kind": "mixed",
+			"query": "addErrorMessage ErrorLevel Warn 校验器",
+			"seen": ["2026-09-18T07-03-49"],
+			"answers": [
+				{
+					"doc": "official:platform/scenes/operation/custom-validator.md",
+					"heading": "方法签名"
+				},
+				{
+					"doc": "official:platform/api/entity/validate/ErrorLevel.md",
+					"heading": ""
+				}
+			]
+		}
+	],
+	"aboutApi": "apiClasses：同一时段真机会话里 api 动作问过的全部类（成员名去掉，去重）。不人工标：官方看 api 有没有给出文档；本地「应回」= 参考文档正文以整词提到这个类简名的篇。",
+	"apiClasses": [
+		"kd.IOperateInfo",
+		"kd.ValidateResult",
+		"kd.bos.algo.DataSet",
+		"kd.bos.algo.Row",
+		"kd.bos.context.RequestContext",
+		"kd.bos.dataentity.entity.DynamicObject",
+		"kd.bos.dataentity.entity.DynamicObjectCollection",
+		"kd.bos.db.DB",
+		"kd.bos.db.DBRoute",
+		"kd.bos.entity.datamodel.IDataModel",
+		"kd.bos.entity.operate.AbstractOperationResult",
+		"kd.bos.entity.operate.OperationOption",
+		"kd.bos.entity.operate.result.OperateErrorInfo",
+		"kd.bos.entity.operate.result.OperationResult",
+		"kd.bos.entity.operate.result.SubOperationResult",
+		"kd.bos.entity.plugin.AbstractOperationServicePlugIn",
+		"kd.bos.entity.plugin.OperateProgress",
+		"kd.bos.entity.plugin.PreparePropertysEventArgs",
+		"kd.bos.entity.plugin.args.BeginOperationTransactionArgs",
+		"kd.bos.entity.property.BigIntProp",
+		"kd.bos.entity.property.ComboProp",
+		"kd.bos.entity.property.LargeTextProp",
+		"kd.bos.entity.property.TextAreaProp",
+		"kd.bos.entity.property.UserProp",
+		"kd.bos.entity.validate.AbstractValidator",
+		"kd.bos.entity.validate.ErrorLevel",
+		"kd.bos.entity.validate.ErrorRow",
+		"kd.bos.entity.validate.ValidateResultCollection",
+		"kd.bos.entity.validate.ValidationErrorInfo",
+		"kd.bos.form.plugin.AbstractFormPlugin",
+		"kd.bos.metadata.entity.rule.BizRuleAction",
+		"kd.bos.metadata.form.ControlAp",
+		"kd.bos.metadata.form.rule.FormRule",
+		"kd.bos.metadata.form.rule.HideControlAction",
+		"kd.bos.metadata.form.rule.ShowControlAction",
+		"kd.bos.orm.query.QCP",
+		"kd.bos.orm.query.QFilter",
+		"kd.bos.print.business.formula.PrintFormulaManager",
+		"kd.bos.print.core.data.DataRowSet",
+		"kd.bos.print.core.data.TplInfo",
+		"kd.bos.print.core.data.datasource.PrtDataSource",
+		"kd.bos.print.core.data.field.DecimalField",
+		"kd.bos.print.core.data.field.NullField",
+		"kd.bos.print.core.data.field.TextField",
+		"kd.bos.print.core.execute.render.common.linewrap.param.LineWrapRule",
+		"kd.bos.print.core.model.designer.grid.MergeBlock",
+		"kd.bos.print.core.model.grid.PWGridBo",
+		"kd.bos.print.core.model.widget.Cell",
+		"kd.bos.print.core.model.widget.LayoutCell",
+		"kd.bos.print.core.model.widget.StyleKey",
+		"kd.bos.print.core.model.widget.grid.AbstractPWGridCell",
+		"kd.bos.print.core.model.widget.text.PWText",
+		"kd.bos.print.core.plugin.AbstractPrintPlugin",
+		"kd.bos.print.core.plugin.event.AfterLoadDataEvent",
+		"kd.bos.print.core.plugin.event.BeforeLoadDataEvent",
+		"kd.bos.print.core.plugin.event.BeforeOutputGridEvent",
+		"kd.bos.print.core.plugin.event.BeforeOutputRowEvent",
+		"kd.bos.print.core.plugin.event.BeforeOutputWidgetEvent",
+		"kd.bos.print.core.plugin.event.CustomDataLoadEvent",
+		"kd.bos.print.core.plugin.event.bo.PWGridBo",
+		"kd.bos.print.core.plugin.event.bo.PWGridCellBo",
+		"kd.bos.print.core.plugin.event.bo.PWGridColumnBo",
+		"kd.bos.print.core.plugin.event.bo.PWGridRowBo",
+		"kd.bos.print.core.plugin.event.bo.PluginDataVisitorBo",
+		"kd.bos.print.core.plugin.tpl.TplInfo",
+		"kd.bos.print.service.formula.AbstractPrintFormulaParser",
+		"kd.bos.print.service.formula.PrintFormulaExecute",
+		"kd.bos.servicehelper.BusinessDataServiceHelper",
+		"kd.bos.servicehelper.QueryServiceHelper",
+		"kd.bos.servicehelper.operation.SaveServiceHelper",
+		"kd.bos.servicehelper.workflow.WorkflowServiceHelper",
+		"kd.bos.workflow.api.BizProcessStatus",
+		"kd.bos.workflow.api.TaskInfo",
+		"kd.bos.workflow.component.approvalrecord.IApprovalRecord",
+		"kd.bos.workflow.component.approvalrecord.IApprovalRecordGroup",
+		"kd.bos.workflow.engine.task.TaskInfo"
+	]
+}

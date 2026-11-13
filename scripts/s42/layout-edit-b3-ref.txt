@@ -1,0 +1,2 @@
+# S42 批 3 引用样本：在 layout-edit-b3.txt 落库之后跑。只删操作、不删绑着它的按钮，应当报「布局 zlgd_s42bar 的 OperationKey」并一处不删
+remove op zlgd_s42ophist

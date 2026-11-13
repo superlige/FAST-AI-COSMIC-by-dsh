@@ -1,0 +1,308 @@
+{
+  "schema": "cosmic.source-manifest/1",
+  "kind": "knowledge",
+  "source": {
+    "repoPath": "D:\\claudecode\\long-cosmic-dev",
+    "ref": "c7b88156fcd0fca093d1a572c74d9ce195cf99ac",
+    "resolvedCommit": "c7b88156fcd0fca093d1a572c74d9ce195cf99ac"
+  },
+  "confirmation": {
+    "confirmedBy": "Lige <superlige666@gmail.com>",
+    "confirmedAt": "2026-09-02T02:14:10.807Z",
+    "note": "2026-09-02 用户在 IMPLEMENTATION.md S1 三选一中选择方案②「先提交后给新 ref」，并显式授权由 agent 代为提交源仓库的 6 个未提交文件（run rule form 三层显隐判据）。提交产生 c7b8815，工作区随后干净。冻结范围含第三类 protocol（S1.1 决策）。"
+  },
+  "generatedAt": "2026-09-02T02:14:11.432Z",
+  "scope": [
+    "reference"
+  ],
+  "files": [
+    {
+      "path": "reference/anti-patterns.md",
+      "bytes": 3529,
+      "lines": 44,
+      "sha256": "17cf57af9a2bbd9ffa1cd4fa7a26ed0d801c1f69c8c6788f8e9742a57908fb13",
+      "gitSha1": "5babdccb8bb9328a303bd8eb21b4210586a7725a"
+    },
+    {
+      "path": "reference/data-query.md",
+      "bytes": 4318,
+      "lines": 90,
+      "sha256": "fd91e8b2634d076e32ff008c9e9296a66380daba57de79a332f25636efd43a21",
+      "gitSha1": "4587704881144272dd24904739072641c8c10d00"
+    },
+    {
+      "path": "reference/delivery-protocol.md",
+      "bytes": 9945,
+      "lines": 185,
+      "sha256": "e3136b6611677aa07d51d8c3ea8447b3b1397b58f18febdbb1632f2838a784b2",
+      "gitSha1": "6e36132243cbd7e46cdcada589a29469b5b69efd"
+    },
+    {
+      "path": "reference/impact.md",
+      "bytes": 18371,
+      "lines": 316,
+      "sha256": "5604aa7f6369bb595b03b2d439be72ce9c4f6cdd7000b21ff175b39087882b6c",
+      "gitSha1": "4c8ee86a9fc6ddf1b3c8d940427e45f5bfce57cf"
+    },
+    {
+      "path": "reference/lint.md",
+      "bytes": 8177,
+      "lines": 135,
+      "sha256": "5d35ba936e04a562766771b125bbd6a517e9393be4832c937ceaa71d2825fbe3",
+      "gitSha1": "626384cd8b3278be84d697b5b287567617670ca6"
+    },
+    {
+      "path": "reference/meta-cmd.md",
+      "bytes": 5854,
+      "lines": 117,
+      "sha256": "1518dfc8b929be817da7f2f1d40ab14ad82a72b2c25a4c29771a82288ac16005",
+      "gitSha1": "bed043f63c71825a0772a556b9eca3301eca46db"
+    },
+    {
+      "path": "reference/metadata-botp-write.md",
+      "bytes": 5029,
+      "lines": 90,
+      "sha256": "c321d61f6d8b530412fce0ece52ed880a85dbef42c1e82d65fdc8f1aee574d08",
+      "gitSha1": "80caa88b8dd5ae9e181d8fc9e14f19b6aa7d594c"
+    },
+    {
+      "path": "reference/metadata-botp.md",
+      "bytes": 7995,
+      "lines": 125,
+      "sha256": "0817712d1d0495256e7850b4d80ca37271fd2631855556b726ed739d219314ed",
+      "gitSha1": "fa50505ca639d2b0fc29b70e1d6602b36fb1afb0"
+    },
+    {
+      "path": "reference/metadata-business-rules.md",
+      "bytes": 8738,
+      "lines": 177,
+      "sha256": "90154969dcae37d2f5e647deccd32171e3677cb16d950081691ed7f39290b2e3",
+      "gitSha1": "95373fe69108f14236240c5b2b25e3086f0a8662"
+    },
+    {
+      "path": "reference/metadata-create.md",
+      "bytes": 9889,
+      "lines": 195,
+      "sha256": "5eeb59f885b4e3dfc794d646af47d49bf1df2e11e9bb0589f2964aba4cc699d0",
+      "gitSha1": "bb7c4c83724b875ebbabd559d33974eeb6bb3e31"
+    },
+    {
+      "path": "reference/metadata-entity-write.md",
+      "bytes": 18081,
+      "lines": 324,
+      "sha256": "0f8f7b15cd4b5913e59dd48924e2eaebb740d19cbc981ab7b71aa18c73e6fedf",
+      "gitSha1": "5fa83ee3baa8dac7c90299af51ab4de40e91994d"
+    },
+    {
+      "path": "reference/metadata-entity.md",
+      "bytes": 9818,
+      "lines": 191,
+      "sha256": "efa7d13abf8f4cf3b099b04b59fb01de851373415df449b2c32e7e07d06677a8",
+      "gitSha1": "493ee4e7cd1c33f13aafda26e49fdbb28499c3c2"
+    },
+    {
+      "path": "reference/metadata-form-rules.md",
+      "bytes": 18860,
+      "lines": 309,
+      "sha256": "334e18b548e888a1047ef90f0710a333a1bd36fb428e87bb9ad7140895f449a9",
+      "gitSha1": "5d23e9a9b3f7760fa8cd6c043424614e17591133"
+    },
+    {
+      "path": "reference/metadata-form.md",
+      "bytes": 6352,
+      "lines": 112,
+      "sha256": "92f70767558c2c789ee9c69cbd79122ed6741a3574ce0597ab134cae6f9b26dd",
+      "gitSha1": "6a20a637197581200868f4f434feca0df50330be"
+    },
+    {
+      "path": "reference/metadata-read.md",
+      "bytes": 4813,
+      "lines": 83,
+      "sha256": "aa03da4c8f0b685c51e22ed4954e4e09ab9a8d304447388ca87ea788fa14e120",
+      "gitSha1": "c16f21787d7ddadde9c2252ac96925edd58c9582"
+    },
+    {
+      "path": "reference/metadata-write.md",
+      "bytes": 16235,
+      "lines": 267,
+      "sha256": "a8afdbc52b9222a9401ab488b88ec0d5182b719489ea83614710d774f29c4fe1",
+      "gitSha1": "070d0d28b0782bb9fef1fd0008f8948f25a1251b"
+    },
+    {
+      "path": "reference/official-knowledge.md",
+      "bytes": 16372,
+      "lines": 275,
+      "sha256": "bca467c8d0df518a61b1d8aa252f0d8d56aa185fd75ed65f3f3bb70e53415b73",
+      "gitSha1": "732d75aaf42c485e4e19cb6ae4d20cad693b54d0"
+    },
+    {
+      "path": "reference/plugin-dev.md",
+      "bytes": 7394,
+      "lines": 126,
+      "sha256": "bd32d490022de1664feb2b6020a704e14d14e756b19fa5c2faf269060913bf2f",
+      "gitSha1": "a3ce389fd23acd8d334f9f98318b841a72c89381"
+    },
+    {
+      "path": "reference/plugin-integration.md",
+      "bytes": 7332,
+      "lines": 127,
+      "sha256": "6445df12abe44d0bcaf1a3c9aa2825bce78cc2e909b726e0e5a4ff90aa65a55a",
+      "gitSha1": "e42c4d096aeadeba4567fbc8fdbcb862ad62cb73"
+    },
+    {
+      "path": "reference/plugin-operation.md",
+      "bytes": 6387,
+      "lines": 102,
+      "sha256": "bc15ce37b2f09343816004a73f8176c386f9f208068ece30cea4d23503e10628",
+      "gitSha1": "cb6ce2b4df431931e5579b96f546a3bf076bcbe5"
+    },
+    {
+      "path": "reference/plugin-print-runtime.md",
+      "bytes": 15833,
+      "lines": 339,
+      "sha256": "7219ab22da1fd4e08a0bdf1f4b26a72899ecaf1a6d0ccb01e3b399f38fcb7e58",
+      "gitSha1": "6dd0fb93b9af184a7490d44ab0e13d7aeeef08ad"
+    },
+    {
+      "path": "reference/plugin-ui.md",
+      "bytes": 5677,
+      "lines": 99,
+      "sha256": "137bc76b8391bc469b779e39d6238a5b88ebb681575e251f6b4c77155500505e",
+      "gitSha1": "3cb8f7dd661780cf5c16e629f597855ee96a8225"
+    },
+    {
+      "path": "reference/print-template-write.md",
+      "bytes": 15498,
+      "lines": 240,
+      "sha256": "b29a0fecf17b98f29b13b4946b8ce7d4f0e95d4cdeff7175696ec8545f325847",
+      "gitSha1": "98a2ea8ade257b833c31ec0e3dd1ce5a52241dac"
+    },
+    {
+      "path": "reference/print-template.md",
+      "bytes": 13663,
+      "lines": 241,
+      "sha256": "48cf475cea9ef876cedfdeb14214460fa546a1c3e2af882b2588554364c0c8ee",
+      "gitSha1": "df96aa95b109fc4696b6d56d280173a8fd1b155e"
+    },
+    {
+      "path": "reference/probes.md",
+      "bytes": 19965,
+      "lines": 288,
+      "sha256": "7f2422ce99c419471162d34b25d76571b03df68f33ec49e1bd4fb7e52ffbcf50",
+      "gitSha1": "dcbecb87834eaa9eff13293d7913e5ec09b7256d"
+    },
+    {
+      "path": "reference/run-parent-child.md",
+      "bytes": 4291,
+      "lines": 77,
+      "sha256": "ecd5aa150f844081ca6c9fed07a80d48ecdfcf8fd7401205655fa8a5e3ceb141",
+      "gitSha1": "175ce4269fe30d42aa92334f6916b69c7da69381"
+    },
+    {
+      "path": "reference/run.md",
+      "bytes": 23892,
+      "lines": 328,
+      "sha256": "ace90e04d285a83bd1bb0c1b2ed1a42c858f6309c2bad67185822ec3bd364e92",
+      "gitSha1": "a78406dd92884904eb9f2ed2f1957371b5da85b4"
+    },
+    {
+      "path": "reference/runtime.md",
+      "bytes": 15322,
+      "lines": 227,
+      "sha256": "ba0a5ac2a7b3bebff0e9a8e1c01b1d445971659226435aa02a88bb9a9ee7812a",
+      "gitSha1": "ec6ecf29349b0dc986dd86a3e37289fe0fa97e4a"
+    },
+    {
+      "path": "reference/sdk.md",
+      "bytes": 3672,
+      "lines": 74,
+      "sha256": "600c310fb95ee2a58e35f99c500ee8123f760b4a97eff9b99b841cd584182154",
+      "gitSha1": "f9af5bddefe2c030921a5818ceffb8ab3063c954"
+    },
+    {
+      "path": "reference/verify.md",
+      "bytes": 19176,
+      "lines": 329,
+      "sha256": "18c5cfb77dd37e8d23da244a159234e4561f412f72cfdab86894ba6e2f0df494",
+      "gitSha1": "8e5009859c1a9837570d262faae6763a7c6d96aa"
+    }
+  ],
+  "topLevelDispositions": [
+    {
+      "name": ".gitignore",
+      "disposition": "excluded",
+      "reason": "excluded by IMPLEMENTATION.md 5.1"
+    },
+    {
+      "name": "CLAUDE.md",
+      "disposition": "excluded",
+      "reason": "excluded by IMPLEMENTATION.md 5.1"
+    },
+    {
+      "name": "README.md",
+      "disposition": "excluded",
+      "reason": "excluded by IMPLEMENTATION.md 5.1"
+    },
+    {
+      "name": "SKILL.md",
+      "disposition": "excluded",
+      "reason": "excluded by IMPLEMENTATION.md 5.1"
+    },
+    {
+      "name": "config.example.json",
+      "disposition": "excluded",
+      "reason": "excluded by IMPLEMENTATION.md 5.1"
+    },
+    {
+      "name": "config.mjs",
+      "disposition": "code",
+      "reason": "covered by the code manifest"
+    },
+    {
+      "name": "docs",
+      "disposition": "excluded",
+      "reason": "excluded by IMPLEMENTATION.md 5.1"
+    },
+    {
+      "name": "driver.mjs",
+      "disposition": "code",
+      "reason": "covered by the code manifest"
+    },
+    {
+      "name": "probes",
+      "disposition": "code",
+      "reason": "covered by the code manifest"
+    },
+    {
+      "name": "protocol",
+      "disposition": "protocol",
+      "reason": "covered by the protocol manifest"
+    },
+    {
+      "name": "reference",
+      "disposition": "knowledge",
+      "reason": "listed in knowledge scope"
+    },
+    {
+      "name": "runtime",
+      "disposition": "code",
+      "reason": "covered by the code manifest"
+    },
+    {
+      "name": "scratchpad",
+      "disposition": "excluded",
+      "reason": "excluded by IMPLEMENTATION.md 5.1"
+    },
+    {
+      "name": "tools",
+      "disposition": "code",
+      "reason": "covered by the code manifest"
+    }
+  ],
+  "unclassified": [],
+  "totals": {
+    "files": 30,
+    "bytes": 330478,
+    "lines": 5632
+  }
+}

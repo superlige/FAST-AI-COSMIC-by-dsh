@@ -1,0 +1,6 @@
+# 真机落库验收候选：不新增实体字段，不点击按钮；验完用备份恢复。
+add op zlgd_list_verify donothing 列表能力验证
+layout list
+show createtime into gridview
+add BarItemAp zlgd_list_verify_btn into _toolbar_ 列表能力验证
+set zlgd_list_verify_btn.OperationKey=zlgd_list_verify

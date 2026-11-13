@@ -1,0 +1,4 @@
+# 单据带的移动端布局：撤下一个字段控件，字段本身不动（放上去再撤下，改完应和现在一样）
+layout mobile
+show zlgd_histstatus into layoutflexap1
+remove zlgd_histstatus

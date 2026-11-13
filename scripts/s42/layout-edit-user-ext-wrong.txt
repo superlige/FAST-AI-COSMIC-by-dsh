@@ -1,0 +1,3 @@
+# S42 2.5 扩展单据上该拒的：标准字段的字段属性、分录字段挪出分录
+set name.MustInput=true
+move zlgd_deptcode into fieldsetpanelap

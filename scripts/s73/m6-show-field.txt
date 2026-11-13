@@ -1,0 +1,3 @@
+# 单据带的移动端布局：把已有字段放上去
+layout mobile
+show zlgd_testbillno into layoutflexap1

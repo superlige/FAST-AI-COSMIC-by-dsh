@@ -1,0 +1,7 @@
+# 仅验收筛选字段配置；不改实体字段、不设业务缺省过滤值
+layout list
+show filter billstatus as zlgd_status_filter into filtergridview
+show filter modifytime as zlgd_date_filter into filtergridview
+set zlgd_date_filter.DateConst=13,63
+show filter creator.id as zlgd_creator_filter into filtergridview
+show filter modifytime as zlgd_time_search into fastsearchgridview

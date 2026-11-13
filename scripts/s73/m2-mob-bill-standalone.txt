@@ -1,0 +1,3 @@
+# 原厂单据上建的移动单据（布局本身是本 ISV 的）：只改控件上的属性
+set billname.LabelDirection=v
+set billname.FullLine=true

@@ -11,7 +11,7 @@
 - **内核有两份。** pi 版仓库（`D:\claudecode\pi\cosmic`）迁移期间照常可用、不在那边拆代码。
   那边修了内核（`src/kernel/`、`src/knowledge/`、`src/runtime/`、`resources/`、`knowledge/`）的 bug，要手工带到这里；
   本仓库第一次提交的说明里记着从 pi 版哪个提交复制的，对差异从那里起。
-- 接 dsh 的那层（工具注册、门槛、系统提示、技能提供方）还没写，下面提到"发给模型的文字"的规矩先对技能文档和探针生效。
+- 接 dsh 的那层在 `src/dsh/`；还没做完的列在 `IMPLEMENTATION.md` 第六节。
 
 ## 一、沟通方式（每次回答都要遵守）
 
@@ -47,13 +47,13 @@
    体量和日期由同一个测试拦。
 5. **功能改了，发给模型的说明同一轮跟着改。** 这不算写文档，是功能的一部分：模型只照它读到的文字干活，
    工具换了新用法、技能还教旧的，模型就会被带回老路。要对的几处：
-   - 工具说明、命令用法文字（如 `run help`）、探针文件头的用法；
+   - 工具说明（`src/dsh/tools/*.ts`）、系统提示（`src/agent/prompt/system-prompt.ts`）、命令用法文字（如 `run help`）、探针文件头的用法；
    - 技能文档 `knowledge/reference/*.md`：旧用法换成新用法、删掉被取代的写法（不是在后面再补一句），
-     然后 `node scripts/export-reference.mjs --write`；
+     然后 `node scripts/export-reference.mjs --write`，再跑 `npm run verify:eval`；
    - 改了 `resources/` 下的探针：`node scripts/export-resources.mjs --write`。
    忘了重新生成，`npm run check` 会失败。回复用户时说清这几处改了哪些、哪处不用改。
 6. **发给模型的文字只说现在怎样**（系统提示、工具说明、工具返回、知识卡片、技能文档）：不写阶段号、日期、
-   "以前……现在……"、已取消的机制名和内部术语。
+   "以前……现在……"、已取消的机制名和内部术语。`test/agent/prompt-hygiene.test.ts` 会扫。
 
 ## 三、真机测试
 
@@ -63,6 +63,8 @@
 - 不经模型、直接调内核：`node --experimental-strip-types scripts/verify-real-env.ts D:/kingdee/zlgd_ygpt2.0 <步骤>`
   （步骤有 `open`、`fast <文件>`、`probe <探针> KEY=VALUE`、`run <参数…>`、`stop` 等，见脚本文件头），不用先问。
   它用自己的版本号起常驻 JVM，跑完用 `stop` 停掉。
+- 经模型跑：`pwsh scripts/run-headless.ps1 -Profile cosmic -Out <文件> -Task "<需求>"`（先 `node scripts/setup-dsh-profiles.mjs` 建配置），
+  不用先问；事后照实报告用了哪个模型、多久、多少次调用。
 - 跑之前看一眼 `C:\Users\Lige\.pi\agent\sessions\--D--kingdee-zlgd_ygpt2.0--\` 和 `~/.dsh/sessions/` 下有没有正在进行的会话，
   两个会话同开会抢写锁。
 
@@ -83,6 +85,10 @@
 |---|---|
 | 任何代码 | `npm run check`（类型检查 + 代码风格 + 全部测试）。类型检查是零错误，报错就是真问题 |
 | 探针、技能文档 | 再加对应的 `export-*.mjs --write`（见第二节第 5 条） |
+| 打包相关（`scripts/build-bundle.mjs`、`package-desktop.mjs`、`cordis.patch.yml`、`client/`、`package.json` 的 `exports` / `dsh`） | 再加 `npm run build:bundle`；改了补丁或预设的，`npm run build` 出一次安装包 |
+| 系统提示、工具说明、工具参数 | 再加 `node --experimental-strip-types scripts/measure-dsh-prompt.ts`，前后字节写进提交说明。字节数记在 `test/dsh/fixed-text-record.json`，变多变少测试都失败，改完照实更新它；常驻系统提示上限 10 KB、同一句写两处（`scripts/prompt-duplicates.ts`）也由测试拦 |
+| 技能文档、知识库、技能族目录 | 再加 `npm run verify:eval` |
+| 会影响模型回合数的东西（门槛、写入确认、工具返回） | 再加 `npm run verify:rounds` |
 
 - **说"改好了"要有数。** 想改善速度、轮数、上下文大小这类东西，改之前先量，改完用同一把尺子、同一批样本再量，
   前后的数写进提交说明和回复。测量脚本在 `scripts/`，用法看脚本文件头。新写的测量脚本要进仓库，不能只留在临时目录。
@@ -114,9 +120,13 @@
 - **苍穹 JAR、客户配置、凭据不进本仓库和产物**；账套、用户这类配置只在运行时传入。
 - **门槛不许加参数级的旁路开关**：旁路一进工具参数，模型第一次被拒就会填上它，门槛就形同虚设。
 - **"扫过 / 没扫"有区别的输出，逐项报数，0 也报**：漏一行，人和模型都会猜成"没有"。
-- **Node 24**：本仓库要 Node 24.9 以上。本机的 Node 24 是免安装版 `D:\nodejs24`，不在 PATH 上（PATH 上的 22 给 pi 版用，别顶掉）。
-  跑命令前先 `export PATH="/d/nodejs24:$PATH"`（Git Bash）或 `$env:Path = "D:\nodejs24;$env:Path"`（PowerShell）。
+- **Node 24**：本仓库要 Node 24.9 以上。本机只用 Node 24（免安装版 `D:\nodejs24`，在系统 PATH 上，pi 版也用它），
+  新开的终端直接用；`node --version` 不是 24 的旧终端，重开或先 `$env:Path = "D:\nodejs24;$env:Path"`。
   依赖用这个 Node 带的 npm 装在本仓库自己的 `node_modules/`。
+  免安装版没有安装包写的 npm 内置配置，`D:\nodejs24\node_modules\npm\npmrc` 里手工写了 `prefix=${APPDATA}\npm`，
+  全局包才装回 `AppData\Roaming\npm`；换 Node 24 小版本时照样补这一行。
 - **行尾**：本仓库 `.gitattributes` 定了 LF，biome 也要求 LF。这台机器的 python 是 Windows 版，写文件一律 `open(..., 'w', newline='')`。
   查行尾用 `tr -cd '\r' < 文件 | wc -c`。
-- **bash heredoc 吃反斜杠**：要写进去的文本有反斜杠，就用编辑工具，不用 heredoc。
+- **bash heredoc 吃反斜杠**：要写进去的文本有反斜杠，就用编辑工具，不用 heredoc。python 的普通字符串一样会把 `\r`、`\n` 变成真的回车换行。
+- **升 dsh**：照 `docs/packaging-and-usage.md`「升 dsh」那几步走，`npm run check`、无头真机跑一条需求、装上新安装包冒烟全过才发。
+  补丁对不上就逐条照新原文改，不把核对次数放宽，不跳过核对。

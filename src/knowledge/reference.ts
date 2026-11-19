@@ -50,11 +50,11 @@ export async function releaseReference(
 }
 
 /**
- * 六个族索引，和 28 篇原文的关系。
+ * 六个族索引，和参考文档原文的关系。
  *
  * 原本 28 篇每篇都是一个 pi skill，启动时被列成八行灰字——一堵墙，谁也不会去读。
  * 现在交给 pi 的是六篇**索引**：每篇的正文一行一篇地写着「什么时候读这篇 + 它在哪」，
- * 28 篇原文一个字不动地留在磁盘上，按绝对路径 read。
+ * 原文一个字不动地留在磁盘上，按绝对路径 read。
  *
  * 代价说清楚：模型「知道有这篇」的依据，从 28 条常驻 description 变成 6 条 +
  * 索引正文（正文是按需读的）。所以族的 description 必须把这一族**覆盖了什么**说全，
@@ -77,9 +77,10 @@ export const REFERENCE_FAMILIES: readonly ReferenceFamily[] = [
 		name: "cosmic-metadata",
 		title: "元数据",
 		description:
-			"苍穹元数据的读与写：实体与字段、表单布局、界面规则、业务规则、BOTP 转换规则、新建表单后的登记与回验，以及非实体元数据的 meta 命令入口。" +
-			"什么时候读：要看懂或改动共享环境里的任何元数据——写入总则（确认目标、红线、备份、回验）也在这一族。",
+			"苍穹元数据的读与写：实体与字段、表单布局、界面规则、业务规则、BOTP 转换规则、新建表单后的登记与回验，非实体元数据的 meta 命令入口，以及配置和代码的分工（哪些用属性、规则、字段映射配，哪些才写插件）。" +
+			"什么时候读：定一个功能的实现方式，要看懂或改动共享环境里的任何元数据——写入总则（确认目标、红线、备份、回验）也在这一族。",
 		members: [
+			"cosmic-metadata-or-code",
 			"cosmic-metadata-read",
 			"cosmic-metadata-write",
 			"cosmic-metadata-entity",
@@ -119,7 +120,7 @@ export const REFERENCE_FAMILIES: readonly ReferenceFamily[] = [
 		name: "cosmic-probe-verify",
 		title: "真环境验证",
 		description:
-			"在真实苍穹环境里把一件事验成立：探针（已发布探针或只读临时 Java）、run（免界面跑操作/表单/列表/规则）、父子页 close 回调整条链、verify（核对本次会话证据并生成交付回执）、查业务数据与空表算法。" +
+			"在真实苍穹环境里把一件事验成立：探针（已发布探针或只读临时 Java）、run（免界面跑操作/表单/列表/规则）、父子页 close 回调整条链、本会话净差别（cosmic_facts 列出代码改前改后、元数据、断言，照着写完成情况）、查业务数据与空表算法。" +
 			"什么时候读：要拿真环境的证据，而不是拿「看起来对」交付。",
 		members: ["cosmic-probes", "cosmic-run", "cosmic-run-parent-child", "cosmic-verify", "cosmic-data-query"],
 	},
@@ -142,7 +143,7 @@ export const REFERENCE_FAMILIES: readonly ReferenceFamily[] = [
 	},
 ];
 
-/** 族索引住在快照根下自己的目录里，与 28 篇原文分开——混在一起 pi 会把原文也当 skill 收走。 */
+/** 族索引住在快照根下自己的目录里，与原文分开——混在一起 pi 会把原文也当 skill 收走。 */
 export const REFERENCE_FAMILY_DIRNAME = "families";
 
 export function referenceFamilyDir(layout: KnowledgeLayout): string {
@@ -156,8 +157,8 @@ export function referenceFamilyDir(layout: KnowledgeLayout): string {
  * absolute path because a skill's `location` is what the model passes to `read`.
  * That requirement is the reason the snapshot is released to disk at all.
  *
- * 交出去的是族索引目录，不是 28 篇原文所在的 docsDir：pi 会把它扫到的每个
- * `<子目录>/SKILL.md` 都注册成 skill，把原文目录交出去就等于回到 28 项。
+ * 交出去的是族索引目录，不是原文所在的 docsDir：pi 会把它扫到的每个
+ * `<子目录>/SKILL.md` 都注册成 skill，把原文目录交出去就等于回到逐篇一项。
  */
 export function referenceSkillPaths(layout: KnowledgeLayout): string[] {
 	return [referenceFamilyDir(layout)];
@@ -342,7 +343,7 @@ export const TOOL_REFERENCE_DOCS: Readonly<Record<string, string>> = {
 	cosmic_run: "cosmic-run",
 	cosmic_meta: "cosmic-meta-cmd",
 	cosmic_probe: "cosmic-probes",
-	cosmic_verify: "cosmic-verify",
+	cosmic_facts: "cosmic-verify",
 	cosmic_impact: "cosmic-impact",
 	cosmic_lint: "cosmic-lint",
 	cosmic_runtime: "cosmic-runtime",

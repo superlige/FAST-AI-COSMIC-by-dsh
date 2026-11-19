@@ -4,24 +4,53 @@
 	"version": "0.1.0",
 	"description": "fast-ai-cosmic: Kingdee Cosmic development agent, packaged as an out-of-tree bundle for deepseek-harness",
 	"type": "module",
+	"exports": {
+		".": "./src/dsh/brand.ts",
+		"./tools": "./src/dsh/index.ts",
+		"./client": "./client/brand.js"
+	},
+	"dsh": {
+		"bundle": {
+			"patch": "./cordis.patch.yml"
+		},
+		"client": {
+			"platform": "web",
+			"immediately": true,
+			"inject": [
+				"@deepseek-ai/dsh-client-ui-sidebar",
+				"@deepseek-ai/dsh-client-ui-conversation",
+				"@deepseek-ai/dsh-client-ui-theme"
+			]
+		}
+	},
 	"scripts": {
 		"check": "npm run typecheck && npm run lint && npm run test",
 		"typecheck": "tsgo --noEmit -p tsconfig.json",
 		"lint": "biome check .",
 		"lint:fix": "biome check --write .",
 		"test": "vitest --run",
+		"build": "node scripts/package-desktop.mjs",
+		"build:bundle": "node scripts/build-bundle.mjs",
+		"dev": "node scripts/dev-desktop.mjs",
 		"knowledge:export": "node scripts/export-knowledge.mjs",
 		"reference:export": "node scripts/export-reference.mjs",
 		"resources:export": "node scripts/export-resources.mjs",
-		"api:measure": "node scripts/measure-api-doc.mjs"
+		"api:measure": "node scripts/measure-api-doc.mjs",
+		"verify:eval": "node --experimental-strip-types scripts/verify-knowledge-eval.ts",
+		"verify:rounds": "node --experimental-strip-types scripts/verify-round-efficiency.ts"
+	},
+	"dependencies": {
+		"typebox": "1.3.27"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "2.3.5",
 		"@types/node": "24.13.3",
 		"@typescript/native-preview": "7.0.0-dev.20260120.1",
+		"rolldown": "1.2.19",
 		"vitest": "4.1.11"
 	},
 	"engines": {
-		"node": ">=24.9.0"
+		"node": ">=24.9.0",
+		"dsh": ">=0.2.2-rc.2 <0.3.0"
 	}
 }

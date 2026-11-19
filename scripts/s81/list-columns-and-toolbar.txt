@@ -2,5 +2,5 @@
 add op zlgd_list_verify donothing 列表能力验证
 layout list
 show createtime into gridview
-add BarItemAp zlgd_list_verify_btn into _toolbar_ 列表能力验证
+add BarItemAp zlgd_list_verify_btn into _toolbar_ 列表能力验证 visible=none lock=none
 set zlgd_list_verify_btn.OperationKey=zlgd_list_verify

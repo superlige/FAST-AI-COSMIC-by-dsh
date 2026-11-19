@@ -233,11 +233,17 @@ async function call(
 		if (reply.json.ok !== true) {
 			const message = String(reply.json.error ?? "未知错误");
 			const sqlState = String(reply.json.sqlState ?? "");
-			return err(
-				failure(`生产库报错：${message}`, remedyFor(message, sqlState), {
-					...(sqlState === "" ? {} : { sqlState }),
-				}),
-			);
+			const detail: Record<string, string> = sqlState === "" ? {} : { sqlState };
+			// 库收到了语句、按语句本身报的错（语法、类型、列名、超时、没权限）：报错就是答案，
+			// 改了语句是在照着改，和「连不上」分成两个码，重复失败的闸才分得清是不是原样重放
+			if (sqlState !== "" && !sqlState.startsWith("08"))
+				return err(
+					new KernelError("PROD_SQL_FAILED", `生产库报错：${message}`, {
+						detail,
+						remedy: remedyFor(message, sqlState),
+					}),
+				);
+			return err(failure(`生产库报错：${message}`, remedyFor(message, sqlState), detail));
 		}
 		return ok(reply.json);
 	}
@@ -249,8 +255,9 @@ function remedyFor(message: string, sqlState: string): string {
 		return "这个只读账号没有这张表的查询权限：照实告诉用户是「没权限」，不是「没数据」。";
 	if (sqlState === "57014" || /cancel|timeout|超时/i.test(message))
 		return "查询超时被取消了：加上更窄的过滤条件（单据编号、时间段、fid），别对大表全表扫。";
-	if (sqlState === "42P01" || /does not exist/i.test(message))
-		return "表或列不存在：先用 cosmic_prod action=meta 看这张单的表名和列名，再写查询。";
+	if (sqlState === "42703") return "列不存在：按库里的真实列名改写。";
+	if (sqlState === "42P01" || (sqlState === "" && /relation .* does not exist/i.test(message)))
+		return "表不存在：单据的表名用 cosmic_prod action=meta 看，再写查询。";
 	if (sqlState.startsWith("08") || /connect|refused|timed out/i.test(message))
 		return "连不上生产库：请用户确认 VPN 已连上。";
 	return "按报错改写查询后再试。";
@@ -284,6 +291,63 @@ export async function prodQuery(
 	if (!got.ok) return got;
 	const value = got.value as unknown as ProdQueryReply;
 	return ok({ ...value, tableSchemas: value.tableSchemas ?? {} });
+}
+
+export interface ProdTableColumns {
+	table: string;
+	schema: string;
+	/** 按列序：列名和库里的真实类型（format_type 的写法，如 bigint、character varying(100)） */
+	columns: { name: string; type: string }[];
+}
+
+export interface ProdColumnsReply {
+	/** select version() 的原文：方言以它为准 */
+	version: string;
+	tables: ProdTableColumns[];
+}
+
+/** 一张表最多查回多少列：苍穹最宽的业务表也就两三百列，到这个数还没完说明表名认错了 */
+const COLUMNS_PER_TABLE_CAP = 1000;
+
+/**
+ * 语句里用到的表在库里的真实列和类型，加上库的版本。
+ *
+ * 查询报错时给调用方看：模型照着报错改语句时，列名、列类型、方言都以库为准，不用再一次次试。
+ * 同名表在多个分区时，和执行查询时一样按分区名排序取第一个。表名只收 [a-z0-9_$]，拼进语句前再挡一次。
+ */
+export async function prodColumns(
+	ctx: KernelContext,
+	config: ProdConfig,
+	tables: readonly string[],
+): Promise<KernelResult<ProdColumnsReply>> {
+	const safe = [...new Set(tables.filter((name) => /^[a-z0-9_$]+$/.test(name)))];
+	const wide = { ...config, limits: { ...config.limits, maxRows: COLUMNS_PER_TABLE_CAP * Math.max(1, safe.length) } };
+	const version = await prodQuery(ctx, config, "select version()", []);
+	if (!version.ok) return version;
+	const reply: ProdColumnsReply = { version: version.value.rows[0]?.[0] ?? "", tables: [] };
+	if (safe.length === 0) return ok(reply);
+	const got = await prodQuery(
+		ctx,
+		wide,
+		"select c.relname, n.nspname, a.attname, format_type(a.atttypid, a.atttypmod)" +
+			" from pg_attribute a join pg_class c on c.oid = a.attrelid join pg_namespace n on n.oid = c.relnamespace" +
+			` where c.relkind in ('r', 'v', 'm', 'p', 'f') and c.relname in (${safe.map((t) => `'${t}'`).join(", ")})` +
+			" and n.nspname = any(current_schemas(false)) and a.attnum > 0 and not a.attisdropped" +
+			" order by c.relname, n.nspname, a.attnum",
+		[],
+	);
+	if (!got.ok) return got;
+	const byTable = new Map<string, ProdTableColumns>();
+	for (const [table, schema, name, type] of got.value.rows) {
+		if (table == null || schema == null || name == null) continue;
+		const seen = byTable.get(table);
+		if (seen !== undefined && seen.schema !== schema) continue;
+		const entry = seen ?? { table, schema, columns: [] };
+		entry.columns.push({ name, type: type ?? "" });
+		byTable.set(table, entry);
+	}
+	reply.tables = [...byTable.values()];
+	return ok(reply);
 }
 
 /** 关掉读取进程（会话结束、配置改了）。没在跑就什么都不做 */

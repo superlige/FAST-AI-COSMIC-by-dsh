@@ -86,6 +86,9 @@ BOTP_SOURCE= BOTP_TARGET=<isv>% BOTP_PLUGIN=<isv> BOTP_MAX=400 \
   （`T_BOTP_ConvertRule.FEnabled`），不在 XML 里。探针打的 `enabled=` 取的是表里的值。
 - **规则上的插件 `enabled` 是独立开关**：规则本身启用、插件挂着但 `enabled=false`，
   代码就是不执行 —— 「插件没生效」最常见的原因，光看类名挂没挂看不出来。
+- **「分录映射」那一行是规则的建行层级**（`LinkEntityPolicy`）：下推时按源单「源分录」那个实体的每一行，
+  在目标单「目标分录」那个实体上建一行；两边写的是单据标识就是表头对表头，一张源单出一张目标单。
+  改它走 `SYNC_LINK`，见 [metadata-botp-write.md](metadata-botp-write.md#建行层级)。
 - **同一对源单/目标单可以有多条规则**（`conm_purcontract -> demo_is_lf_juge` 之类），
   名字还都叫「转换规则」。定位只能靠 id，别靠名字。
   实测极端情况：`demo_qty_wtd -> demo_sys_test_bill` 一对就有 **32 条**规则（按试验类型分），

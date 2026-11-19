@@ -170,7 +170,8 @@ describe("S48 照现成的复制、从上游下推、按上下游单的字段查
 			/try \{[\s\S]*?ok = runChain\(entity, met, row\);\s*\} finally \{[\s\S]*?FormSim\.releaseMutex\(row\.view\);\s*\}/,
 		);
 		const sim = source("FormSim");
-		expect(sim).toMatch(/if \(REAL_CACHE\) \{\s*releaseReal\(v\);\s*\} else \{\s*releaseMutex\(v\);\s*\}/);
+		// run form 总是真实缓存：releaseReal 先放锁再清缓存（下面查 releaseRealView 的顺序）
+		expect(sim).toMatch(/if \(released\.add\(v\.getPageId\(\)\)\) \{\s*releaseReal\(v\);\s*\}/);
 		const ui = source("HeadlessUiSupport");
 		const release = ui.slice(ui.indexOf("public static List<String> releaseRealView("));
 		// 锁的标识在页面缓存里：先放锁，再清页面缓存
@@ -178,7 +179,23 @@ describe("S48 照现成的复制、从上游下推、按上下游单的字段查
 		expect(body.indexOf("releaseMutex(view);")).toBeGreaterThan(-1);
 		expect(body.indexOf("releaseMutex(view);")).toBeLessThan(body.indexOf("((PageCache) cache).release();"));
 		expect(ui).toContain('cache.get("MUTEX_OBJ_ID")');
-		expect(ui).toContain("MutexHelper.release(view);");
+		// 平台回 false 是锁还挂着：报出去，不当放了
+		expect(ui).toContain("if (!MutexHelper.release(view)) {");
+		// 清理那一行带上编辑锁的结果，没占也写
+		const real = sim.slice(sim.indexOf("static void releaseReal(FormView view) {"));
+		const realBody = real.slice(0, real.indexOf("\n    }\n"));
+		expect(realBody).toContain('lock = released == null ? "没占" : "已放 " + released;');
+		expect(realBody).toContain('"  编辑锁=" + lock');
+	});
+
+	it("真实页面缓存每次写当场落 Redis，不攒批（攒批时打开单据记的编辑锁标识丢掉，锁放不掉）", () => {
+		// FormView.activate 里平台另建一份同 pageId 的页面缓存登记进 SessionManager；视图手里那份要是攒批，
+		// 之后写进它的编辑锁标识 commitCache 提交不到，下一次请求和跑完放锁都读不到（真机 2026-11-18）
+		const ui = source("HeadlessUiSupport");
+		const real = ui.slice(ui.indexOf("public static IPageCache realPageCache("));
+		const body = real.slice(0, real.indexOf("\n    }\n"));
+		expect(body).toContain("new PageCache(pageId, false)");
+		expect(body).not.toContain("new PageCache(pageId, true)");
 	});
 
 	it("多条转换规则时写了源单编号就按源单挑，只写源单标识的报错里说写上编号", () => {

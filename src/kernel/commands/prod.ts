@@ -54,8 +54,8 @@ import {
 	type MonitorSession,
 } from "../prod/monitor.ts";
 import { coverageLines, localTime, parseLocalTime, retentionStart, searchMonitor } from "../prod/monitor-search.ts";
-import { prodInfo, prodQuery } from "../prod/reader.ts";
-import { checkReadOnlySql } from "../prod/sql-guard.ts";
+import { prodColumns, prodInfo, prodQuery } from "../prod/reader.ts";
+import { checkReadOnlySql, maskLiterals } from "../prod/sql-guard.ts";
 import { META_ROWS_PROBE } from "./internal-probes.ts";
 import type { probe as probeFn } from "./probe.ts";
 
@@ -96,7 +96,7 @@ export function loadProdConfig(fs: FsPort, agentConfigDir: string): KernelResult
 		return err(
 			new KernelError("PROD_CONFIG_MISSING", `没有生产排障配置：${file}`, {
 				detail: { file },
-				remedy: `请用户照 docs/packaging-and-usage.md 里「生产只读排障」一节建 ${file}（只在本机，里面是生产只读账号）。`,
+				remedy: `请用户在会话里输入 /cosmic-prod-setup 按提示填（写到本机 ${file}，里面是生产只读账号，不要把内容贴进对话）。`,
 			}),
 		);
 	return parseProdConfig(fs.read(file), file);
@@ -117,6 +117,17 @@ function stamp(ctx: KernelContext): string {
 	return new Date(ctx.ports.clock.now()).toISOString().replace(/[:.]/g, "-");
 }
 
+function connectedLine(v: { version: string; database: string; user: string; sessionReadOnly: string }): string {
+	return `连上了：${v.version.split(" (")[0] ?? v.version}，库 ${v.database}，账号 ${v.user}，会话只读 ${v.sessionReadOnly === "on" ? "是" : `否（${v.sessionReadOnly}）`}`;
+}
+
+/** 配置向导写入前试连一次：用还没落盘的那份配置，连上了给一句话 */
+export async function checkProdConnection(ctx: KernelContext, config: ProdConfig): Promise<KernelResult<string>> {
+	const info = await prodInfo(ctx, config);
+	audit(ctx, { action: "setup-check", ok: info.ok });
+	return info.ok ? ok(connectedLine(info.value)) : info;
+}
+
 async function status(ctx: KernelContext, deps: ProdDeps, config: ProdConfig): Promise<KernelResult<ProdOutcome>> {
 	const lines = [describeProdConfig(config)];
 	const info = await prodInfo(ctx, config);
@@ -124,7 +135,7 @@ async function status(ctx: KernelContext, deps: ProdDeps, config: ProdConfig): P
 	const v = info.value;
 	lines.push(
 		"",
-		`连上了：${v.version.split(" (")[0] ?? v.version}，库 ${v.database}，账号 ${v.user}，会话只读 ${v.sessionReadOnly === "on" ? "是" : `否（${v.sessionReadOnly}）`}`,
+		connectedLine(v),
 		"各分区（能查/总表数）：",
 		...v.schemas.map((s) => `  ${s.name}  ${String(s.readable)}/${String(s.tables)}`),
 	);
@@ -138,7 +149,7 @@ async function status(ctx: KernelContext, deps: ProdDeps, config: ProdConfig): P
 		lines.push(
 			"",
 			session === null
-				? "monitor：没登录（要查日志请用户敲 /cosmic-prod login）"
+				? "monitor：没登录（要查日志请用户敲 /cosmic-monitor-login）"
 				: `monitor：${new Date(session.loggedInAt).toLocaleString("zh-CN", { hour12: false })} 登录过（闲置约半小时会过期，过期了查日志会提示重新登录）`,
 		);
 	}
@@ -174,7 +185,8 @@ async function sql(ctx: KernelContext, config: ProdConfig, text: string): Promis
 	const got = await prodQuery(ctx, config, text, checked.tables);
 	if (!got.ok) {
 		audit(ctx, { action: "sql", ok: false, error: got.error.message, sql: text });
-		return got;
+		if (got.error.code !== "PROD_SQL_FAILED") return got;
+		return err(await withRealColumns(ctx, config, text, checked.tables, got.error));
 	}
 	const r = got.value;
 	const file = join(ctx.layout.workDir, "prod", "sql", `${stamp(ctx)}.tsv`);
@@ -208,6 +220,68 @@ async function sql(ctx: KernelContext, config: ProdConfig, text: string): Promis
 			: ""
 	}`;
 	return ok({ text: lines.join("\n"), evidence: { kind: "生产数据", summary, file } });
+}
+
+/** 一张表的列数不超过这个就全列；更宽的只列语句里写到的，其余看文件 */
+const COLUMNS_LISTED_IN_FULL = 80;
+
+/**
+ * 库按语句报错时，把语句里用到的表在库里的真实列和类型、库的版本附进报错。
+ *
+ * 改语句要的事实（这一列是 bigint 还是 varchar、有没有这一列、这个库认不认 FILTER）都在库里；
+ * 报错只说「哪里不对」，不说「真实是什么」，模型就只能一次次试。这里一次给全，
+ * 下一条语句照着写。查不到列也不挡原来的报错，只多一句没查成的原因。
+ */
+async function withRealColumns(
+	ctx: KernelContext,
+	config: ProdConfig,
+	text: string,
+	tables: readonly string[],
+	error: KernelError,
+): Promise<KernelError> {
+	const looked = await prodColumns(ctx, config, tables);
+	if (!looked.ok)
+		return new KernelError(error.code, error.message, {
+			detail: { ...error.detail, columnsLookup: `没查成：${looked.error.message}` },
+			remedy: error.remedy,
+		});
+	const masked = maskLiterals(text).text.toLowerCase();
+	const words = new Set(masked.match(/[a-z_][a-z0-9_$]*/g) ?? []);
+	const sqlState = String(error.detail.sqlState ?? "");
+	// 列名写错（42703）时，写错的那个名字在宽表里匹配不到任何列，只列「写到的」就恰好漏掉要找的那一列；
+	// 按报错里的名字把相近的真实列也列出来（真机：写了 zlgd_hjzt，库里是 fk_zlgd_hjzt）
+	const wrong =
+		sqlState === "42703" ? (/"([^"]+)"/.exec(error.message)?.[1] ?? "").split(".").pop()?.toLowerCase() : "";
+	const near = (name: string): boolean =>
+		wrong !== undefined && wrong.length >= 3 && (name.includes(wrong) || (name.length >= 3 && wrong.includes(name)));
+	const picked = wrong ? `语句里写到的和名字像「${wrong}」的` : "语句里写到的";
+	const file = join(ctx.layout.workDir, "prod", "sql", `${stamp(ctx)}-columns.tsv`);
+	const tsv = ["table\tschema\tcolumn\ttype"];
+	const lines: string[] = [];
+	for (const table of looked.value.tables) {
+		for (const c of table.columns) tsv.push([table.table, table.schema, c.name, c.type].join("\t"));
+		const full = table.columns.length <= COLUMNS_LISTED_IN_FULL;
+		const shown = full
+			? table.columns
+			: table.columns.filter((c) => words.has(c.name.toLowerCase()) || near(c.name.toLowerCase()));
+		const rest = table.columns.length - shown.length;
+		lines.push(
+			`${table.table}（分区 ${table.schema}，${String(table.columns.length)} 列${full ? "" : `，下面只列${picked} ${String(shown.length)} 列`}）：` +
+				`${shown.map((c) => `${c.name} ${c.type}`).join(", ") || "语句里没写到这张表的列"}` +
+				`${rest > 0 ? `；其余 ${String(rest)} 列见 columnsFile` : ""}`,
+		);
+	}
+	// 语句闸认表是按 from / join 后面的词认的，EXTRACT(HOUR FROM 列)、WITH 起的名字也会混进来；
+	// 只在库报的就是「表不存在」（42P01）时才说哪些名字不是表，不然是噪音
+	const found = new Set(looked.value.tables.map((t) => t.table));
+	if (sqlState === "42P01")
+		for (const table of tables)
+			if (!found.has(table)) lines.push(`${table}：本账号能看到的分区里没有这张表（可能是子查询别名或拼错了）`);
+	ctx.ports.fs.write(file, `${tsv.join("\n")}\n`);
+	return new KernelError(error.code, error.message, {
+		detail: { ...error.detail, database: looked.value.version, columns: lines, columnsFile: file },
+		remedy: `${error.remedy}语句里用到的表在库里的真实列名和类型在 columns（全部列在 columnsFile），库的版本在 database：列名、类型转换和写法都以它们为准。`,
+	});
 }
 
 async function meta(
@@ -310,7 +384,7 @@ function monitorSession(
 	if (config.monitor === null)
 		return err(
 			new KernelError("PROD_CONFIG_MISSING", "生产排障配置里没有 monitor 账号，查不了日志", {
-				remedy: `请用户在 ${config.file} 的 monitor 一节填上 url、username、password。`,
+				remedy: `请用户在会话里输入 /cosmic-prod-setup 补上 monitor 账号（写到本机 ${config.file}）。`,
 			}),
 		);
 	const session = loadMonitorSession(

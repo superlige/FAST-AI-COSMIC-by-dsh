@@ -320,19 +320,90 @@ describe("S23 打印模板、BOTP、业务规则", () => {
 		expect(built.impact).toContain("派生布局 12 张跟着变（它们自己改过的属性不变）：zlgd_bill_a、zlgd_bill_b 等");
 	});
 
-	it("BOTP：要改的规则取自写入目标，字段映射一行一个，公式原文照放", () => {
+	// 一种类型专用的字段（layouts=<布局>）：确认单要让人看见它只在哪几张显示，别的类型看不到
+	it("单据布局：只在部分布局显示的新控件逐个写进影响", () => {
+		const built = form(
+			"FormLayoutWriteProbe",
+			{
+				LAYOUT_FORM: "zlgd_bill",
+				LAYOUT_EDIT: "add field TextField zlgd_x after zlgd_y X visible=all lock=none layouts=zlgd_bill_a",
+			},
+			[
+				{ t: "layout-change", scope: "字段", element: "zlgd_x", prop: "（新增）", before: "", after: "TextField" },
+				{ t: "layout-heirs", count: 2, forms: "zlgd_bill_a、zlgd_bill_b" },
+				{ t: "layout-scope", count: 1, items: "zlgd_x→zlgd_bill_a", layouts: 3 },
+			],
+		);
+		expect(built.impact).toContain("只在部分布局显示（其余布局上是隐藏元素）：zlgd_x→zlgd_bill_a");
+	});
+
+	it("BOTP：要改的规则取自写入目标，字段映射一行一个，四种取值各写成人话", () => {
 		const built = form(
 			"BotpRuleSyncProbe",
-			{ SYNC_TARGETS: "r1,r2", SYNC_FIELDMAP: "zlgd_a=zlgd_b + 1" },
+			{
+				SYNC_TARGETS: "r1,r2",
+				SYNC_FIELDMAP: "zlgd_a=zlgd_b + 1;zlgd_c=src:org;zlgd_d=const:DJ01;zlgd_e=clear",
+			},
 			[],
 			["botp:r1", "botp:r2"],
 		);
-		expect(built.names).toEqual(["r1", "r2", "zlgd_a"]);
+		expect(built.names).toEqual(["r1", "r2", "zlgd_a", "zlgd_c", "zlgd_d", "zlgd_e"]);
 		expect(built.tables.map((table) => table.columns)).toEqual([
 			["转换规则", "规则 id"],
-			["目标字段", "标识", "改成公式"],
+			["目标字段", "标识", "改成"],
 		]);
-		expect(built.tables[1]?.rows[0]?.[2]).toEqual({ text: "zlgd_b + 1" });
+		expect(built.tables[1]?.rows.map((row) => row[2])).toEqual([
+			{ text: "公式 zlgd_b + 1" },
+			{ text: "取源单字段 org" },
+			{ text: "常量（基础资料）DJ01" },
+			{ text: "清掉映射（下推时不取值）" },
+		]);
+	});
+
+	it("BOTP 改建行层级：改前改后、上下游关联、逐行取值的映射都取自探针记录，预演没报就明说", () => {
+		const env = { SYNC_TARGETS: "r1", SYNC_LINK: "entryentity->entryentity" };
+		const built = form(
+			"BotpRuleSyncProbe",
+			env,
+			[
+				{
+					t: "botp-link",
+					rule: "r1",
+					sourceBefore: "表头 zlgd_src",
+					sourceAfter: "分录 entryentity（单据体）",
+					targetBefore: "表头 zlgd_tgt",
+					targetAfter: "分录 entryentity（明细）",
+					linkBefore: "zlgd_tgt.billhead_lk",
+					linkAfter: "entryentity.entryentity_lk",
+					rows: ["zlgd_a <= 源字段 zlgd_b（源字段在 分录 entryentity（单据体））"],
+					head: 3,
+					others: [],
+					plugins: ["zlgd.demo.DemoConvertPlugin"],
+				},
+			],
+			["botp:r1"],
+		);
+		expect(built.head).toContainEqual({ label: "建行层级改成", cells: [{ text: "entryentity->entryentity" }] });
+		expect(built.tables.map((table) => table.columns)).toEqual([
+			["转换规则", "规则 id"],
+			["规则 id", "源单建行", "目标单建行", "上下游关联"],
+			["规则 id", "改后逐行取值的映射"],
+		]);
+		expect(texts(built.tables[1]?.rows[0])).toEqual([
+			"r1",
+			"表头 zlgd_src → 分录 entryentity（单据体）",
+			"表头 zlgd_tgt → 分录 entryentity（明细）",
+			"记在 zlgd_tgt.billhead_lk → 记在 entryentity.entryentity_lk",
+		]);
+		expect(texts(built.tables[2]?.rows[0])).toEqual([
+			"r1",
+			"zlgd_a <= 源字段 zlgd_b（源字段在 分录 entryentity（单据体））",
+		]);
+		expect(built.impact).toContain("逐行取值 1 条、表头 3 条、其他位置 0 条");
+		expect(built.impact).toContain("启用的转换插件 1 个照旧执行：zlgd.demo.DemoConvertPlugin");
+
+		const unreported = form("BotpRuleSyncProbe", env, [], ["botp:r1"]);
+		expect(texts(unreported.tables[1]?.rows[0])).toEqual(["（预演没报）", "—", "—", "—"]);
 	});
 
 	it("业务规则：条件、成立时、不成立时三行，各一格人话、一格原文", () => {

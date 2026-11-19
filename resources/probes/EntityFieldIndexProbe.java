@@ -32,7 +32,8 @@ import kd.bos.db.ResultSetHandler;
  *   SubEntryEntity  子分录，ParentId=所属 EntryEntity 的 Id
  *   *Field          字段（TextField/DecimalField/ComboField/BasedataField/OrgField/…），
  *                   ParentId 指所属分录的 Id；**没有 ParentId 就是表头字段**
- * 继承来的原厂字段（billno / billstatus）不在子单据的设计里 —— 那本来也不该进召回集。
+ * 继承来的原厂字段（billno / billstatus）不在子单据的设计里 —— 那本来也不该进召回集；
+ * 但每张单从哪继承要报出来（t=fieldbase，见 bases），否则「没收到」会被当成「不在这张单上」。
  *
  * 扫的是**全部**本 ISV 实体设计（本工程 2547 份 / 41MB），不能像 PluginIndexProbe 那样用
  * `fdata like` 前置过滤 —— 要回答的正是「这个 key 全库有几张单」，过滤掉的那部分就是答案。
@@ -98,6 +99,7 @@ public class EntityFieldIndexProbe {
 
         final long[] stat = new long[4];   // 0=实体数 1=扫过的字符 2=报出的记录 3=扫描毫秒
         final Map<String, Set<String>> owners = new LinkedHashMap<String, Set<String>>();
+        final List<String> scanned = new ArrayList<String>();
         long t0 = System.currentTimeMillis();
         DB.query(DBRoute.meta, "select fnumber, fdata from t_meta_entitydesign"
                 + " where fisv = " + lit(isv) + " and fdata is not null",
@@ -110,6 +112,9 @@ public class EntityFieldIndexProbe {
                                 continue;
                             }
                             stat[0]++;
+                            if (onlyOn.isEmpty() || onlyOn.contains(entity)) {
+                                scanned.add(entity);
+                            }
                             stat[1] += data.length();
                             long m0 = System.currentTimeMillis();
                             List<Block> blocks = walk(data);
@@ -136,7 +141,9 @@ public class EntityFieldIndexProbe {
             }
         }
         int named = billNames(isv, null);
-        ProbeJson.emit("field-summary", "mode", all ? "all" : "asked", "entities", stat[0], "rows", stat[2]);
+        int bases = bases(isv, scanned);
+        ProbeJson.emit("field-summary", "mode", all ? "all" : "asked", "entities", stat[0], "rows", stat[2],
+                "isv", isv, "bases", bases);
         System.out.println("[PROBE] 实体设计 " + stat[0] + " 份 / " + (stat[1] / 1024 / 1024)
                 + "MB XML → 字段归属 " + stat[2] + " 条，覆盖 " + counted + " 个标识（其中 "
                 + multi + " 个跨单据同名），单据中文名 " + named + " 个，扫描 " + stat[3] + "ms / 总 " + ms + "ms");
@@ -168,6 +175,66 @@ public class EntityFieldIndexProbe {
         return seen.size();
     }
 
+    /**
+     * 每张扫过的单从哪继承（`t=fieldbase`）：本 ISV 的父设计（近的在前），和链上第一份别家的设计
+     * （`outside`，多半是原厂模板 bos_billtpl）。
+     *
+     * 这里只扫各单自己的设计 XML，继承来的字段（billno、billstatus，或本 ISV 模板上的字段）不在里面。
+     * 不报这条，「这张单的字段收全了」就会被读成「没收到的字段就不在这张单上」——真机上
+     * zlgd_sys_test_bill.billno 被说成「不在这张单上」就是这么来的。
+     * 只读三列不拉 FDATA；父设计查不到时 outside 记它的 FID，判不了就当别家的。
+     */
+    private static int bases(final String isv, List<String> entities) {
+        if (entities.isEmpty()) {
+            return 0;
+        }
+        final Map<String, String[]> byFid = new HashMap<String, String[]>();
+        final Map<String, String[]> own = new HashMap<String, String[]>();
+        DB.query(DBRoute.meta, "select fid, fnumber, fparentid, fisv from t_meta_entitydesign",
+                new ResultSetHandler<Void>() {
+                    public Void handle(ResultSet rs) throws Exception {
+                        while (rs.next()) {
+                            String[] d = {nz(rs.getString(2)), nz(rs.getString(3)).trim(), nz(rs.getString(4))};
+                            byFid.put(nz(rs.getString(1)), d);
+                            if (isvOf(d).equals(isv) && !own.containsKey(d[0])) {
+                                own.put(d[0], d);
+                            }
+                        }
+                        return null;
+                    }
+                });
+        int n = 0;
+        for (String entity : entities) {
+            String[] d = own.get(entity);
+            if (d == null) {
+                continue;
+            }
+            List<String> parents = new ArrayList<String>();
+            String outside = "";
+            String at = d[1];
+            for (int guard = 0; !at.isEmpty() && guard < 16; guard++) {
+                String[] p = byFid.get(at);
+                if (p == null) {
+                    outside = at;
+                    break;
+                }
+                if (!isvOf(p).equals(isv)) {
+                    outside = p[0];
+                    break;
+                }
+                parents.add(p[0]);
+                at = p[1];
+            }
+            ProbeJson.emit("fieldbase", "entity", entity, "outside", outside, "parents", parents);
+            n++;
+        }
+        return n;
+    }
+
+    private static String isvOf(String[] design) {
+        return design[2];
+    }
+
     /** 收全时传给 emitAll 的「白名单」：空集就是不按标识过滤。 */
     private static final Set<String> ALL = java.util.Collections.<String>emptySet();
 
@@ -186,6 +253,7 @@ public class EntityFieldIndexProbe {
         final Map<String, Set<String>> ignored = new HashMap<String, Set<String>>();
         final Set<String> none = new HashSet<String>();
         final Set<String> sink = new HashSet<String>();
+        final List<String> scanned = new ArrayList<String>();
         List<String> entities = shaped(scanOnly);
         for (int from = 0; from < entities.size(); from += BATCH) {
             List<String> part = entities.subList(from, Math.min(entities.size(), from + BATCH));
@@ -198,6 +266,7 @@ public class EntityFieldIndexProbe {
                                     continue;
                                 }
                                 stat[0]++;
+                                scanned.add(rs.getString(1));
                                 emitAll(rs.getString(1), walk(data), ALL, none, ignored, stat, sink);
                             }
                             return null;
@@ -205,7 +274,9 @@ public class EntityFieldIndexProbe {
                     });
             billNames(isv, part);
         }
-        ProbeJson.emit("field-summary", "mode", "partial", "entities", stat[0], "rows", stat[2]);
+        int bases = bases(isv, scanned);
+        ProbeJson.emit("field-summary", "mode", "partial", "entities", stat[0], "rows", stat[2],
+                "isv", isv, "bases", bases);
         System.out.println("[PROBE] 补扫实体 " + stat[0] + " / " + scanOnly.size() + " 份 → 字段 " + stat[2]
                 + " 条，" + (System.currentTimeMillis() - t0) + "ms");
     }

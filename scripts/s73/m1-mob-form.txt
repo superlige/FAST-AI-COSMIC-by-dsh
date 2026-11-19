@@ -1,4 +1,4 @@
 # 独立移动表单：改属性、加控件、挂移动端插件
 set zlgd_labelap.Name=首页标题S73
-add LabelAp zlgd_s73label into zlgd_flexpanelap21 S73标签
+add LabelAp zlgd_s73label into zlgd_flexpanelap21 S73标签 visible=none lock=none
 add plugin zlgd.bpm.xxgl.plugin.digitaltaskboard.DigitalTaskBoardMobFormPlugin

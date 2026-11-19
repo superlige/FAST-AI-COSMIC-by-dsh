@@ -55,7 +55,7 @@ if (at >= 0) {
 		resources: EMBEDDED_RESOURCES,
 	});
 	try {
-		const inputs = [
+		const inputs: { name: string; env: Record<string, string> }[] = [
 			{ name: "MetaProbe", env: { META_ENTITY: "zlgd_sys_test_bill", META_FILTER: "billno" } },
 			{ name: "FormRuleProbe", env: { RULE_FORM: "zlgd_wtd_xnl" } },
 			{

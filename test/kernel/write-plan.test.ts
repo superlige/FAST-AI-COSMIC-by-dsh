@@ -62,7 +62,7 @@ describe("S18 metadata writers, proved from source", () => {
 	it("loads no business class and enters no engine -- the reason they may skip the stale gate", () => {
 		const loaders =
 			/kd\.bos\.form\.|kd\.bos\.print\.core\.ExecuteService|BosPrintServiceImpl|OperationServiceHelper|kd\.bos\.entity\.plugin|Class\.forName|\.newInstance\s*\(|loadClass\s*\(/;
-		const helpers = ["MetaResolve", "IsvGuard"];
+		const helpers = ["MetaResolve", "IsvGuard", "RuntimeMeta"];
 		const offenders = [...WRITERS, ...helpers].filter((name) => loaders.test(PROBE_SOURCES.get(name) ?? ""));
 		expect(offenders).toEqual([]);
 	});
@@ -645,4 +645,163 @@ it("批量清单的每个操作和原条件都绑定授权", () => {
 	]) {
 		expect(writePlanDigest("FormRuleProbe", { ...env, RULE_BATCH: batch })).not.toBe(digest);
 	}
+});
+
+/**
+ * 2026-11-16 真机：疲劳流程改四张单。三张改的是派生布局（布局 id ≠ 实体 id），字段进了实体、控件只进派生布局，
+ * 开发平台打开主单据大纲里找不到字段；检测单保存回「成功」后加列撞上行大小上限，探针只留下一句「保存成功」和一段堆栈；
+ * 另两张报「回读一致」，比的只是设计态，没核对运行态和业务表的列。
+ */
+describe("布局写探针：派生布局、写一半、分层回读", () => {
+	const source = PROBE_SOURCES.get("FormLayoutWriteProbe") ?? "";
+
+	it("派生布局上加删字段、加分录会被拒，指回主单据布局", () => {
+		expect(source).toContain("if (!layoutOnly && !formId.equals(em.getId())) editor.derivedOf = entity;");
+		for (const what of ["加字段", "照搬字段", "删字段", "加分录"]) {
+			expect(source).toContain(`fieldHome(where, "${what}")`);
+		}
+		expect(source).toContain("的派生布局，");
+	});
+
+	it("保存报错或报失败时重新读设计态，存进去了就说写了一半、探针以失败结束", () => {
+		expect(source).toContain("designUnchanged(formId, em.getId(), fser, eser, baseline)");
+		expect(source).toContain("throw halfWritten(");
+		expect(source).toContain("!! 写了一半：设计态");
+		expect(source).not.toContain("平台没有存上，库里还是改前那份");
+	});
+
+	it("刷新运行态、加列失败不再只留一句保存成功", () => {
+		const save = source.slice(source.indexOf("MetadataDao.rebuildRuntimeMetaById(formId);") - 200);
+		expect(save.slice(0, 600)).toContain("} catch (Throwable e) {");
+		expect(save.slice(0, 800)).toContain('throw halfWritten("刷新运行态、给业务表加列"');
+		// 真机那次的输出形状：保存成功之后堆栈退出，没有落库成功那一行，不能算写成。
+		const output = [
+			"[PROBE] save -> {success=true, message=保存成功。}",
+			"[PROBE] !! 写了一半：设计态（开发平台里看到的布局、实体）已经存进库，刷新运行态、给业务表加列没成：KDException: Row size too large",
+		].join("\n");
+		expect(isAppliedWrite({ cls: "FormLayoutWriteProbe", exitCode: 1, output })).toBe(false);
+	});
+
+	it("回读分三层报数：设计态、运行态、业务表", () => {
+		expect(source).toContain("回读核对 设计态（开发平台里看到的布局");
+		expect(source).toContain("回读核对 运行态：");
+		expect(source).toContain("回读核对 业务表：要加 ");
+		expect(source).toContain('ProbeJson.emit("layout-landed"');
+		expect(source).not.toContain('p("回读核对：库里那份');
+	});
+
+	// 2026-11-16 真机：四张单加 37 个字段，全部 into 扔到容器最后，没有一个设过可见性、锁定性，内码字段摆在界面上。
+	it("加字段、照搬字段、加分录、加控件必须写明可见性和锁定性，看得见的必须指到具体控件旁边", () => {
+		expect(source).toContain('String[] show = showSpec(where, opts.get("visible"), opts.get("lock"), true, true);');
+		// 照搬字段、加分录各一处；普通控件有没有锁定性按设计器的属性清单判。
+		expect(source.match(/String\[\] show = showSpec\(where, visibleSpec, lockSpec, true, true\);/g)?.length).toBe(2);
+		expect(source).toContain(
+			'String[] show = showSpec(where, visibleSpec, lockSpec, lockable, has(ap, key, "Visible"));',
+		);
+		expect(source).toContain('bad.add("少了 visible=")');
+		expect(source).toContain('bad.add("少了 lock=")');
+		expect(source).toContain('Arrays.asList("init", "new", "edit", "view", "submit", "audit")');
+		expect(source.match(/!positioned\(where, (at\.how, at\.parent|how, parent), show\)/g)?.length).toBe(4);
+		expect(source.match(/applyShow\(ap, show\);/g)?.length).toBe(3);
+		expect(source).toContain("grid.setLock(show[2]);");
+	});
+
+	it("预演逐个报新字段的落点：上级容器、位置、可见性、锁定性和前后邻居", () => {
+		expect(source).toContain("新加的字段、分录、控件在界面上的落点（上级容器、位置、可见性、锁定性）：");
+		expect(source).toContain('ProbeJson.emit("layout-placement"');
+		expect(source).toContain("是隐藏元素，里面的控件界面上都不出现");
+	});
+
+	it("必录条件和操作上的合法性校验走同一份清单，表达式先拿平台判据核过", () => {
+		expect(source).toContain('if ("mustinputcondition".equalsIgnoreCase(name)) {');
+		expect(source).toContain('if (billOnly(where, "加校验")) addCheck(where, line.substring(10).trim());');
+		expect(source).toContain('if (billOnly(where, "删校验")) removeCheck(where, line.substring(13).trim());');
+		// 必录条件、校验表达式、前置条件三处都过 FormulaCheck：写错了平台照样存，到运行时才报错。
+		expect(source.match(/exprVars\(where, "(必录条件|表达式|前置条件)", /g)?.length).toBe(3);
+		expect(source).toContain("FormulaCheck.Result r = FormulaCheck.rule(expr, runtimeType);");
+		// pass / fail 必须写明：平台的 TrueThrow 默认是「不成立才报错」，两种方向真实单据上都有，不替调用方定。
+		expect(source).toContain('v.setTrueThrow(head[1].equals("fail"));');
+		expect(source).toContain("平台一条校验只能用表头和一个分录的字段：拆成几条");
+		// 加在别人的操作上要过操作宿主那道核对；模板带来的校验不删。
+		expect(source.match(/opHosts\.add\(/g)?.length).toBe(3);
+		expect(source).toContain("是模板或标准产品带来的校验，删不了");
+		expect(source).toContain("checks(scope, key, list(x0), list(y0), out);");
+	});
+});
+
+// 真机 zlgd：主单据布局 zlgd_sys_test_bill 加字段后只重建了它自己的运行态，31 张派生布局的运行态里没有新字段，
+// 写探针却报「派生布局 31 张跟着变」；表单验证打开派生布局拿不到控件，按默认把隐藏又锁定的字段判成显示、可编辑。
+describe("改了表单，派生布局的运行态跟着重建；运行态没有的控件不按默认答", () => {
+	const heirsHelper = PROBE_SOURCES.get("RuntimeMeta") ?? "";
+
+	it("helper finds heirs by inherit path, parents first, and reports every one rebuilt or failed", () => {
+		expect(heirsHelper).toContain("FINHERITPATH like ? or FPARENTID = ?");
+		expect(heirsHelper).toContain("Integer.compare(depth(a[2]), depth(b[2]))");
+		expect(heirsHelper).toContain("MetadataDao.rebuildRuntimeMetaById(h[0]);");
+		// 一张失败不挡后面的，0 张也报数
+		expect(heirsHelper).toMatch(/catch \(Throwable e\) \{\s*String msg/);
+		expect(heirsHelper).toContain('"[PROBE] 派生布局运行态重建 " + r[0] + "/" + heirs.size() + " 张"');
+		// 不加载业务类：写探针跳过编译新鲜度检查的前提
+		expect(heirsHelper).not.toMatch(/kd\.bos\.form\.|Class\.forName|loadClass\s*\(/);
+	});
+
+	it("every form-rule rebuild is followed by the heirs", () => {
+		const source = PROBE_SOURCES.get("FormRuleProbe") ?? "";
+		const rebuilds = source.match(/MetadataDao\.rebuildRuntimeMetaById\(formId\);/g)?.length ?? 0;
+		expect(rebuilds).toBeGreaterThan(0);
+		expect(
+			source.match(
+				/MetadataDao\.rebuildRuntimeMetaById\(formId\);\s*System\.out\.println\("\[PROBE\] rebuildRuntimeMetaById\(" \+ formId \+ "\) 完成"\);\s*RuntimeMeta\.rebuildHeirsAndReport\(formId\);/g,
+			)?.length,
+		).toBe(rebuilds);
+	});
+
+	it("the layout writer rebuilds the heirs before saying the runtime is refreshed", () => {
+		const source = PROBE_SOURCES.get("FormLayoutWriteProbe") ?? "";
+		const own = source.indexOf("MetadataDao.rebuildRuntimeMetaById(formId);");
+		const heirs = source.indexOf("rebuilt = RuntimeMeta.rebuildHeirs(heirList);");
+		const landed = source.indexOf('"[PROBE] 布局已落库：');
+		expect(own).toBeGreaterThan(0);
+		expect(heirs).toBeGreaterThan(own);
+		expect(landed).toBeGreaterThan(heirs);
+		expect(source).toContain('"，运行态已刷新：这张 + 派生布局 "');
+		expect(source).toContain("!! 派生布局运行态没重建成");
+	});
+
+	// 一种类型专用的字段、控件不能露到别的类型的布局上：加的时候说清在哪几张显示，工具按清单落到每张布局
+	it("visible new fields, entries and controls on a layout with heirs must say layouts=, and only the listed ones show them", () => {
+		const source = PROBE_SOURCES.get("FormLayoutWriteProbe") ?? "";
+		// 四种加法共用 showSpec：没写 layouts= 就拒
+		expect(source.match(/showSpec\(where, /g)?.length).toBe(4);
+		expect(source).toContain("if (!none && lineLayouts == null && onBill() && !heirs().isEmpty()) {");
+		// 没列这张布局时设成隐藏元素：字段、控件、分录面板都走同一个判断
+		expect(source).toContain("ap.setInvisible(hiddenHere(show));");
+		expect(source).toContain("adv.setInvisible(hiddenHere(show));");
+		expect(source).not.toMatch(/setInvisible\(!show\[0\]\.isEmpty\(\)\)/);
+		// 列出的派生布局进写入目标、落库前先过 ISV
+		expect(source).toContain(
+			"for (String layout : editor.showOn.keySet()) IsvGuard.assertOwnLayout(entity, layout);",
+		);
+		// 改回显示在「布局已落库」之前：没成就是写了一半，不打落库成功那一行
+		const shownAt = source.indexOf(
+			"if (editor != null && !editor.showOn.isEmpty()) showOnHeirs(editor, backupDir, undo);",
+		);
+		expect(shownAt).toBeGreaterThan(0);
+		expect(shownAt).toBeLessThan(source.indexOf('System.out.println("[PROBE] 布局已落库：'));
+		expect(source).toMatch(/throw halfWritten\(step, why, undo/);
+		// 只在部分布局显示的字段不能单纯必录
+		expect(source).toContain("editor.checkScopedMustInput();");
+	});
+
+	it("a field the design layout has but the opened view lacks is unresolved with the reason, not judged by default", () => {
+		const ui = PROBE_SOURCES.get("UiState") ?? "";
+		expect(ui).toContain("static String notInRuntime(String path)");
+		expect(ui).toMatch(/!ap\.getClass\(\)\.getSimpleName\(\)\.endsWith\("FieldAp"\) \|\| control\(t\.key\) != null/);
+		expect(ui).toContain("if (t == null || !PROPS.contains(prop) || notInRuntime(path) != null) {");
+		expect(ui).toContain("运行态里没有这个控件（设计态有），显示、锁定判不了");
+		const sim = PROBE_SOURCES.get("FormSim") ?? "";
+		expect(sim).toMatch(
+			/String stale = UiState\.notInRuntime\(up\[0\]\);\s*if \(got == null\) \{\s*ProbeAssert\.unresolved\("ui", kv\[0\], kv\[1\], stale != null \? stale :/,
+		);
+	});
 });

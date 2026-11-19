@@ -1,0 +1,12 @@
+# 拆分表：该拒的写法，一行一种（zlgd_nbjgjl）
+add split zlgd_nbjgjl L 多语言
+add split zlgd_nbjgjl AB 两位
+add split zlgd_bz A 字段上
+add split zlgd_nbjgjl A 一
+add split zlgd_nbjgjl a 重复
+add split entryentity B 分录的
+set zlgd_bz.Suffix=A
+set zlgd_bz.Suffix=B
+remove split entryentity B
+remove split zlgd_nbjgjl C
+add split zlgd_nbjgjl D

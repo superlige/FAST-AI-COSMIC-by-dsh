@@ -380,6 +380,7 @@ public class FormRuleProbe {
         System.out.println("[PROBE] save -> " + r);
         MetadataDao.rebuildRuntimeMetaById(formId);
         System.out.println("[PROBE] rebuildRuntimeMetaById(" + formId + ") 完成");
+        RuntimeMeta.rebuildHeirsAndReport(formId);
     }
 
     /**
@@ -455,6 +456,7 @@ public class FormRuleProbe {
         System.out.println("[PROBE] save -> " + writer.save(fm));
         MetadataDao.rebuildRuntimeMetaById(formId);
         System.out.println("[PROBE] rebuildRuntimeMetaById(" + formId + ") 完成");
+        RuntimeMeta.rebuildHeirsAndReport(formId);
     }
 
     private static void tryCandidate(String form, FormMetadata fm, List<FormRule> changed) throws Exception {
@@ -687,6 +689,7 @@ public class FormRuleProbe {
         System.out.println("[PROBE] save -> " + r);
         MetadataDao.rebuildRuntimeMetaById(formId);
         System.out.println("[PROBE] rebuildRuntimeMetaById(" + formId + ") 完成");
+        RuntimeMeta.rebuildHeirsAndReport(formId);
     }
 
     /** 规则里字段列表含 apId 的那几个动作（真动作在前）。 */

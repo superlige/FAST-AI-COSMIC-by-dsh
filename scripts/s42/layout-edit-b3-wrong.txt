@@ -1,11 +1,11 @@
 # S42 批 3 错法样本（zlgd_sys_bgjl）：每行错一种，应当一次列全、一处不写
-add FlexPanelAp s42pnl into contentpanel 没带前缀
-add FlexPanelAp zlgd_s42pnl into auditor 放进字段
-add FooAp zlgd_s42foo into contentpanel 认不出的类型
-add BarItemAp zlgd_s42bar into contentpanel 工具栏按钮放进面板
-add TabPageAp zlgd_s42page into contentpanel 页签页不放进页签
-add EntryAp zlgd_s42entry into contentpanel 分录
-add FlexPanelAp zlgd_bgentry into contentpanel 标识重了
+add FlexPanelAp s42pnl into contentpanel 没带前缀 visible=none lock=none
+add FlexPanelAp zlgd_s42pnl into auditor 放进字段 visible=none lock=none
+add FooAp zlgd_s42foo into contentpanel 认不出的类型 visible=none lock=none
+add BarItemAp zlgd_s42bar into contentpanel 工具栏按钮放进面板 visible=none lock=none
+add TabPageAp zlgd_s42page into contentpanel 页签页不放进页签 visible=none lock=none
+add EntryAp zlgd_s42entry into contentpanel 分录 visible=none lock=none
+add FlexPanelAp zlgd_bgentry into contentpanel 标识重了 visible=none lock=none
 remove bar_save
 remove zlgd_bgentry
 remove nosuchctl

@@ -1,0 +1,2 @@
+set zlgd_sampleconfirm.MustInputCondition=billno <> ''
+add check submit fail billno <> '' ;; cosmic写入口验证：这条校验应当拦下提交 ;; when billno <> ''

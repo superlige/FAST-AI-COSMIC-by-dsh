@@ -358,7 +358,7 @@ ClassCastException: CellValueField cannot be cast to CellValueStat
 4. **格子里的取值（取数、合并、占位符、行转列）用 `cosmic_run` 的 `run print` 断言**，见 [run.md](run.md#run-print打印插件的最终输出)：
    `run print <模板编码> --pk <单据ID> --expect datacell9=/`；数据库里没有合适的单据就 `--set` 改一张现成的（真提交，断言靠的字段都在这次 `--set` 里给值）。
    动手改插件之前先列取数表（字段完整路径、表头还是分录、原值还是显示文字、单位），见 run.md 的 run print 一节。
-   这是交付证据；不要为此写临时探针、也不要去找「刚好满足条件」的单据。
-5. 用 `PrintMeasureProbe` 测文字、图片、列和合并区位置，不凭 PNG 目测下结论（它量位置，不算交付证据）。
+   这才算验过；不要为此写临时探针、也不要去找「刚好满足条件」的单据。
+5. 用 `PrintMeasureProbe` 测文字、图片、列和合并区位置，不凭 PNG 目测下结论（它量位置，不算验过）。
 6. 同时覆盖有数据、空数据、多数据源、多页和不同 DPI 环境。
 7. 涉及模板持久化时切回 [print-template-write.md](print-template-write.md)，执行备份、dry-run、APPLY 和复核。

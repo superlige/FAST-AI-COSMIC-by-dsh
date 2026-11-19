@@ -42,7 +42,8 @@ describe("S37 3.7 运行自己查碰巧对上的断言", () => {
 		const [prior, apply, assert, note] = order(
 			form,
 			/ExpectSpec\.priorValues\(/,
-			/applySets\(view, env\(/,
+			// --set 逐条一次请求：applySets(view, one) 在循环里
+			/applySets\(view, one\)/,
 			/ExpectSpec\.model\(view\.getModel\(\), env\(/,
 			/ExpectSpec\.notePrior\(prior,/,
 		);

@@ -69,7 +69,7 @@ function bounded(value: unknown, fallback: number, max: number): number {
 function missing(file: string, what: string): KernelError {
 	return new KernelError("PROD_CONFIG_MISSING", `生产排障配置不全：${what}`, {
 		detail: { file },
-		remedy: `请用户在 ${file} 里把它填上（这个文件只在本机，里面是生产账号，不要把内容贴进对话）。`,
+		remedy: `请用户在会话里输入 /cosmic-prod-setup 按提示补上（写到本机 ${file}，里面是生产账号，不要把内容贴进对话）。`,
 	});
 }
 

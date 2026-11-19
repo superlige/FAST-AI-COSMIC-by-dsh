@@ -632,7 +632,7 @@ describe("resident and host behaviour that cosmic depends on", () => {
 			?.content as string;
 		expect(source).toContain("目标按完整路径匹配");
 		expect(source).toContain("需要确认的目标：");
-		expect(source).toContain("调用 cosmic_authorize");
+		expect(source).toContain("不在用户确认过的写入范围里");
 		expect(source).toContain('assertConfirmedUnder("布局", entity, key)');
 		expect(source).toContain('assertConfirmedUnder("操作", owner, key)');
 		expect(source).not.toContain("driver.mjs");

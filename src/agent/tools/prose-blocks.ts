@@ -84,6 +84,8 @@ export const PROSE_FIELDS: Partial<Record<CosmicToolName, readonly string[]>> = 
 	// fall through both tables untouched.
 	cosmic_doctor: ["text"],
 	cosmic_impact: ["text"],
+	cosmic_prod: ["text"],
+	cosmic_facts: ["text"],
 };
 
 /** What a moved field is called in its block. Falls back to `<tool> 输出`. */

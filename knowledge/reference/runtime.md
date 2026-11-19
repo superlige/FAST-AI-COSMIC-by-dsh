@@ -31,8 +31,7 @@ node .claude/skills/long-cosmic-dev/driver.mjs deploy --module demo-hhx   # 只�
 
 **`deploy` 只在用户明确要求时跑。** 常规交付路径是 agent 提交代码、用户按自己的流程把它部到
 线上环境测；本地节点只在要 debug 时才起。`deploy` 拷的是**本机** `mservice-cosmic/lib/cus`，
-跟用户测的那个环境是两回事 —— 拿它当「已发布」的判据会让施工记录说假话，需求状态怎么推进
-见 [delivery-protocol.md](delivery-protocol.md#三个状态)。
+跟用户测的那个环境是两回事 —— 拿它当「已发布」的判据，完成情况就成了假话。
 
 ### 代码模块（doctor 里的 `codeModules`）
 

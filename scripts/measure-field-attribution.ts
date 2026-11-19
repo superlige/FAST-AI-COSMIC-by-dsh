@@ -155,7 +155,8 @@ for (const ref of refs) {
 			const old = bucket === "定到一张单" ? qualifyField(lk, entities, key).entity : "";
 			const moved = origin === "定到一张单" && old !== "" && old !== carrying[0] ? "（换了一张）" : "";
 			const cross = `老办法${bucket} → 新办法${origin}${moved}`;
-			if (moved) movedSites.push(`${simpleOf(ref.class)}:${ref.line} ${key} ${ref.access} ${old} → ${carrying[0]}`);
+			if (moved)
+				movedSites.push(`${simpleOf(String(ref.class))}:${ref.line} ${key} ${ref.access} ${old} → ${carrying[0]}`);
 			crossed[cross] = (crossed[cross] ?? 0) + 1;
 		}
 		for (const t of list) {

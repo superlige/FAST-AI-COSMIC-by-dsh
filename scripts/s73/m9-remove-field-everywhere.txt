@@ -1,5 +1,5 @@
 # 删字段时，移动端上它的控件一起删（加一个临时字段、放到移动端、再删掉，改完应和现在一样）
-add field TextField zlgd_s73tmp into fs_baseinfo S73临时
+add field TextField zlgd_s73tmp into fs_baseinfo S73临时 visible=none lock=none
 layout mobile
 show zlgd_s73tmp into layoutflexap1
 layout bill

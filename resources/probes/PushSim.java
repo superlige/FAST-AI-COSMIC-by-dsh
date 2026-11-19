@@ -147,7 +147,7 @@ public class PushSim {
             return;
         }
         boolean success = result.isSuccess();
-        String message = result.getMessage();
+        String message = ConvertMessage.of(result);
         System.out.println("[PROBE] 耗时 " + (System.currentTimeMillis() - started) + "ms  success=" + success
                 + (message == null || message.isEmpty() ? "" : "  message=" + HeadlessUiSupport.oneLine(message)));
         List<DynamicObject> bills = Collections.emptyList();
@@ -190,11 +190,16 @@ public class PushSim {
                 System.out.println("[PROBE] 数据库回读 " + tgt + " pk=" + savedId);
             }
             ProbeJson.emit("push-readback", "rule", ruleId, "entity", tgt, "ids", ids, "plugins", enabledPlugins);
-            System.out.println("[PROBE] 保存后从数据库重新读取目标单 " + bills.size() + " 张");
-        } else if (result.getBillReports() != null) {
-            for (Object report : result.getBillReports()) {
-                System.out.println("[PROBE]   " + HeadlessUiSupport.oneLine(String.valueOf(report)));
+            MainEntityType tgtType = MetaResolve.type(tgt, false);
+            String noField = MetaResolve.billNoField(tgtType);
+            boolean hasStatus = tgtType.findProperty("billstatus") != null;
+            for (DynamicObject bill : bills) {
+                RunFacts.committed(tgt, bill.getPkValue(), noField == null ? null : bill.get(noField),
+                        hasStatus ? bill.get("billstatus") : null, "下推", Boolean.TRUE);
             }
+            RunFacts.plugins(tgt, "push " + ruleId, enabledPlugins);
+            RunFacts.plugins(tgt, "op save", RunFacts.opPlugins(tgt, "save"));
+            System.out.println("[PROBE] 保存后从数据库重新读取目标单 " + bills.size() + " 张");
         }
         show(bills, show);
         ExpectSpec.converted(success, message, bills, spec);

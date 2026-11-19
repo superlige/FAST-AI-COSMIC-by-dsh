@@ -58,6 +58,12 @@ SaveServiceHelper.save(new DynamicObject[]{object});
 保存后独立回查 `masterid`，不能只看 save 返回条数。若业务允许，优先走实体 save 操作，让平台
 插件和业务规则正常参与。
 
+### SaveServiceHelper.update 不插新加的分录行
+
+**当前环境实测**：`SaveServiceHelper.update` 只发 `UPDATE`。对象上 `addNew` 出来、还没有内码的分录行，
+它按 `WHERE FEntryId=0` 去更新，库里一行都不插，也不报错；表头字段照常更新。结果是表头的数量变了、分录没写进去。
+分录有增删时用 `SaveServiceHelper.save`：同一段代码换成 `save` 后，新行正常插入、带上内码，`removeIf` 删掉的行也从库里删了。
+
 ### 分录查询结果使用全路径属性名
 
 **当前环境实测**：查询选择字段写成 `entryentity.field` 时，返回 `PlainObject` 的属性名也是完整路径。

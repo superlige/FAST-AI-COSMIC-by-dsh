@@ -17,6 +17,7 @@
 
 import type {
 	BillName,
+	FieldBase,
 	FieldOwnership,
 	MetaBaseline,
 	MetaBinding,
@@ -134,6 +135,9 @@ export interface FieldPatch {
 	rows: readonly FieldOwnership[];
 	/** The rescanned bills' names; a bill with none here was deleted. */
 	billNames: readonly BillName[];
+	/** Where the rescanned bills inherit from; absent from a probe that predates it. */
+	bases?: Readonly<Record<string, FieldBase>>;
+	isv?: string;
 }
 
 function keptRows(meta: MetaIndex, entities: ReadonlySet<string>, rescanned: ReadonlySet<string>): FieldOwnership[] {
@@ -175,7 +179,7 @@ export function patchFields(
 	meta: MetaIndex,
 	whitelist: { fields: ReadonlySet<string>; entities: ReadonlySet<string> },
 	patch: FieldPatch,
-): Pick<MetaIndex, "fields" | "fieldOwners" | "owners" | "asked" | "billNames"> {
+): Pick<MetaIndex, "fields" | "fieldOwners" | "owners" | "asked" | "billNames" | "fieldBases" | "fieldIsv"> {
 	const fields = [
 		...keptRows(meta, whitelist.entities, patch.rescanned),
 		...patch.rows.filter((row) => whitelist.entities.has(row.entity)),
@@ -191,7 +195,18 @@ export function patchFields(
 		owners[row.key] = list;
 	}
 	for (const list of Object.values(owners)) list.sort();
+	// A rescanned bill keeps no stale base: what it inherits now, or nothing (unknown, so never "not on it").
+	const fieldBases: Record<string, FieldBase> = {};
+	for (const [entity, base] of Object.entries(meta.fieldBases ?? {})) {
+		if (whitelist.entities.has(entity) && !patch.rescanned.has(entity)) fieldBases[entity] = base;
+	}
+	for (const [entity, base] of Object.entries(patch.bases ?? {})) {
+		if (whitelist.entities.has(entity)) fieldBases[entity] = base;
+	}
+	const fieldIsv = patch.isv || meta.fieldIsv;
 	return {
+		...(Object.keys(fieldBases).length > 0 ? { fieldBases } : {}),
+		...(fieldIsv ? { fieldIsv } : {}),
 		fields,
 		fieldOwners: ownerCounts(owners, trackedKeys(whitelist, fields)),
 		owners,

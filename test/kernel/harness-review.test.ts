@@ -196,8 +196,29 @@ describe("复盘二.3 已发布探针的参数契约不在可见面层", () => {
 		const usage = probeUsage(source?.content ?? "");
 		expect(usage.required).toEqual(["LAYOUT_FORM"]);
 		const text = probeUsageText("FormLayoutWriteProbe", usage);
-		for (const verb of ["add field", "copy field", "remove field", "add op", "add plugin"])
+		for (const verb of [
+			"add field",
+			"copy field",
+			"remove field",
+			"add op",
+			"add plugin",
+			"add split",
+			"remove split",
+		])
 			expect(text).toContain(verb);
+		expect(text).toContain("set <字段>.Suffix=<后缀>");
+	});
+
+	it("改单据的写探针，字段落在哪张拆分表按主表名加后缀算", async () => {
+		// 从模板继承来的单据头、分录，设计态对象上表名是空的：问平台的 Field.getTableName 拼不出主表名，
+		// 预演把建在拆分表上的新字段报成落在主表（真机 zlgd_nbjgjl：Suffix=A 报成 tk_zlgd_nbjgjl 加列）。
+		const source =
+			EMBEDDED_RESOURCES.find((one) => one.relativePath === "probes/FormLayoutWriteProbe.java")?.content ?? "";
+		expect(source).toContain("String at = landsIn(owner, f.getSuffix());");
+		expect(source).not.toContain("f.getTableName((Entity<?, ?>) owner)");
+		// 所属拆分表只能填配了的后缀；拆分表清单不能当普通属性整份 set
+		expect(source).toContain("上没有后缀是 ");
+		expect(source).toContain('"splittables".equalsIgnoreCase(name)');
 	});
 
 	it("类体内的字符串不会被当成参数注释", async () => {

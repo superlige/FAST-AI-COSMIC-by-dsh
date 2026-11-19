@@ -1,10 +1,10 @@
 # S42 批 4 加字段样本（zlgd_sys_bgjl）：新建四种表头字段、一个分录字段，照搬一个表头字段、一个分录字段，再改两个属性
-add field TextField zlgd_s42txt into fs_baseinfo 变更说明
+add field TextField zlgd_s42txt into fs_baseinfo 变更说明 visible=none lock=none
 set zlgd_s42txt.MaxLength=100
-add field DecimalField zlgd_s42dec after zlgd_s42txt 变更数量
+add field DecimalField zlgd_s42dec after zlgd_s42txt 变更数量 visible=all lock=none
 set zlgd_s42dec.Scale=3
-add field ComboField zlgd_s42cmb into fs_baseinfo 变更类型 items=A:新增,B:修改,C:删除
-add field BasedataField zlgd_s42usr into fs_baseinfo 变更人 base=bos_user
-add field TextField zlgd_s42etxt into zlgd_bgentry 变更项
-copy field zlgd_sys_test_bill.zlgd_yqsyq_m into fs_baseinfo
-copy field zlgd_sys_test_bill.zlgd_ypbh into zlgd_bgentry
+add field ComboField zlgd_s42cmb into fs_baseinfo 变更类型 items=A:新增,B:修改,C:删除 visible=none lock=none
+add field BasedataField zlgd_s42usr into fs_baseinfo 变更人 base=bos_user visible=none lock=none
+add field TextField zlgd_s42etxt into zlgd_bgentry 变更项 visible=none lock=none
+copy field zlgd_sys_test_bill.zlgd_yqsyq_m into fs_baseinfo visible=none lock=none
+copy field zlgd_sys_test_bill.zlgd_ypbh into zlgd_bgentry visible=none lock=none

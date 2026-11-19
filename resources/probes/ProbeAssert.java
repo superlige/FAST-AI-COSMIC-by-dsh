@@ -103,8 +103,14 @@ public final class ProbeAssert {
      * @param why    这一步出了什么错、怎么补（例如摘掉那个插件重跑的写法）
      */
     public static void incomplete(String step, String plugin, String why) {
-        INCOMPLETE.add(step + (plugin == null ? " 一步平台抛错"
-                : " 一步插件 " + plugin.substring(plugin.lastIndexOf('.') + 1) + " 抛错，排在它后面的插件这一步没跑到"));
+        incomplete(step, plugin, false, why);
+    }
+
+    /** 同上；{@code simulator} 为真说明抛点在仿真探针自己的代码里（错在仿真，不在业务和平台）。 */
+    public static void incomplete(String step, String plugin, boolean simulator, String why) {
+        INCOMPLETE.add(step + (plugin != null
+                ? " 一步插件 " + plugin.substring(plugin.lastIndexOf('.') + 1) + " 抛错，排在它后面的插件这一步没跑到"
+                : simulator ? " 一步仿真自己抛错" : " 一步平台抛错"));
         ProbeJson.emit("run-incomplete", "case", caseId, "step", step, "plugin", plugin, "why", why);
     }
 

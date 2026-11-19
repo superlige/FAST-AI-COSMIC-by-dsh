@@ -22,7 +22,16 @@
 
 import { type Attribution, type Attributor, attributor, awaitsCaller } from "./attribution.ts";
 import type { FieldOwnership, ImpactIndex, IndexLookup, SrcEdge, SrcRef, Target, UnresolvedRef } from "./model.ts";
-import { classTouchesEntity, openRefs, shortMethod, simpleName, snapshotAsOf, snapshotBehind } from "./model.ts";
+import {
+	classTouchesEntity,
+	inheritedNote,
+	knownAbsent,
+	openRefs,
+	shortMethod,
+	simpleName,
+	snapshotAsOf,
+	snapshotBehind,
+} from "./model.ts";
 
 const P = "[IMPACT] ";
 const RESOLVED = new Set(["literal", "constant"]);
@@ -255,6 +264,8 @@ function placeFor(
 ): { entity: string; place: FieldOwnership | null; elsewhere: FieldOwnership[] } {
 	const place = lk.fieldMeta.get(`${entity}|${field}`) ?? null;
 	if (place) return { entity, place, elsewhere: [] };
+	// Sending the reader to another bill says "not on this one": only when the snapshot can tell.
+	if (lk.fieldEntities.has(entity) && !knownAbsent(lk, entity, field)) return { entity, place: null, elsewhere: [] };
 	const owners = lk.fieldOn.get(field) ?? [];
 	const library = lk.fieldOwners[field] ?? 0;
 	// Only a snapshot that lists every bill in the library carrying the key can say
@@ -527,11 +538,11 @@ export function formatTrace(trace: FieldTrace, lk: IndexLookup, { all = false }:
 	} else if (asked && !trace.place) {
 		const library = lk.fieldOwners[field] ?? 0;
 		const none = "全库没有叫这个的字段，多半是控件标识或原厂字段";
-		// A snapshot holding every field of this bill can say "not on it"; otherwise only "not recorded".
+		// "Not on it" only when the snapshot can tell (own fields all collected, inheritance known); otherwise "not recorded".
 		lines.push(
-			lk.fieldsAll && lk.fieldEntities.has(asked)
+			knownAbsent(lk, asked, field)
 				? `${P}  ⚠ ${field} 不在 ${asked} 上（${trace.snapshot}）；${library === 0 ? none : `全库 ${library} 张单有它`}`
-				: `${P}  快照没记到 ${asked} 上有 ${field}${library === 0 ? `（${none}）` : ""}`,
+				: `${P}  快照没记到 ${asked} 上有 ${field}${library === 0 ? `（${none}）` : ""}${inheritedNote(lk, asked)}`,
 		);
 	}
 	if (!asked) {

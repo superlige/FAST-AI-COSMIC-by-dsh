@@ -426,6 +426,11 @@ public class MetaResolve {
      * @param done 操作成没成：TRUE 成了，FALSE 没成，null 是这条路拿不到结果（点按钮只有界面反应）
      */
     static void reportCommitted(String entity, Object pk, String what, Boolean done) {
+        reportCommitted(entity, pk, what, done, null);
+    }
+
+    /** @param created 这张单是不是这次运行新建的（进事实账，见 {@link RunFacts}）；拿不准给 null */
+    static void reportCommitted(String entity, Object pk, String what, Boolean done, Boolean created) {
         if (pk == null || "0".equals(String.valueOf(pk)) || String.valueOf(pk).isEmpty()) {
             return;
         }
@@ -452,6 +457,8 @@ public class MetaResolve {
             line.append("（仅回读编号和单据状态，未核对本次字段输入是否保存；接着验这张单写 --pk ")
                     .append(pk).append("）");
             System.out.println(line);
+            RunFacts.committed(entity, pk, no == null ? null : rows.get(0).get(no),
+                    status ? rows.get(0).get("billstatus") : null, what, created);
         } catch (Throwable t) {
             System.out.println(head + what + " " + entity + " pk=" + pk + "（读现状失败：" + t + "）");
         }

@@ -16,18 +16,17 @@
  *        | impact [src-only]
  *        | meta <argv...> | meta-apply <targets> <argv...>
  *        | node <start|status|logs|stop> | deploy [modules...]
+ *        | prod-sql <select 语句>   （生产只读，账号在 ~/.fast-ai-cosmic/prod/prod.json）
  *
- * The last three were added by S5.4. `meta` takes the frozen argv shape and is
- * parsed by parseMeta, not by a shell -- there is still no way to hand this
- * script a command line to execute (D1). `meta-apply` exists so the write
- * channel can be exercised on a real environment, and it is NOT a way around
- * the gate: the grant it passes may only narrow what the project's DRAFT.md
- * already confirms, so a write the user never recorded with `spec target` is
- * still refused before the JVM starts.
+ * `meta` takes the argv shape `parseMeta` reads -- there is still no way to hand
+ * this script a command line to execute (D1). `meta-apply` lands a metadata
+ * write on the real environment: the targets it passes stand in for the ones a
+ * user ticked on the confirmation card, so run it only after asking the user
+ * (AGENTS.md section 3). IsvGuard still refuses any write outside those targets.
  */
 
 import { mkdirSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { deploy } from "../src/kernel/commands/deploy.ts";
 import { fast } from "../src/kernel/commands/fast.ts";
@@ -36,11 +35,14 @@ import { lint } from "../src/kernel/commands/lint.ts";
 import { meta } from "../src/kernel/commands/meta.ts";
 import { NODE_ACTIONS, type NodeAction, node } from "../src/kernel/commands/node.ts";
 import { probe } from "../src/kernel/commands/probe.ts";
+import { prod } from "../src/kernel/commands/prod.ts";
 import { run } from "../src/kernel/commands/run.ts";
 import { resolveSources } from "../src/kernel/commands/sources.ts";
 import { KernelError } from "../src/kernel/errors.ts";
 import { openProject } from "../src/kernel/open-project.ts";
 import { stopServer } from "../src/kernel/probe/server.ts";
+import { nodeHttp } from "../src/kernel/prod/monitor.ts";
+import { runTouches } from "../src/dsh/tools/run.ts";
 import { EMBEDDED_RESOURCES } from "../src/resources/embedded.generated.ts";
 
 const AGENT_VERSION = "0.0.0-s3";
@@ -99,7 +101,7 @@ async function main(): Promise<void> {
 	if (step === "lint") {
 		const files = resolveSources(ctx, rest);
 		if (!files.ok) fail(files.error);
-		const report = lint(ctx, files.value);
+		const report = await lint(ctx, files.value);
 		if (!report.ok) fail(report.error);
 		console.log(
 			`\nlint ${report.value.files.length} 个文件，${report.value.seconds}s，${report.value.findings.length} 个问题`,
@@ -165,6 +167,29 @@ async function main(): Promise<void> {
 		return;
 	}
 
+	if (step === "prod-sql") {
+		// 生产只读：走 cosmic_prod 同一条读取进程和语句闸，账号在 ~/.fast-ai-cosmic/prod/prod.json。
+		// 入参是一条查询语句，语句闸只放只读的 select（AGENTS.md 第三节第 6 条）。
+		const started = Date.now();
+		const result = await prod(
+			ctx,
+			{
+				agentConfigDir: process.env.COSMIC_PROD_CONFIG_DIR ?? join(homedir(), ".fast-ai-cosmic"),
+				http: nodeHttp,
+				isv: ctx.config.isv ?? "",
+				runProbe: probe,
+			},
+			{ action: "sql", sql: rest.join(" ") },
+		);
+		const seconds = ((Date.now() - started) / 1000).toFixed(1);
+		if (!result.ok) {
+			console.log(`prod-sql 失败，${seconds}s`);
+			fail(result.error);
+		}
+		console.log(`prod-sql ${seconds}s\n${result.value.text}`);
+		return;
+	}
+
 	if (step === "run") {
 		// S27 批 1.7：真提交走常驻进程，要在真机上量「提交后同一进程读到新值」和每次多久。
 		// 入参是 run 的冻结 argv，由 parseRunArgs 解析，不是一行给 shell 执行的命令（D1）。
@@ -179,19 +204,31 @@ async function main(): Promise<void> {
 			`\nrun ${value.kind} ${value.target} 走${value.path === "hot" ? "常驻" : "冷进程"}${value.coldReason ? `（${value.coldReason}）` : ""}，退出码 ${value.exitCode}，${seconds}s`,
 		);
 		for (const note of value.notes) console.log(`  note ${note}`);
+		// cosmic_facts 记的账：这次运行之后库里的单，真执行的操作和表单上挂着的本工程类
+		console.log(`  记账 ${JSON.stringify(runTouches(value.json.records))}`);
 		console.log(value.output.split("\n").slice(-40).join("\n"));
 		process.exitCode = value.exitCode;
 		return;
 	}
 
 	if (step === "meta" || step === "meta-apply") {
-		// meta-apply <目标,…> <argv…>. The grant may only NARROW what the project's
-		// DRAFT.md already confirmed, so this step cannot authorise a write on the
-		// user's behalf -- with no `spec target` record it is refused outright,
-		// exactly as the frozen driver refuses it.
+		// meta-apply <目标,…> <argv…>：给的目标就当用户在确认单上点过的写入范围，跑之前先问用户。
 		const applying = step === "meta-apply";
 		const grant = applying ? (rest.shift() ?? "").split(",").filter((t) => t !== "") : [];
-		const result = await meta(ctx, rest, applying ? { apply: true, writeTargets: grant } : {});
+		const result = await meta(
+			ctx,
+			rest,
+			applying
+				? {
+						apply: true,
+						writeAuthorization: {
+							targets: grant,
+							rollback: "verify-real-env 手工验证",
+							confirmationId: `V-${Date.now()}`,
+						},
+					}
+				: {},
+		);
 		if (!result.ok) fail(result.error);
 		const value = result.value;
 		console.log(

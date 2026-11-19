@@ -77,7 +77,7 @@ const CLASS_META = {
 const NOT_A_SKILL = {
 	"delivery-protocol": {
 		why: "S6 的交付协议，已单独冻结在 protocol manifest；不归 S7（方案 §4.1）",
-		instead: "交付用 cosmic_verify 完成",
+		instead: "完成情况照系统提示里的模板写，做过的事用 cosmic_facts 列",
 	},
 	"official-knowledge": {
 		why:

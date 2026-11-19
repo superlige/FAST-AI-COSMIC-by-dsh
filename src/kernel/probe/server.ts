@@ -17,7 +17,7 @@
  */
 
 import { join } from "node:path";
-import { baseChildEnv, jvmProps, type KernelContext, poolProps } from "../context.ts";
+import { baseChildEnv, jvmProps, KEEP_EXCEPTION_STACKS, type KernelContext, poolProps } from "../context.ts";
 import { err, KernelError, type KernelResult, ok } from "../errors.ts";
 import { classpathOf, ensureBuilt, findToolsJar, runJavac } from "../toolchain.ts";
 import { jvmDeps, localCacheRoots, retireOldProbeServers, verifyRecordedPid, waitExit } from "./local-jvms.ts";
@@ -372,6 +372,7 @@ export function residentServerArgs(ctx: KernelContext, hotSwap: HotSwapPlan, too
 	return [
 		"-Xmx2g",
 		"-XX:MaxMetaspaceSize=512m",
+		KEEP_EXCEPTION_STACKS,
 		"-Dfile.encoding=UTF-8",
 		...hotSwap.args,
 		...jvmProps(ctx.config),
@@ -793,6 +794,9 @@ async function stopServerInner(ctx: KernelContext): Promise<StopOutcome> {
 	// The JVM is going away, so "its classes are out of date" stops meaning
 	// anything; leaving the marker would only buy the next start an extra restart.
 	ctx.ports.fs.remove(ctx.layout.serverStale);
+	// 发 SHUTDOWN 之前它活着、之后没了：是它收到请求自己退的。它正在跑别的请求时（一次只答一个）回话会超时，
+	// 等到核对进程时已经退了；不记下这一刻，后面会把「刚停掉」报成「本来就没在跑」。
+	const aliveBefore = manifest !== null && ctx.ports.proc.isAlive(manifest.pid);
 	const reply = await ctx.ports.net.request(residentPort(ctx), SHUTDOWN_REQUEST, 5_000);
 	const replied = reply.ok && decodeResponse(reply.text).ok;
 	// 宿主先回 RESULT OK 再 System.exit，退出可能卡住：进程还在，端口和 build/cosmic-pathing.jar 都还占着，
@@ -812,6 +816,10 @@ async function stopServerInner(ctx: KernelContext): Promise<StopOutcome> {
 			await ctx.ports.proc.kill(manifest.pid, true);
 			ctx.ports.fs.remove(ctx.layout.serverPid);
 			return { how: "forced", pid: manifest.pid };
+		}
+		if (verdict === "gone" && aliveBefore) {
+			ctx.ports.fs.remove(ctx.layout.serverPid);
+			return { how: "graceful", pid: manifest.pid };
 		}
 	}
 	ctx.ports.fs.remove(ctx.layout.serverPid);

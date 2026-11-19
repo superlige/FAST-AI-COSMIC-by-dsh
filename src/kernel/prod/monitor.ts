@@ -111,7 +111,7 @@ function monitorFailure(message: string, remedy = "请用户确认 VPN 已连上
 export function loginRequired(why: string): KernelError {
 	return new KernelError("PROD_MONITOR_LOGIN_REQUIRED", `monitor ${why}`, {
 		remedy:
-			"monitor 登录要输验证码，只能由用户来：请用户在输入框敲 /cosmic-prod login 登录，登录后再查日志。不要自己尝试登录。",
+			"monitor 登录要输验证码，只能由用户来：请用户在输入框敲 /cosmic-monitor-login 登录，登录后再查日志。不要自己尝试登录。",
 	});
 }
 
@@ -205,7 +205,7 @@ export async function monitorLogin(
 			return err(
 				monitorFailure(
 					`monitor 登录没成功：${String(body?.msg ?? login.text.slice(0, 200))}`,
-					"验证码输错或过期就重新敲 /cosmic-prod login；账号密码不对就改配置文件里的 monitor 一节。",
+					"验证码输错或过期就重新敲 /cosmic-monitor-login；账号密码不对就改配置文件里的 monitor 一节。",
 				),
 			);
 		const session: MonitorSession = {

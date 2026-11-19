@@ -430,23 +430,19 @@ describe("S5.2 run planning", () => {
 		expect(result.ok && result.value.env.ROLLBACK).toBeUndefined();
 	});
 
-	it("keeps a form run that clicks on the hot path (S27), and forces cold only for --real-cache", () => {
+	it("keeps a form run that clicks on the hot path (S27); the real cache needs no JVM of its own", () => {
 		const clicked = plan(["form", "zlgd_bill", "--click", "btnsave"]);
 		expect(clicked.ok && clicked.value.cold).toBe(false);
 		expect(clicked.ok && clicked.value.env.ROLLBACK).toBeUndefined();
-		const cached = plan(["form", "zlgd_bill", "--real-cache"]);
-		// Real cache writes temporary Redis keys: its own JVM, but no business write,
-		// so no rollback flag either.
-		expect(cached.ok && cached.value.cold).toBe(true);
-		expect(cached.ok && cached.value.env.ROLLBACK).toBeUndefined();
+		// FormSim always runs on the real Redis cache now; there is no switch left to pass.
+		expect(clicked.ok && "FORM_REAL_CACHE" in clicked.value.env).toBe(false);
+		expect(plan(["form", "zlgd_bill", "--real-cache"]).ok).toBe(false);
 	});
 
-	it("--schedule：op / form / call 认，和 --real-cache 不能一起用（冷进程跑完就退）", () => {
+	it("--schedule：op / form / call 认", () => {
 		expect(plan(["op", "zlgd_bill", "submit", "--pk", "1", "--schedule"]).ok).toBe(true);
 		expect(plan(["form", "zlgd_bill", "--click", "bar_submit", "--schedule"]).ok).toBe(true);
 		expect(plan(["list", "zlgd_bill", "--schedule"]).ok).toBe(false);
-		const both = plan(["form", "zlgd_bill", "--real-cache", "--schedule"]);
-		expect(!both.ok && both.error.message).toContain("--real-cache 和 --schedule");
 	});
 
 	it("requires exactly one parent action for flow", () => {
@@ -891,49 +887,29 @@ describe("run print：打印插件的运行方式（S24 批 A）", () => {
 	});
 });
 
-describe("同一场景的 FAIL 顶掉本会话的 PASS：当场说，不等 finish", () => {
+describe("同一场景先过后不过：两条记录都留，不说前一次被顶掉", () => {
 	const TPL = "zlgd_sys_test_bill_jxzyw";
-	const line = (pass: boolean): string =>
-		`[PROBE-JSON] {"t":"assert","kind":"print-cell","target":"datacell9[0]","expect":"/","actual":"${pass ? "/" : "x"}","pass":${String(pass)}}\n[PROBE-OK]\n`;
 
-	it("先过后不过、命令只差 --expect：第二次的返回里说清 PASS 被顶掉、怎么换回来", async () => {
+	// 没有交付判定，cosmic_facts 每次运行照实列；再说「PASS 被顶掉、算没过」，模型会以为正例的证据没了要重做。
+	it("命令只差 --expect：第二次的返回里没有顶掉的说法，两次各落一条记录", async () => {
 		const fake = runFake();
-		fake.proc.handler = () => ({ status: 0, stdout: line(true) });
-		const first = await run(fake.ctx, ["print", TPL, "--pk", "1", "--expect", "datacell9[0]=/"]);
-		expect(first.ok).toBe(true);
-		if (!first.ok) return;
-		const id = first.value.evidence.filed[0]?.id ?? "";
-		fake.proc.handler = () => ({ status: 0, stdout: line(false) });
-		const second = await run(fake.ctx, ["print", TPL, "--pk", "1", "--expect", "no_such=1"], {
-			sessionEvidence: [{ id }],
+		fake.proc.handler = () => ({
+			status: 0,
+			stdout:
+				'[PROBE-JSON] {"t":"assert","kind":"print-cell","target":"datacell9[0]","expect":"/","actual":"/","pass":true}\n[PROBE-OK]\n',
 		});
-		expect(second.ok).toBe(true);
-		if (!second.ok) return;
-		const text = second.value.notes.join("\n");
-		expect(text).toContain(id);
-		expect(text).toContain("顶掉");
-		expect(text).toContain("PARTIAL");
-		expect(text).toContain("已落库的操作不要为改断言而重复执行");
-	});
-
-	it("换了 --pk 就是另一个场景；上一条本来就没过也不说", async () => {
-		const fake = runFake();
-		fake.proc.handler = () => ({ status: 0, stdout: line(true) });
 		const first = await run(fake.ctx, ["print", TPL, "--pk", "1", "--expect", "datacell9[0]=/"]);
 		if (!first.ok) throw new Error("first run failed");
-		const id = first.value.evidence.filed[0]?.id ?? "";
-		fake.proc.handler = () => ({ status: 0, stdout: line(false) });
-		const other = await run(fake.ctx, ["print", TPL, "--pk", "2", "--expect", "datacell9[0]=/"], {
-			sessionEvidence: [{ id }],
+		fake.proc.handler = () => ({
+			status: 0,
+			stdout:
+				'[PROBE-JSON] {"t":"assert","kind":"print-cell","target":"no_such","expect":"1","actual":null,"pass":false}\n[PROBE-OK]\n',
 		});
-		if (!other.ok) throw new Error("second run failed");
-		expect(other.value.notes.join("\n")).not.toContain("顶掉");
-		const failedId = other.value.evidence.filed[0]?.id ?? "";
-		const again = await run(fake.ctx, ["print", TPL, "--pk", "2", "--expect", "datacell9[0]=/"], {
-			sessionEvidence: [{ id }, { id: failedId }],
-		});
-		if (!again.ok) throw new Error("third run failed");
-		expect(again.value.notes.join("\n")).not.toContain("顶掉");
+		const second = await run(fake.ctx, ["print", TPL, "--pk", "1", "--expect", "no_such=1"]);
+		if (!second.ok) throw new Error("second run failed");
+		expect(second.value.notes.join("\n")).not.toContain("顶掉");
+		expect(first.value.evidence.filed[0]?.result).toBe("PASS");
+		expect(second.value.evidence.filed[0]?.result).toBe("FAIL");
 	});
 });
 

@@ -142,7 +142,8 @@ try {
 	const patched = JSON.parse(fs.read(metaPath)) as MetaIndex;
 	const keyOf = {
 		binding: (b: MetaIndex["bindings"][number]) => [b.class, b.entity, b.kind, b.layout, b.enabled].join("|"),
-		template: (t: MetaIndex["templates"][number]) => [t.number, t.entity, [...t.classes].sort().join(",")].join("|"),
+		template: (t: MetaIndex["templates"][number]) =>
+			[t.number, t.entity, [...(t.classes ?? [])].sort().join(",")].join("|"),
 		name: (n: NonNullable<MetaIndex["names"]>[number]) => [n.site, n.id, n.name].join("|"),
 		field: (f: MetaIndex["fields"][number]) =>
 			[f.entity, f.key, f.level, f.entry ?? "", f.parentEntry ?? "", f.kind ?? "field"].join("|"),

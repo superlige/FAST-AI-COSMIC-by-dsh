@@ -1,0 +1,6 @@
+# 拆分表：单据头和分录各加一张，新字段建在拆分表上，已有分录字段换到拆分表（zlgd_nbjgjl）
+add split zlgd_nbjgjl A 扩展信息
+add split entryentity B 化学分析扩展
+add field TextField zlgd_cftest into fs_baseinfo 拆分测试 visible=none lock=none
+set zlgd_cftest.Suffix=a
+set zlgd_bz.Suffix=B

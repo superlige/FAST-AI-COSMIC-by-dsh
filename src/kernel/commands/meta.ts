@@ -116,6 +116,8 @@ export interface MetaOptions {
 	 * 自己另编一套阶段名就会和探针报的那套对不上。
 	 */
 	onProgress?: (stage: ProbeProgressStage) => void;
+	/** 直接递给底下那个 `probe`，含义同 `ProbeOptions.countRepeats`；写流程的预演关掉它。 */
+	countRepeats?: boolean;
 }
 
 function argsInvalid(message: string, remedy: string): KernelError {
@@ -595,7 +597,7 @@ export async function meta(
 	const notes: string[] = [];
 	if (dryRun) {
 		notes.push(
-			"dry-run：只演算不落库。确认无误后加 apply=true —— 要求 cosmic_authorize 已取得这些对象的一次性用户授权；在常驻进程里写，写完直接用只读动作核对。",
+			"dry-run：只演算不落库。要落库：同样的 argv 加 apply=true 并附 report，工具弹确认单，用户确认后才写；在常驻进程里写，写完直接用只读动作核对。",
 		);
 	}
 
@@ -607,6 +609,7 @@ export async function meta(
 		...(options.cold === undefined ? {} : { cold: options.cold }),
 		...(options.raw === undefined ? {} : { raw: options.raw }),
 		...(options.onProgress === undefined ? {} : { onProgress: options.onProgress }),
+		...(options.countRepeats === false ? { countRepeats: false } : {}),
 		...(options.writeAuthorization === undefined ? {} : { writeAuthorization: options.writeAuthorization }),
 	});
 	if (!outcome.ok) return err(outcome.error);

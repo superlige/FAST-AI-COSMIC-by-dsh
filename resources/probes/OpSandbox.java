@@ -243,7 +243,9 @@ public class OpSandbox {
         if (done == null) {
             System.out.println("[PROBE] 提交状态未知：操作已调用，但未取得成功结果；不能据此认定未提交，不应直接重跑。请以数据库回读核对现状。");
         }
-        MetaResolve.reportCommitted(c.entity, obj.getPkValue(), c.pk.isEmpty() ? "新建" : c.op, done);
+        MetaResolve.reportCommitted(c.entity, obj.getPkValue(), c.pk.isEmpty() ? "新建" : c.op, done,
+                Boolean.valueOf(c.pk.isEmpty()));
+        RunFacts.plugins(c.entity, "op " + c.op, RunFacts.opPlugins(c.entity, c.op));
 
         //断言放在最后：上面那些行数对照是排查线索，业务对不对由 --expect 裁判。
         //读的是内存里的 obj —— 操作插件往单据对象上写的值，正是要断的东西。
@@ -938,57 +940,7 @@ public class OpSandbox {
      * 读不到元数据、没给包前缀时是 null —— 和「确实没挂」分开。
      */
     static List<String> ownOpPlugins(String entity, String op) {
-        String[] pkgs = ownPkgs();
-        if (pkgs.length == 0 || entity == null || op == null) {
-            return null;
-        }
-        try {
-            EntityMetadata em = (EntityMetadata) MetadataDao.readMeta(
-                    MetadataDao.getIdByNumber(entity, MetaCategory.Entity), MetaCategory.Entity);
-            List<String> out = new ArrayList<String>();
-            for (Object item : em.getItems()) {
-                Object ops = getter(item, "getOperations");
-                if (!(ops instanceof List)) {
-                    continue;
-                }
-                for (Object o : (List<?>) ops) {
-                    if (!op.equals(String.valueOf(getter(o, "getKey")))) {
-                        continue;
-                    }
-                    Object pls = getter(o, "getPlugins");
-                    if (!(pls instanceof List)) {
-                        continue;
-                    }
-                    for (Object p : (List<?>) pls) {
-                        String cls = String.valueOf(getter(p, "getClassName"));
-                        if (Boolean.FALSE.equals(getter(p, "isEnabled")) || out.contains(cls)) {
-                            continue;
-                        }
-                        for (String pkg : pkgs) {
-                            if (cls.startsWith(pkg)) {
-                                out.add(cls);
-                                break;
-                            }
-                        }
-                    }
-                }
-            }
-            return out;
-        } catch (Throwable unreadable) {
-            return null;
-        }
-    }
-
-    /** 无参 getter；没有这个方法或调用失败是 null。 */
-    private static Object getter(Object target, String name) {
-        if (target == null) {
-            return null;
-        }
-        try {
-            return target.getClass().getMethod(name).invoke(target);
-        } catch (Throwable e) {
-            return null;
-        }
+        return RunFacts.opPlugins(entity, op);
     }
 
     private static String[] ownPkgs() {

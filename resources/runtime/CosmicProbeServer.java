@@ -660,6 +660,35 @@ public class CosmicProbeServer {
                 return c;
             }
         }
+
+        /** 这次运行里已经加载过的探针类；没加载过就是 null，不为找它去加载。 */
+        Class<?> loaded(String name) {
+            synchronized (getClassLoadingLock(name)) {
+                return findLoadedClass(name);
+            }
+        }
+    }
+
+    /**
+     * 探针跑完的收尾，探针怎么结束（正常、抛错、断言没过）都走。
+     *
+     * 表单、列表模拟按 --skip 摘掉的插件改的是全 JVM 共享的 FormConfig，要保持到运行结束
+     * （平台 activate 时还会再读一遍清单），登记在 HeadlessUiSupport 里。这里还原：
+     * 不还原的话，之后所有跑到这张表单的探针都少插件，而且不报任何错。这次没用到它就什么都不做。
+     */
+    private static void afterRun(ProbeClassLoader cl) {
+        Class<?> support = cl.loaded("HeadlessUiSupport");
+        if (support == null) {
+            return;
+        }
+        try {
+            support.getMethod("restoreHeld").invoke(null);
+        } catch (Throwable t) {
+            //还原不了，这个进程里有表单的插件清单是摘过的：之后的结论不能信
+            poisoned = true;
+            System.out.println("[PROBE] ⚠ 摘掉的插件没还原：" + (t.getCause() != null ? t.getCause() : t)
+                    + "；下次调用前会更换常驻进程");
+        }
     }
 
     /**
@@ -671,7 +700,7 @@ public class CosmicProbeServer {
         PrintStream origErr = System.err;
         ByteArrayOutputStream buf = new ByteArrayOutputStream();
         AtomicReference<Throwable> error = new AtomicReference<>();
-        try (URLClassLoader cl = new ProbeClassLoader(outDir,
+        try (ProbeClassLoader cl = new ProbeClassLoader(outDir,
                 CosmicProbeServer.class.getClassLoader())) {
             PrintStream cap = new PrintStream(buf, true, "UTF-8");
             System.setOut(cap);
@@ -690,6 +719,8 @@ public class CosmicProbeServer {
                         return;
                     }
                     error.set(real);
+                } finally {
+                    afterRun(cl);
                 }
             }, timeoutMs);
             if (!finished) {

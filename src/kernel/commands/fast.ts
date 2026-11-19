@@ -356,7 +356,8 @@ export function prepareFast(ctx: KernelContext, names: readonly string[], hooks:
 		blockers.push({
 			code: "STYLE_GATE_UNSATISFIED",
 			message: `本次改的代码里有 ${String(styled.reduce((sum, row) => sum + row.lines.length, 0))} 处写法问题要改，没有进编译`,
-			remedy: "按每一处后面写的改法改；确实合不了批的，在那一行上面写 `// cosmic-allow: 理由`，理由会列进交付",
+			remedy:
+				"按每一处后面写的改法改；确实合不了批的，在那一行上面写 `// cosmic-allow: 理由`，理由会列在 cosmic_facts 的写法提醒里",
 			dependsOn: ["project.sources"],
 			detail: {
 				files: styled.map((row) => relative(ctx.projectRoot, row.file).replace(/\\/g, "/")),

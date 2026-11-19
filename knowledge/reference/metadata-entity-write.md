@@ -1,6 +1,6 @@
 ---
 class: B
-when: 字段改名、新增、复制或删除；已有单据上加分录
+when: 字段改名、新增、复制或删除；已有单据上加分录；配拆分表、字段换拆分表
 note: 先读写入总则
 ---
 
@@ -13,6 +13,7 @@ note: 先读写入总则
 
 - [改字段名或下拉项](#改字段名--下拉项)
 - [加字段、照搬字段、删字段、加分录](#加字段照搬字段删字段--formlayoutwriteprobe)
+- [拆分表](#拆分表add-split--remove-split--set-suffix)
 
 
 下面全部只适用于 `<isv>_` 自己的元数据，且默认 dry-run，`APPLY=1` 才落库。
@@ -86,14 +87,15 @@ META_ENTITY=<实体标识> META_FILTER=<字段标识片段> node .claude/skills/
 [metadata-form.md](metadata-form.md#改控件字段操作和插件--formlayoutwriteprobe)。
 
 ```bash
-LAYOUT_FORM=demo_sys_bgjl LAYOUT_EDIT='add field TextField demo_bgsm into fs_baseinfo 变更说明
+LAYOUT_FORM=demo_sys_bgjl LAYOUT_EDIT='add field TextField demo_bgsm after demo_bgyy 变更说明 visible=all lock=submit,audit
 set demo_bgsm.MaxLength=100
-add field DecimalField demo_bgsl after demo_bgsm 变更数量
+add field DecimalField demo_bgsl after demo_bgsm 变更数量 visible=all lock=submit,audit
 set demo_bgsl.Scale=3
-add field ComboField demo_bglx after demo_bgsl 变更类型 items=A:新增,B:修改,C:删除
-add field BasedataField demo_bgr after demo_bglx 变更人 base=bos_user
-add field TextField demo_bgx into demo_bgentry 变更项
-copy field demo_sys_test_bill.demo_ypbh into demo_bgentry
+add field ComboField demo_bglx after demo_bgsl 变更类型 items=A:新增,B:修改,C:删除 visible=all lock=all
+add field BasedataField demo_bgr after demo_bglx 变更人 base=bos_user visible=view,submit,audit lock=all
+add field BigIntField demo_srcid into fs_baseinfo 源单内码 visible=none lock=none
+add field TextField demo_bgx after demo_bgxh 变更项 visible=all lock=submit,audit
+copy field demo_sys_test_bill.demo_ypbh after demo_bgx visible=all lock=all
 remove field demo_old' node .claude/skills/long-cosmic-dev/driver.mjs probe FormLayoutWriteProbe
 ```
 
@@ -103,11 +105,35 @@ remove field demo_old' node .claude/skills/long-cosmic-dev/driver.mjs probe Form
 [PROBE]   字段 demo_bgsm  MaxLength：（默认） → 100
 [PROBE]   字段 demo_bgsm  FieldName：（默认） → fk_demo_bgsm
 [PROBE]   字段 demo_old  删除：DecimalField「旧数量」
+[PROBE] 新字段在界面上的落点（上级容器、位置、可见性、锁定性）：
+[PROBE]   demo_bgsm「变更说明」 上级容器 fs_baseinfo「基本信息」 第 6/24 个  各状态可见，锁定：submit,audit；前一个 demo_bgyy「变更原因」（各状态可见，锁定：submit,audit）；后一个 demo_bgsl「变更数量」（…）
+[PROBE]   容器 fs_baseinfo 原有控件 19 个，其中隐藏元素 8 个
 ```
 
 ### 加字段：add field
 
-`add field <字段类型> <新标识> into|before|after <目标> <名称> [base=…] [items=…] [currency=…] [table=…]`
+`add field <字段类型> <新标识> into|before|after <目标> <名称> visible=… lock=… [base=…] [items=…] [currency=…] [table=…]`
+
+每个新字段要定四样：上级容器、位置、可见性、锁定性。`visible=`、`lock=` 必给，少了试算就拒。
+- `visible=all|none|<状态,…>`：控件的可见性按单据状态分六种，`init` 初始、`new` 新增、`edit` 修改、`view` 查看、`submit` 已提交、`audit` 已审核，
+  列出的状态下看得见。`none` 是隐藏元素：界面上不出现，值照样存、插件照样读写。
+- `lock=none|all|<状态,…>`：锁定性分 `new`、`edit`、`submit`、`audit` 四种状态，列出的状态下不能编辑；`all` 是始终只读（值由程序或下推带出）。
+- 看得见的字段用 `before|after <控件>` 指到具体控件旁边，表头上决定它排在哪一格，分录里决定它是第几列；容器里已有控件时 `into` 会被拒。
+  `into` 只给隐藏元素和空容器。
+- 试算有一段「新字段在界面上的落点」：每个新字段的上级容器、排第几、可见性和锁定性，前后两个邻居各自的可见性和锁定性，
+  以及这个容器原有控件里几个是隐藏元素。
+- 布局有派生布局时，看得见的新字段（`add field`、`copy field`、`add entry`、`add <控件类型>` 都一样）还要写 `layouts=`，少了试算就拒，
+  拒的时候列出全部派生布局：
+  - `layouts=all`：所有布局都显示，这张单据通用的字段用它。
+  - `layouts=<布局,…>`：只在列出的布局显示，某一种类型专用的字段用它；主单据布局自己也可以列。没列的布局上是隐藏元素：
+    主单据布局上设成隐藏元素（派生布局跟着隐藏），落库后在列出的派生布局上改回显示。字段照样进实体、业务表照样加列。
+  - 只在部分布局显示的字段不能单纯设必录：必录在字段上，所有布局都生效，看不见的布局也要填、保存不了；
+    按类型必录用 `set <字段>.MustInputCondition=<只在这几种类型成立的条件>`。
+  - 试算和确认单逐个报在哪几张布局显示；落库后逐张报改成显示了几张，没成时新字段在所有布局上都还是隐藏元素，报「写了一半」。
+
+```
+LAYOUT_FORM=demo_sys_test_bill LAYOUT_EDIT='add field DecimalField demo_pl_area after demo_pl_type 截面积 visible=all lock=all layouts=demo_sys_test_plsy'
+```
 
 - 字段类型写平台类名：`TextField` `TextAreaField` `LargeTextField` `MuliLangTextField` `IntegerField` `BigIntField`
   `DecimalField` `AmountField` `PriceField` `DateField` `TimeField` `DateTimeField` `CheckBoxField` `ComboField` `MulComboField`
@@ -138,7 +164,7 @@ remove field demo_old' node .claude/skills/long-cosmic-dev/driver.mjs probe Form
 
 ### 照搬别的单据上的字段：copy field
 
-`copy field <源单据>.<字段> into|before|after <目标> [replace=<旧>=<新>,…] [table=<关系表>]`
+`copy field <源单据>.<字段> into|before|after <目标> visible=… lock=… [replace=<旧>=<新>,…] [table=<关系表>]`
 
 字段在别的单据上已经有一份、要求「配置一致」时用它，不要照着参数重新 `add field`。照搬会把参数里没有对应项、
 人也想不起来要抄的配置一起带过来：F7 过滤（`Filter`）、显示属性、必录方式、运行时引用属性这些。
@@ -146,8 +172,8 @@ remove field demo_old' node .claude/skills/long-cosmic-dev/driver.mjs probe Form
 
 - **源和目标必须同层**：源上是表头字段就放到表头，是分录字段就放进分录。
 - **多选基础资料不沿用源字段的关系表**，另起一张，规则和 `add field` 的 `table=` 一样：沿用的话两张单据的值存进同一张表。
-- **源单据上设计态隐藏的字段，照搬过来改成可见。** 源字段常常是「默认隐藏、由那张单据自己的界面规则打开」，
-  规则不跟着字段走，照抄隐藏的结果是字段建出来了，界面上永远不显示。要隐藏就在目标单据上另配规则。
+- **可见性、锁定性和位置不照搬**，和 `add field` 一样用 `visible=`、`lock=`、`before|after` 写明。源字段常常是「默认隐藏、
+  由那张单据自己的界面规则打开」，规则不跟着字段走。
 - **基础资料字段的过滤条件可能引用源单据上别的字段**，形如 `GetValue(demo_djlx.number)`。目标单据上那个字段往往叫别的名字甚至没有，
   照抄过去 F7 不报错，只是筛不出数据。复制前先看一眼源字段的 `Filter`，有引用就用 `replace=demo_djlx.number=demo_djlx_jc.number` 换掉；一处都没换到会报出来。
 
@@ -161,14 +187,17 @@ remove field demo_old' node .claude/skills/long-cosmic-dev/driver.mjs probe Form
 
 ### 加分录：add entry
 
-`add entry <新分录标识> into|before|after <目标> <名称>`
+`add entry <新分录标识> into|before|after <目标> <名称> visible=… lock=…`
+
+可见性落在分录面板上（整块一起显隐），锁定性落在分录表格上（锁住的状态下不能增删改行）；写法和位置规则同 `add field`。
 
 一行建出一个普通分录（单据体），和单据模板自带的那个分录同一副样子：分录面板里有工具栏、增行和删行两个按钮、分录表格。
 同一份清单后面的行就能往里加字段：
 
 ```
-add entry demo_bgmx after advconap 变更明细
-add field TextField demo_bgxm into demo_bgmx 变更项目
+add entry demo_bgmx after advconap 变更明细 visible=all lock=submit,audit
+add field TextField demo_bgxm into demo_bgmx 变更项目 visible=all lock=submit,audit
+add field DecimalField demo_bgsl2 after demo_bgxm 变更数量 visible=all lock=submit,audit
 ```
 
 - 带出来的标识都从分录标识派生：面板 `<标识>_adv`、工具栏 `<标识>_advbar`、按钮 `<标识>_new` / `<标识>_del`，
@@ -176,6 +205,39 @@ add field TextField demo_bgxm into demo_bgmx 变更项目
 - 目标是表头上的容器或控件，分录面板放在那里；不能放进另一个分录。
 - 只加普通分录。子分录、树形分录、卡片分录由用户在开发平台建，把要建什么列给用户。
 - 这里不删分录。刚加的分录要退回，用 `LAYOUT_RESTORE=<落库时的备份目录>`。
+
+### 拆分表：add split / remove split / set Suffix
+
+单据头和每个分录各有一张主表，还可以各配几张拆分表：表名是 `<主表>_<后缀>`，和主表一行对一行，字段多的单据用它把一部分列分出去。
+拆分表配在单据头或分录上，字段用「所属拆分表」（`Suffix`）指到其中一张，不指就在主表。
+
+```
+add split demo_sys_bgjl A 扩展信息
+add split demo_bgmx B 明细扩展
+add field TextField demo_bgsm after demo_bgyy 变更说明 visible=all lock=submit,audit
+set demo_bgsm.Suffix=A
+set demo_bgx.Suffix=B
+```
+
+- `add split <单据或分录> <后缀> <说明>`：单据头写单据标识，分录写分录标识。后缀是一个英文字母，同一个单据头或分录上不重复，
+  不能是 `L`（`<主表>_L` 是多语言文本的表）；说明必填。落库时平台新建这张表。
+- `set <字段>.Suffix=<后缀>`：只能填这个字段所在的单据头或分录上配了的后缀，同一份清单里前面 `add split` 加的也算；
+  留空是放回主表。新加的字段在 `add field` 后面跟一行 `set`，列直接建在拆分表上。
+- `remove split <单据或分录> <后缀>`：只去掉配置。还有字段指着它的不删，先把这些字段的 `Suffix` 改掉；模板或标准产品带来的拆分表不删。
+- 现有哪些拆分表、字段在哪张上：`FormLayoutProbe` 的 `LAYOUT_PROPS=<单据或分录>,<字段> LAYOUT_ONLY_PROPS=SplitTables,Suffix`。
+
+试算报三样：
+- 每张新拆分表的表名，是落库时新建还是库里已有；
+- 「新字段落库后的样子」里每个新字段落在哪张表；
+- 已有字段换了表的，逐个报列从哪张表换到哪张表、旧表一共多少行、其中这一列有值的多少行。
+
+```
+[PROBE] 新拆分表 demo_sys_bgjl  tk_demo_sys_bgjl_A「扩展信息」  落库时新建
+[PROBE] 已有字段换表 demo_bgx  列 fk_demo_bgx 从 tk_demo_bgmx 换到 tk_demo_bgmx_B，落库时在 tk_demo_bgmx_B 上加列；旧表 tk_demo_bgmx 共 165 行，这一列有值的 14 行
+[PROBE]   demo_bgsm  TextField  表 tk_demo_sys_bgjl_A 加列 fk_demo_bgsm NVARCHAR(255)
+```
+
+落库后的回读多一层：新拆分表在不在库里、换表和新加的列在不在拆分表上，各报各的数。
 
 ### 平台行为
 

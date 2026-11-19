@@ -351,7 +351,59 @@ function bizRuleForm(env: Readonly<Record<string, string>>): WriteForm {
 	});
 }
 
-function botpForm(env: Readonly<Record<string, string>>, targets: readonly string[]): WriteForm {
+/** `SYNC_FIELDMAP` 一项的取值写成人话；前缀的认法和 BotpRuleSyncProbe.parseFieldMap 一致。 */
+function botpMappingText(value: string): string {
+	if (value.toLowerCase() === "clear") return "清掉映射（下推时不取值）";
+	if (value.startsWith("src:")) return `取源单字段 ${value.slice(4).trim()}`;
+	if (value.startsWith("const:")) return `常量（基础资料）${value.slice(6).trim()}`;
+	if (value.startsWith("formula:")) return `公式 ${value.slice(8).trim()}`;
+	return `公式 ${value}`;
+}
+
+/**
+ * 改建行层级（`SYNC_LINK`）那几张表。改前是什么、上下游关联记在哪、改后哪些映射逐行取值，入参里都没有，
+ * 只取探针按规则报的 `t=botp-link` 记录；预演没报就明说，不拿入参顶替。
+ */
+function botpLinkTables(b: Builder, records: readonly ProbeJsonRecord[]): string[] {
+	const links = records.filter((record) => record.t === "botp-link");
+	const linked = (value: unknown): string => (str(value) === "" ? "不记" : `记在 ${str(value)}`);
+	b.tables.push({
+		columns: ["规则 id", "源单建行", "目标单建行", "上下游关联"],
+		rows:
+			links.length > 0
+				? links.map((record) => [
+						text(str(record.rule)),
+						text(`${str(record.sourceBefore)} → ${str(record.sourceAfter)}`),
+						text(`${str(record.targetBefore)} → ${str(record.targetAfter)}`),
+						text(`${linked(record.linkBefore)} → ${linked(record.linkAfter)}`),
+					])
+				: [[text("（预演没报）"), text("—"), text("—"), text("—")]],
+	});
+	const list = (value: unknown): string[] => (Array.isArray(value) ? value.map((one) => str(one)) : []);
+	b.tables.push({
+		columns: ["规则 id", "改后逐行取值的映射"],
+		rows: links.flatMap((record) => {
+			const rows = list(record.rows);
+			return (rows.length > 0 ? rows : ["（一条都没有）"]).map((row) => [text(str(record.rule)), text(row)]);
+		}),
+		group: true,
+	});
+	return links.map((record) => {
+		const others = list(record.others);
+		const plugins = list(record.plugins);
+		return (
+			`规则 ${str(record.rule)} 下推时按源单${str(record.sourceAfter)}的每一行在目标单${str(record.targetAfter)}上建一行` +
+			`（逐行取值 ${String(list(record.rows).length)} 条、表头 ${str(record.head)} 条、其他位置 ${String(others.length)} 条）` +
+			(plugins.length > 0 ? `，启用的转换插件 ${String(plugins.length)} 个照旧执行：${plugins.join("、")}` : "")
+		);
+	});
+}
+
+function botpForm(
+	env: Readonly<Record<string, string>>,
+	targets: readonly string[],
+	records: readonly ProbeJsonRecord[],
+): WriteForm {
 	const b = new Builder();
 	const rules = targets.filter((target) => target.startsWith("botp:")).map((target) => target.slice("botp:".length));
 	const ruleTable = (): FormTable => ({
@@ -377,15 +429,18 @@ function botpForm(env: Readonly<Record<string, string>>, targets: readonly strin
 	const mapping = pairs(env.SYNC_FIELDMAP);
 	if (mapping.length > 0) {
 		b.tables.push({
-			columns: ["目标字段", "标识", "改成公式"],
-			rows: mapping.map(([field, formula]) => [b.name(field), text(field), text(formula)]),
+			columns: ["目标字段", "标识", "改成"],
+			rows: mapping.map(([field, value]) => [b.name(field), text(field), text(botpMappingText(value))]),
 		});
 	}
+	const link = env.SYNC_LINK ?? "";
+	if (link !== "") b.line("建行层级改成", link);
+	const linkImpact = link === "" ? [] : botpLinkTables(b, records);
 	return b.build({
 		kind: "BOTP 转换规则",
 		category: "元数据",
 		summary: `改 ${String(rules.length)} 条转换规则`,
-		impact: "用这些规则下推时立即按新配置取值",
+		impact: ["用这些规则下推时立即按新配置取值", ...linkImpact].join("；"),
 		undo: "执行时先把改前原文存进备份目录，用「BOTP 还原」写回",
 	});
 }
@@ -516,12 +571,15 @@ function layoutForm(env: Readonly<Record<string, string>>, records: readonly Pro
 	const keptTables = tables.filter((record) => record.existing === true).map((record) => str(record.table));
 	// 派生布局由探针按继承路径查出来（`t=layout-heirs`），模型不用猜它们要不要逐张再改
 	const heirs = records.find((record) => record.t === "layout-heirs");
+	// layouts= 只列了部分布局的新控件（`t=layout-scope`）：探针按派生布局清单算好在哪几张显示
+	const scope = records.find((record) => record.t === "layout-scope");
 	const impact = [
 		"所有人打开这张单据立即按新的显示",
 		...(onEntity ? ["标了（字段）（分录）（操作）的改在实体上，这张单据的每个布局都跟着变"] : []),
 		...(heirs === undefined
 			? []
 			: [`派生布局 ${str(heirs.count)} 张跟着变（它们自己改过的属性不变）：${str(heirs.forms)}`]),
+		...(scope === undefined ? [] : [`只在部分布局显示（其余布局上是隐藏元素）：${str(scope.items)}`]),
 		...(newTables.length > 0 ? [`新建业务表 ${newTables.join("、")}`] : []),
 		...(keptTables.length > 0
 			? [`新分录接着用库里已有的表 ${keptTables.join("、")}（以前建过同名分录留下的，表里原有的行还在）`]
@@ -618,7 +676,7 @@ function seedForm(env: Readonly<Record<string, string>>, records: readonly Probe
 		category: "数据",
 		summary: `新建 ${String(count)} 条数据`,
 		impact: `共享环境多出 ${String(count)} 条数据，别人也看得到；本工具不自动清理`,
-		undo: "按回执里列出的编号到单据列表里删除",
+		undo: "按造数结果里列出的编号到单据列表里删除",
 	});
 }
 
@@ -648,7 +706,7 @@ function updateForm(env: Readonly<Record<string, string>>, records: readonly Pro
 		impact: direct
 			? "直接存库，不走校验器和插件；别人看到的数据立即变"
 			: "走单据的保存，校验器和插件照跑；别人看到的数据立即变",
-		undo: "按上表的原值再改回去（回执里保留原值）",
+		undo: "按上表的原值再改回去（改数结果里保留原值）",
 	});
 }
 
@@ -693,7 +751,7 @@ export function buildWriteForm(input: {
 		case "BizRuleProbe":
 			return bizRuleForm(env);
 		case "BotpRuleSyncProbe":
-			return botpForm(env, targets);
+			return botpForm(env, targets, records);
 		case "PrintTplWriteProbe":
 			return printTplForm(env, records);
 		case "FormLayoutWriteProbe":

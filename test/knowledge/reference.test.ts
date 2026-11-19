@@ -94,7 +94,7 @@ describe("S7.1 reference 分流与 skill 载体", () => {
 	it("keeps the four class sizes the design doc was decided on", () => {
 		expect(
 			Object.fromEntries(Object.entries(manifest.classes).map(([key, group]) => [key, group.docs.length])),
-		).toEqual({ A: 9, B: 13, C: 6, D: 3 });
+		).toEqual({ A: 9, B: 14, C: 6, D: 3 });
 		for (const group of Object.values(manifest.classes)) expect(group.lines).toBeGreaterThan(0);
 	});
 
@@ -266,7 +266,7 @@ describe("S7.1 reference 分流与 skill 载体", () => {
 
 	it("costs less per skill than the design doc estimated, once measured", () => {
 		const budget = estimateInjectionBudget(manifest.skills, "C:/cache/reference/abcdef/skills");
-		expect(budget.skills).toBe(30);
+		expect(budget.skills).toBe(31);
 		// The design doc estimated 350 B per skill and marked it 设计值，需实测校准.
 		// Measured content cost is ~306 B, so the content half is under budget.
 		expect((budget.bytes - budget.pathBytes) / budget.skills).toBeLessThan(350);

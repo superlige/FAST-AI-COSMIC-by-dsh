@@ -112,8 +112,10 @@ export type KernelErrorCode =
 	| "PROD_ARGS_INVALID"
 	/** 语句不是单条只读查询（写、加锁、改会话、调危险函数），执行前就拒。 */
 	| "PROD_SQL_REFUSED"
-	/** 生产库连不上、读取进程起不来，或查询本身报错（超时、没权限、语法）。 */
+	/** 生产库连不上、读取进程起不来或没答复。 */
 	| "PROD_QUERY_FAILED"
+	/** 语句到了生产库，库按语句本身报错（语法、类型、列名、超时、没权限）。 */
+	| "PROD_SQL_FAILED"
 	/** monitor 没登录或登录过期：验证码要人输，只能由用户敲命令登录。 */
 	| "PROD_MONITOR_LOGIN_REQUIRED"
 	/** monitor 接口报错或连不上。 */

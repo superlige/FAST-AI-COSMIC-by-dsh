@@ -4,11 +4,13 @@ import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.lang.reflect.Proxy;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -47,7 +49,26 @@ public final class HeadlessUiSupport {
         Object value(Class<?> iface, Method method, Object[] args);
     }
 
-    /** FormConfig 来自全 JVM 共享缓存，调用方必须在 finally 中 restore。 */
+    /** 本次运行里 {@link PluginSelection#hold()} 住的插件清单，后摘的在上面，还原时先还它。 */
+    private static final Deque<PluginSelection> HELD = new ArrayDeque<PluginSelection>();
+
+    /**
+     * 把本次运行 hold 住的插件清单全部还原，返回还原了几份。常驻进程每跑完一个探针都调一次
+     * （CosmicProbeServer 的 afterRun），探针怎么结束都一样，探针自己不用管。
+     * 按后摘先还的顺序：同一张表单重建视图时又摘过一次，那次记下的「原来」已经是摘过的。
+     */
+    public static int restoreHeld() {
+        int restored = 0;
+        while (!HELD.isEmpty()) {
+            HELD.pop().restore();
+            restored++;
+        }
+        return restored;
+    }
+
+    /**
+     * FormConfig 来自全 JVM 共享缓存：install 之后必须还原，要么在 finally 中 restore，要么 hold 到运行结束。
+     */
     public static final class PluginSelection {
         private final FormConfig config;
         private final List<Object> origin;
@@ -79,6 +100,21 @@ public final class HeadlessUiSupport {
 
         public void restore() {
             config.setPlugins(rawList(origin));
+        }
+
+        /**
+         * 摘掉的插件保持到这次运行结束，由 {@link #restoreHeld()} 还原；没摘掉什么就不动。
+         *
+         * 平台读插件清单不止建视图那一下：activate 里 createClientConfig 又按同一份 FormConfig 建一遍插件
+         * （FormShowParameter.createClientConfig → FormConfig.createPlugin），只在 initialize 前后换清单的话，
+         * 那一步拿到的是还原后的全量清单，摘掉的类照样被加载，缺类的插件照样在打开表单时报 not find。
+         */
+        public void hold() {
+            if (dropped.isEmpty()) {
+                return;
+            }
+            install();
+            HELD.push(this);
         }
     }
 
@@ -299,12 +335,21 @@ public final class HeadlessUiSupport {
     }
 
     /**
-     * 真实 Redis 页面缓存。batchSave=true 与普通请求线程一致：本次请求集中在 commitCache 时提交。
+     * 真实 Redis 页面缓存，每次 put 当场写进 Redis（batchSave=false），和平台请求线程里拿到的一样：
+     * FormServiceImpl.batchInvokeAction 先 SessionManager.setRequestThread(true)，这时
+     * SessionManager.getPageCache 建的就是不攒批的 PageCache。
+     *
+     * 不能攒批：FormView.activate 里 FormConfigFactory.createConfig 会另建一份同 pageId 的 PageCache
+     * 登记进 SessionManager，视图手里还是这一份。攒批的话，activate 之后经视图写的值（平台记的编辑锁标识
+     * MUTEX_*、插件在 loadData / afterBindData 里存的值）只留在这份没登记的对象里，commitCache 提交不到它：
+     * 下一次请求从缓存重建页面读不到，跑完放锁也找不到锁，之后提交这张单被拒「正在PC端编辑该记录」
+     * （真机 2026-11-18：验收单表单验证完，独立提交两次都被这条拦住）。
+     *
      * PageCache 构造器会按当前 RequestContext.globalSessionId 生成隔离的 region key，
      * 并自动登记到当前 SessionManager。
      */
     public static IPageCache realPageCache(String pageId, Map<String, Object> seeds) {
-        IPageCache cache = new PageCache(pageId, true);
+        IPageCache cache = new PageCache(pageId, false);
         if (seeds != null) {
             for (Map.Entry<String, Object> entry : seeds.entrySet()) {
                 cache.put(entry.getKey(), entry.getValue() == null ? null : String.valueOf(entry.getValue()));
@@ -347,7 +392,10 @@ public final class HeadlessUiSupport {
             return null;
         }
         String entity = cache.get("MUTEX_ENTITY_KEY");
-        MutexHelper.release(view);
+        //平台放成了会把三个标识清空；回 false 是锁还挂着，照实报出去，不当放了
+        if (!MutexHelper.release(view)) {
+            throw new IllegalStateException("平台没放 " + entity + " " + obj + "（MutexHelper.release 回 false）");
+        }
         return entity + " " + obj;
     }
 
@@ -422,13 +470,78 @@ public final class HeadlessUiSupport {
     }
 
     public static String culprit(Set<String> pluginNames, Throwable throwable) {
-        Throwable root = root(throwable);
-        for (StackTraceElement element : root.getStackTrace()) {
-            if (pluginNames.contains(element.getClassName())) {
-                return element.getClassName();
+        StackTraceElement frame = pluginFrame(pluginNames, throwable);
+        return frame == null ? null : outer(frame.getClassName());
+    }
+
+    /**
+     * 栈里第一帧落在装进来的插件里的位置（类.方法(文件:行)）。插件的内部类、匿名类、lambda
+     * （{@code DemoPlugin$1}、{@code DemoPlugin$$Lambda$12}）算它外层那个插件。
+     */
+    public static StackTraceElement pluginFrame(Set<String> pluginNames, Throwable throwable) {
+        for (StackTraceElement element : root(throwable).getStackTrace()) {
+            if (pluginNames.contains(outer(element.getClassName()))) {
+                return element;
             }
         }
         return null;
+    }
+
+    private static String outer(String className) {
+        int inner = className.indexOf('$');
+        return inner < 0 ? className : className.substring(0, inner);
+    }
+
+    /**
+     * 异常是不是仿真探针自己抛的：抛点（根因的第一帧）落在探针类上。探针类都在默认包里，类名不带点。
+     * 这种情况错在仿真，不在业务代码和平台。
+     */
+    public static boolean thrownBySimulator(Throwable throwable) {
+        StackTraceElement[] stack = root(throwable).getStackTrace();
+        return stack.length > 0 && stack[0].getClassName().indexOf('.') < 0;
+    }
+
+    /**
+     * 起因链上第一个苍穹业务异常（{@code kd.bos.exception.KDBizException} 或它的子类）的消息：
+     * 插件拿它拒绝一次操作，浏览器把消息弹给用户。没有就是 null。按类名认，不引用平台类。
+     */
+    public static String bizMessage(Throwable throwable) {
+        Throwable at = throwable;
+        for (int depth = 0; at != null && depth < 8; depth++) {
+            for (Class<?> type = at.getClass(); type != null; type = type.getSuperclass()) {
+                if ("kd.bos.exception.KDBizException".equals(type.getName())) {
+                    return oneLine(at.getMessage());
+                }
+            }
+            at = at.getCause() == at ? null : at.getCause();
+        }
+        return null;
+    }
+
+    /** 整条起因链，外层在前：{@code 外层类: 消息 ← 起因 根因类: 消息}，最多四层。 */
+    public static String causes(Throwable throwable) {
+        StringBuilder value = new StringBuilder();
+        Throwable at = throwable;
+        for (int depth = 0; at != null && depth < 4; depth++) {
+            value.append(depth == 0 ? "" : " ← 起因 ").append(at.getClass().getName()).append(": ").append(oneLine(at.getMessage()));
+            if (at.getCause() == at) {
+                break;
+            }
+            at = at.getCause();
+        }
+        return value.toString();
+    }
+
+    /**
+     * 根因的前几帧。没带栈时照实说：HotSpot 对编译过的代码里反复抛的空指针、越界、强转失败
+     * 会改抛一个预先建好、不带栈的异常，常驻 JVM 启动时带 -XX:-OmitStackTraceInFastThrow 关掉了它，
+     * 仍为空说明这个 JVM 不是那样起的。
+     */
+    public static String stack(Throwable throwable, int count) {
+        if (root(throwable).getStackTrace().length == 0) {
+            return "（这个异常没带栈：JVM 没带 -XX:-OmitStackTraceInFastThrow 启动，重起常驻 JVM 后再跑就有）";
+        }
+        return top(throwable, count);
     }
 
     public static Object call(Object target, String name) {

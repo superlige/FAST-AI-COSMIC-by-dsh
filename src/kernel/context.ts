@@ -171,6 +171,14 @@ export function poolProps(config: Pick<KernelConfig, "dbLink">): string[] {
 	];
 }
 
+/**
+ * 跑业务代码的 JVM（常驻探针宿主、冷进程）都带：HotSpot 对编译过的代码里反复抛的空指针、越界、强转失败，
+ * 默认改抛一个预先建好、不带栈也不带消息的异常。常驻进程一跑几个小时，插件里一个空指针抛几次就只剩
+ * 「NullPointerException: (无)」，看不出是哪个插件哪一行。关掉它的代价只在反复抛异常的热路径上。
+ * 不是 -D，不进 JRebel 启动缓存的对照依据。
+ */
+export const KEEP_EXCEPTION_STACKS = "-XX:-OmitStackTraceInFastThrow";
+
 /** `-Dcosmic.*` properties the probe host reads. Ported unchanged from config.mjs. */
 export function jvmProps(config: KernelConfig): string[] {
 	return [

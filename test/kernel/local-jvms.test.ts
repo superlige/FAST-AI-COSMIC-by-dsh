@@ -152,6 +152,24 @@ describe("停之前核对身份", () => {
 		expect(fake.fs.exists(fake.ctx.layout.serverPid)).toBe(false);
 	});
 
+	it("正在跑别的请求时停：回话超时、核对时它已经自己退了，报「停了」而不是「本来就没在跑」", async () => {
+		const fake = makeContext();
+		fake.fs.write(
+			fake.ctx.layout.serverPid,
+			JSON.stringify({ pid: 29092, keyId: fake.ctx.runtimeKeyId, port: 1, startedAt: "x" }),
+		);
+		fake.proc.livePids.add(29092);
+		// 忙着，SHUTDOWN 等不到回话；排到它时它照做退出
+		fake.net.handler = () => {
+			fake.proc.livePids.delete(29092);
+			return { ok: false, why: "timeout" };
+		};
+		const outcome = await stopServer(fake.ctx);
+		expect(outcome).toEqual({ how: "graceful", pid: 29092 });
+		expect(fake.proc.killed).toEqual([]);
+		expect(fake.fs.exists(fake.ctx.layout.serverPid)).toBe(false);
+	});
+
 	it("心跳不答、进程清单也查不了：不停，登记留着", async () => {
 		const fake = makeContext();
 		fake.fs.write(
@@ -288,6 +306,14 @@ describe("常驻 JVM 的启动参数换版本也不变（JRebel 启动缓存才�
 		expect(at).toBeGreaterThan(0);
 		expect(at).toBeLessThan(args.indexOf(PROBE_SERVER_MAIN));
 		expect(argsOf("v0.1.0-bbbb")).toContain("-Dcom.zaxxer.hikari.aliveBypassWindowMs=30000");
+	});
+
+	// 真机：常驻 JVM 跑了几小时后，--set 触发的插件空指针只剩「NullPointerException: (无)」、栈是空的，定位不了哪一行
+	it("带上保留异常栈的开关，写在主类前面", () => {
+		const args = argsOf("v0.1.0-aaaa");
+		const at = args.indexOf("-XX:-OmitStackTraceInFastThrow");
+		expect(at).toBeGreaterThan(0);
+		expect(at).toBeLessThan(args.indexOf(PROBE_SERVER_MAIN));
 	});
 
 	// S59 §9：连库用哪一套开关由宿主在平台读连接串模板之前决定，所以也得写在主类前面

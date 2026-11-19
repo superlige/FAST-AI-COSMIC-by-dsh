@@ -26,7 +26,7 @@
 import { basename, isAbsolute, relative, resolve } from "node:path";
 import type { ProbeApiPreflight } from "../../knowledge/probe-api-preflight.ts";
 import { sha256 } from "../../runtime/fingerprint.ts";
-import { baseChildEnv, childEnv, jvmProps, type KernelContext, poolProps } from "../context.ts";
+import { baseChildEnv, childEnv, jvmProps, KEEP_EXCEPTION_STACKS, type KernelContext, poolProps } from "../context.ts";
 import { err, KernelError, type KernelResult, ok } from "../errors.ts";
 import { markMetaPending } from "../impact/meta-state.ts";
 import { entryAsEntityBlockers, loadFieldRows } from "../meta/entity-role.ts";
@@ -709,7 +709,7 @@ export function prepareProbeInvocation(
 				remedy:
 					`把它挪到 ${moved}（package 行留着也行），删掉原文件，再用 name=${moved} 运行。` +
 					`放在 ${owner.name} 的源码目录里，它就被当成业务代码：算进源码指纹（每改一次都要重跑 cosmic_fast）、` +
-					"被 cosmic_fast 一起编进业务 class、出现在交付回执的改动文件里。挪走后源码回到原样，不用为它编译。",
+					"被 cosmic_fast 一起编进业务 class、算进本会话改过的业务文件。挪走后源码回到原样，不用为它编译。",
 			});
 		}
 		const hits = scanAdHocProbe(sourceText);
@@ -980,12 +980,16 @@ export function writeTargetProps(
 	// place per layer.
 	if (options.writeAuthorization === undefined) {
 		return err(
-			new KernelError("WRITE_TARGETS_UNCONFIRMED", `APPLY=1 被拒：${cls} 这次要写哪些共享对象没有一次性授权`, {
-				detail: { operation: `probe ${cls} APPLY=1`, confirmed: [] },
-				remedy:
-					"先对本需求每项元数据修改执行 dry-run（不带 APPLY / apply），取得 P 编号与填表模板，" +
-					"按模板填写 changes，一次 cosmic_authorize 请用户确认，再按原参数加 APPLY=1（cosmic_meta 用 apply=true）逐项执行。",
-			}),
+			new KernelError(
+				"WRITE_TARGETS_UNCONFIRMED",
+				`APPLY=1 被拒：${cls} 这次要写哪些共享对象没有用户确认过的写入范围`,
+				{
+					detail: { operation: `probe ${cls} APPLY=1`, confirmed: [] },
+					remedy:
+						"写元数据带 APPLY=1 并附 report（cosmic_meta 用 apply=true 并附 report）：" +
+						"工具先预演、按预演排出确认单弹给用户，用户确认后带着确认号落库。",
+				},
+			),
 		);
 	}
 	const admission = admitSharedWrite(ctx, {
@@ -1070,6 +1074,7 @@ async function coldProbe(
 	const run = await runJava(
 		ctx,
 		[
+			KEEP_EXCEPTION_STACKS,
 			"-Dfile.encoding=UTF-8",
 			...jvmProps(ctx.config),
 			...poolProps(ctx.config),
@@ -1253,8 +1258,7 @@ function classLocator(ctx: KernelContext): OwnClassLocator {
  * 但 09-17 真机那次探针打出 11 条 PASS，AI 以为能交付了，到交付检查才被拒——
  * 这句话要在它看到 PASS 的同一屏里说，而不是等到 finish。
  */
-export const AD_HOC_ASSERT_NOTE =
-	"这些断言是临时探针自己判的，不算交付证据；交付要用 cosmic_run 带 --expect 跑（改的类该用哪条，编译后的预检里列了）。";
+export const AD_HOC_ASSERT_NOTE = "这些断言是临时探针自己判的，不算验过；要验过用 cosmic_run 带 --expect 跑。";
 
 /**
  * 平台派发后台任务时调度服务没起（S37 2-E.4）。

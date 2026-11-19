@@ -65,7 +65,8 @@ function classOfSource(moduleSrc: string, file: string): string {
 export function externalEffectSites(ctx: KernelContext, target: string): ExternalEffectSite[] {
 	const registrations = targetRegistrations(ctx, target);
 	const byClass = new Map<string, TargetRegistration[]>();
-	for (const registration of registrations?.list ?? []) {
+	// 停用的登记平台不装，插件链上没有它：算进来就是一句「走到它时会真的发出去」的假话
+	for (const registration of (registrations?.list ?? []).filter((entry) => entry.enabled)) {
 		const list = byClass.get(registration.class);
 		if (list) list.push(registration);
 		else byClass.set(registration.class, [registration]);

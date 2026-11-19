@@ -183,6 +183,21 @@ export function compactField(row: FieldOwnership): FieldOwnership {
 	};
 }
 
+/**
+ * Where a bill's design inherits from, as the field scan saw it (`t=fieldbase`).
+ *
+ * The scan reads each design's own XML, so `fields` never holds what a bill
+ * inherits -- `billno` lives on the platform template `bos_billtpl`, not on the
+ * bill. Without this, "every field of the bill is collected" reads as "a field
+ * not collected is not on the bill", which is false for every inherited field.
+ */
+export interface FieldBase {
+	/** The nearest ancestor design outside this ISV (usually a platform template); absent = none. */
+	outside?: string;
+	/** This ISV's own ancestor designs, nearest first; absent = none. */
+	parents?: string[];
+}
+
 export interface MetaIndex {
 	kind: "MetaIndex";
 	at: string;
@@ -220,6 +235,10 @@ export interface MetaIndex {
 	 * those bills. Absent on snapshots built before.
 	 */
 	fieldsAll?: boolean;
+	/** Bill -> where its design inherits from, for the scanned bills. Absent on snapshots built before. */
+	fieldBases?: Record<string, FieldBase>;
+	/** The ISV the field scan ran for: a key with its prefix cannot come from another ISV's template. */
+	fieldIsv?: string;
 	/**
 	 * Field key -> every bill in the library carrying it, for the keys `fieldOwners`
 	 * counts. A patch rescans only the bills that changed, and a count can only be
@@ -500,6 +519,9 @@ export interface ImpactIndex {
 	} | null;
 	fields: FieldOwnership[];
 	fieldOwners: Record<string, number>;
+	/** See `MetaIndex.fieldBases`; absent on indexes built before. */
+	fieldBases?: Record<string, FieldBase>;
+	fieldIsv?: string;
 	templates: { number: string; entity: string; classes: string[]; name?: string }[];
 	/**
 	 * Every non-entity design-time object the metadata side saw, by its own number.
@@ -1022,6 +1044,8 @@ export function mergeIndex(
 		// How many bills in the whole library carry this key -- answers "does this
 		// key point at one bill", and has nothing to do with the whitelist.
 		fieldOwners: meta?.fieldOwners ?? {},
+		...(meta?.fieldBases === undefined ? {} : { fieldBases: meta.fieldBases }),
+		...(meta?.fieldIsv === undefined ? {} : { fieldIsv: meta.fieldIsv }),
 		// Print templates: the template code is itself what a person says when
 		// asking for something ("the 58 template prints wrong").
 		templates: (meta?.templates ?? []).map((t) => {
@@ -1152,8 +1176,13 @@ export interface IndexLookup {
 	/** A form layout's own number (not the entity's) -> its entity and the project classes registered on it. */
 	byLayout: Map<string, { entity: string; classes: string[] }>;
 	fieldOwners: Record<string, number>;
-	/** Every field of each bill in `fieldEntities` is in `fieldMeta`, so a missing one is not on that bill. */
+	/**
+	 * Every field each bill in `fieldEntities` declares in its own design is in `fieldMeta`.
+	 * Inherited ones are not: whether a missing one is really not on the bill is `knownAbsent`.
+	 */
 	fieldsAll: boolean;
+	fieldBases: Readonly<Record<string, FieldBase>>;
+	fieldIsv: string;
 }
 
 export function lookup(index: ImpactIndex): IndexLookup {
@@ -1218,7 +1247,35 @@ export function lookup(index: ImpactIndex): IndexLookup {
 		byLayout,
 		fieldOwners: index.fieldOwners ?? {},
 		fieldsAll: index.meta?.fieldsAll === true,
+		fieldBases: index.fieldBases ?? {},
+		fieldIsv: index.fieldIsv ?? "",
 	};
+}
+
+/**
+ * Whether the snapshot can say `field` is NOT on `entity`.
+ *
+ * Only for a bill whose own fields were all collected and whose inheritance is
+ * known: every own-ISV ancestor collected too and none declares it, and any
+ * template from elsewhere unable to carry it -- a key with this ISV's prefix
+ * cannot sit on another ISV's or the platform's template. `billno` on a bill
+ * built on `bos_billtpl` is therefore never "not on it".
+ */
+export function knownAbsent(lk: IndexLookup, entity: string, field: string): boolean {
+	if (!lk.fieldsAll || !lk.fieldEntities.has(entity) || lk.fieldMeta.has(`${entity}|${field}`)) return false;
+	const base = lk.fieldBases[entity];
+	if (base === undefined) return false;
+	for (const parent of base.parents ?? []) {
+		if (!lk.fieldEntities.has(parent) || lk.fieldMeta.has(`${parent}|${field}`)) return false;
+	}
+	return base.outside === undefined || (lk.fieldIsv !== "" && field.startsWith(`${lk.fieldIsv}_`));
+}
+
+/** Why a field missing from the snapshot may still be on the bill: what it inherits from. */
+export function inheritedNote(lk: IndexLookup, entity: string): string {
+	const base = lk.fieldBases[entity];
+	const from = [...(base?.parents ?? []), ...(base?.outside ? [base.outside] : [])];
+	return from.length > 0 ? `；${entity} 继承自 ${from.join("、")}，继承来的字段快照里不收` : "";
 }
 
 /** Does this class touch this bill (bound / read-written directly / through a chain)? */

@@ -15,7 +15,30 @@
 		"noUnusedParameters": true,
 		"skipLibCheck": true,
 		"allowArbitraryExtensions": true,
+		// 只给类型检查用：本仓库只 `import type` dsh 的类型，运行时不 import dsh 的模块（插件拿到的服务都从 ctx 来）。
+		// 指向 dsh 检出目录里构建好的类型声明，升 dsh 时类型变了这里会直接报错。
+		"paths": {
+			"@deepseek-ai/cordis": ["../vendor/cordis/lib/types/index.d.ts"],
+			"@deepseek-ai/dsh-tools": ["../packages/core/tools/lib/types/index.d.ts"],
+			"@deepseek-ai/dsh-agent": ["../packages/core/agent/lib/types/index.d.ts"],
+			"@deepseek-ai/dsh-session": ["../packages/core/session/lib/types/index.d.ts"],
+			"@deepseek-ai/dsh-llm": ["../packages/llm/llm/lib/types/index.d.ts"],
+			"@deepseek-ai/dsh-user-questions": ["../packages/interaction/user-questions/lib/types/index.d.ts"],
+			"@deepseek-ai/dsh-system-prompt": ["../packages/core/system-prompt/lib/types/index.d.ts"],
+			"@deepseek-ai/dsh-skill": ["../packages/skill/skill/lib/types/index.d.ts"],
+			"@deepseek-ai/dsh-commands": ["../packages/interaction/commands/lib/types/index.d.ts"],
+			"@deepseek-ai/dsh-working-directory": ["../packages/session/working-directory/lib/types/index.d.ts"],
+			"@deepseek-ai/dsh-authorization": ["../packages/credentials/authorization/lib/types/index.d.ts"]
+		},
 		"types": ["node"]
 	},
-	"include": ["src/**/*.ts", "src/**/*.d.ts", "test/**/*.ts", "vitest.config.ts"]
+	// scripts 也进类型检查：真机验证和测量脚本直接调内核，内核改了接口这里马上报错，不等到真机上跑才发现。
+	"include": [
+		"src/**/*.ts",
+		"src/**/*.d.ts",
+		"test/**/*.ts",
+		"scripts/**/*.ts",
+		"scripts/**/*.d.mts",
+		"vitest.config.ts"
+	]
 }

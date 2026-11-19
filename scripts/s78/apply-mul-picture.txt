@@ -1,3 +1,3 @@
 # S78 真机落库样本：多选基础资料自动定关系表、图片字段；验完用备份退回
-add field MulBasedataField zlgd_s78mul after billno S78多选 base=bos_user
-add field PictureField zlgd_s78pic after billno S78图片
+add field MulBasedataField zlgd_s78mul after billno S78多选 base=bos_user visible=all lock=none
+add field PictureField zlgd_s78pic after billno S78图片 visible=all lock=none

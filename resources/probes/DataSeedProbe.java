@@ -820,18 +820,8 @@ public class DataSeedProbe {
 
     /** 平台的提示加上每张源单没推成的原因。 */
     private static String failText(ConvertOperationResult pushed) {
-        List<String> out = new ArrayList<String>();
-        if (pushed.getMessage() != null && !pushed.getMessage().trim().isEmpty()) {
-            out.add(pushed.getMessage().trim());
-        }
-        if (pushed.getBillReports() != null) {
-            for (SourceBillReport r : pushed.getBillReports()) {
-                if (r.getFailMessages() != null && !r.getFailMessages().isEmpty()) {
-                    out.add((r.getBillNo() == null ? "" : r.getBillNo() + "：") + String.join("；", r.getFailMessages()));
-                }
-            }
-        }
-        return out.isEmpty() ? "平台没给原因" : String.join("；", out);
+        String text = ConvertMessage.of(pushed);
+        return text.isEmpty() ? "平台没给原因" : text;
     }
 
     /**

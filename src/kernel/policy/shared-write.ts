@@ -69,9 +69,9 @@ export function admitSharedWrite(_ctx: KernelContext, request: SharedWriteReques
 		request.authorization.confirmationId === ""
 	) {
 		return err(
-			new KernelError("WRITE_TARGETS_UNCONFIRMED", "一次性授权记录不完整", {
+			new KernelError("WRITE_TARGETS_UNCONFIRMED", "确认记录不完整", {
 				detail: { operation: request.operation, targets, confirmationId: request.authorization.confirmationId },
-				remedy: "重新用 cosmic_authorize 取得用户确认；共享写只有这一条授权路径。",
+				remedy: "重新发写调用并附 report：工具重新预演、弹确认单，用户确认后才写；共享写只有这一条路。",
 			}),
 		);
 	}

@@ -10,11 +10,11 @@ export const RUN_KINDS = ["op", "form", "list", "callback", "flow", "rule", "pri
 export type RunKind = (typeof RUN_KINDS)[number];
 
 /**
- * When a run needs a process of its own. S27 made every run commit through the
- * platform's own path, so the resident JVM serves them all; only a form run with
- * a real Redis cache still needs its own session (`on-real-cache`).
+ * When a run needs a process of its own. Every run commits through the platform's
+ * own path and the form simulators keep their Redis keys in a session of their own,
+ * so the resident JVM serves them all.
  */
-export type RunColdPolicy = "never" | "on-real-cache";
+export type RunColdPolicy = "never";
 
 /**
  * 一个子命令的完整写法，和它认的每个参数各一句说明。
@@ -54,7 +54,7 @@ export interface RunAdapterContract extends RunAdapterSource {
 /** 几个子命令共用、意思也一样的参数。意思不一样的（--set、--show、--select…）各写各的。 */
 const SHARED_FLAGS = {
 	expect:
-		"路径=值　断言，可重复；路径=@nonempty 验非空，路径=@literal:@nonempty 验字面值；/ 只表示斜杠；全过的那次运行就是交付证据",
+		"路径=值　断言，可重复；路径=@nonempty 验非空，路径=@literal:@nonempty 验字面值；/ 只表示斜杠；全过的那次运行才算验过",
 	pk: "<内码>　打开已有单据",
 	billno: "<单据编号>　只有编号时用，工具自己查内码；和 --pk 只给一个",
 	skip: "插件简名,…　摘掉这些插件再跑；某个插件抛异常、把后面的插件截断了时用",
@@ -104,7 +104,7 @@ const SOURCES: Readonly<Record<RunKind, RunAdapterSource>> = {
 		flags: {
 			set: "字段=值　改值，可重复；走 model.setValue，会触发 propertyChanged（要验的正是这个）",
 			expect:
-				"路径=值　断言，可重复；路径=@nonempty 验非空，路径=@literal:@nonempty 验字面值；/ 只表示斜杠；全过的那次运行就是交付证据。字段终值写 字段=值、分录[行].字段=值；" +
+				"路径=值　断言，可重复；路径=@nonempty 验非空，路径=@literal:@nonempty 验字面值；/ 只表示斜杠；全过的那次运行才算验过。字段终值写 字段=值、分录[行].字段=值；" +
 				"界面状态写 控件.visible|enabled|mustInput=true|false，分录某一格 分录[行].字段.enabled，整列 分录.字段.visible，整行锁定 分录[行].enabled；" +
 				"动作的效果用保留字：opened=页面标识,… 这次打开了哪些页面（不看顺序，留空是一个没开），" +
 				"opened.参数=值 唯一打开的那个页面带的参数（插件 setCustomParam 放的，打开单据还有 pk；~= 是包含），" +
@@ -127,12 +127,11 @@ const SOURCES: Readonly<Record<RunKind, RunAdapterSource>> = {
 			skip: SHARED_FLAGS.skip,
 			events: SHARED_FLAGS.events,
 			calls: SHARED_FLAGS.calls,
-			"real-cache": "（不带值）用真实 Redis 页面/模型缓存；单独起一个冷进程，慢，跨请求的缓存问题才用",
 			schedule: SHARED_FLAGS.schedule,
 			user: SHARED_FLAGS.user,
 		},
 		hint: "form 起真 FormView：--set 造数、--click/--op/--hyperlink 触发、--show 打终值、--expect 断言、--select 定分录选中行。",
-		cold: "on-real-cache",
+		cold: "never",
 		must: [
 			"--select 表示分录选中行，格式为 分录标识=0,2；空等号表示一行未选",
 			"--show 只打印终值，验证结论必须写 --expect",

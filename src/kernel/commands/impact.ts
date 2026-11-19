@@ -43,6 +43,7 @@ import {
 	artifactGap,
 	type BillName,
 	compactField,
+	type FieldBase,
 	type FieldOwnership,
 	type Impact,
 	type ImpactIndex,
@@ -384,6 +385,10 @@ interface FieldRecords {
 	counts: Record<string, number>;
 	/** `all` (every field of the asked bills), `asked`, `partial`; "" from a probe that wrote no summary. */
 	mode: string;
+	/** Bill -> where its design inherits from (`t=fieldbase`). */
+	bases: Record<string, FieldBase>;
+	/** The ISV the scan ran for; "" from a probe that did not say. */
+	isv: string;
 }
 
 function fieldRecords(records: readonly Record<string, unknown>[]): FieldRecords {
@@ -391,7 +396,9 @@ function fieldRecords(records: readonly Record<string, unknown>[]): FieldRecords
 	const billNames: BillName[] = [];
 	const owners: Record<string, string[]> = {};
 	const counts: Record<string, number> = {};
+	const bases: Record<string, FieldBase> = {};
 	let mode = "";
+	let isv = "";
 	for (const row of records) {
 		if (row.t === "field") {
 			rows.push(
@@ -413,11 +420,18 @@ function fieldRecords(records: readonly Record<string, unknown>[]): FieldRecords
 		} else if (row.t === "fieldowners") {
 			counts[String(row.key)] = Number(row.entities ?? 0);
 			if (Array.isArray(row.on)) owners[String(row.key)] = (row.on as unknown[]).map(String);
+		} else if (row.t === "fieldbase") {
+			const entity = String(row.entity ?? "");
+			const outside = String(row.outside ?? "");
+			const parents = Array.isArray(row.parents) ? (row.parents as unknown[]).map(String) : [];
+			if (entity !== "")
+				bases[entity] = { ...(outside === "" ? {} : { outside }), ...(parents.length === 0 ? {} : { parents }) };
 		} else if (row.t === "field-summary") {
 			mode = String(row.mode ?? "");
+			isv = String(row.isv ?? "");
 		}
 	}
-	return { rows, billNames, owners, counts, mode };
+	return { rows, billNames, owners, counts, mode, bases, isv };
 }
 
 /**
@@ -441,7 +455,10 @@ async function buildFieldOwners(
 	bindings: readonly MetaBinding[],
 	runProbe: RunProbe,
 ): Promise<{
-	owned: Pick<MetaIndex, "fields" | "fieldOwners" | "owners" | "asked" | "fieldsAll" | "billNames">;
+	owned: Pick<
+		MetaIndex,
+		"fields" | "fieldOwners" | "owners" | "asked" | "fieldsAll" | "billNames" | "fieldBases" | "fieldIsv"
+	>;
 	ms: number;
 	notes: string[];
 }> {
@@ -476,8 +493,12 @@ async function buildFieldOwners(
 	// otherwise read as "every asked key is gone", and the staleness check would
 	// sink every case that asserts one.
 	const billNames = got.billNames.length > 0 ? { billNames: got.billNames } : {};
+	const bases = {
+		...(Object.keys(got.bases).length > 0 ? { fieldBases: got.bases } : {}),
+		...(got.isv === "" ? {} : { fieldIsv: got.isv }),
+	};
 	if (Object.keys(fieldOwners).length === 0)
-		return { owned: { fields: got.rows, fieldOwners, ...billNames }, ms, notes };
+		return { owned: { fields: got.rows, fieldOwners, ...billNames, ...bases }, ms, notes };
 	return {
 		owned: {
 			fields: got.rows,
@@ -486,6 +507,7 @@ async function buildFieldOwners(
 			asked: { entities: [...whitelist.entities].sort() },
 			...(got.mode === "all" ? { fieldsAll: true } : {}),
 			...billNames,
+			...bases,
 		},
 		ms,
 		notes,
@@ -628,6 +650,8 @@ async function buildMetaIndex(
 			...(owned.owned.owners === undefined ? {} : { owners: owned.owned.owners }),
 			...(owned.owned.fieldsAll ? { fieldsAll: true } : {}),
 			...(owned.owned.billNames === undefined ? {} : { billNames: owned.owned.billNames }),
+			...(owned.owned.fieldBases === undefined ? {} : { fieldBases: owned.owned.fieldBases }),
+			...(owned.owned.fieldIsv === undefined ? {} : { fieldIsv: owned.owned.fieldIsv }),
 			...(stamped.baseline === null ? {} : { baseline: stamped.baseline }),
 		},
 		notes,
@@ -764,6 +788,8 @@ export async function refreshMeta(
 	};
 	let rows: FieldOwnership[] = [];
 	let billNames: BillName[] = [];
+	let bases: Record<string, FieldBase> = {};
+	let isv = "";
 	if (rescanned.size > 0) {
 		const scanFile = `${ctx.layout.impactWork}/meta-patch-entities.txt`;
 		ctx.ports.fs.write(scanFile, [...rescanned].join("\n"));
@@ -771,11 +797,13 @@ export async function refreshMeta(
 		if (got === null) return done("failed", scope, "补扫字段归属没跑成");
 		rows = got.rows;
 		billNames = got.billNames;
+		bases = got.bases;
+		isv = got.isv;
 	}
 	const patched: MetaIndex = {
 		...meta,
 		...regs,
-		...patchFields(meta, whitelist, { rescanned, rows, billNames }),
+		...patchFields(meta, whitelist, { rescanned, rows, billNames, bases, isv }),
 		baseline: stamped.baseline,
 		patchedAt: at,
 	};
@@ -1080,7 +1108,7 @@ function unknownWhy(index: ImpactIndex, lk: IndexLookup, term: string): string {
 			split.fieldKnown
 				? `字段 ${split.field} 已在索引中`
 				: lk.fieldsAll
-					? `字段 ${split.field} 代码里没读写过，代码碰过、挂了插件的单上也都没有`
+					? `字段 ${split.field} 代码里没读写过，代码碰过、挂了插件的单自己的设计里也都没有（继承来的字段快照里不收）`
 					: `字段 ${split.field} 在当前索引中未记到`,
 			index.meta ? "" : "当前没有元数据快照，不能据此判断单据或字段不存在",
 		].filter(Boolean);

@@ -61,7 +61,6 @@ import {
 	type AssertionEvidence,
 	evidenceFrom,
 	PUSH_READBACK_REQUIRED,
-	readEvidence,
 	unconfirmedPush,
 	writeEvidence,
 	writtenTablesOf,
@@ -117,7 +116,7 @@ const VALUE_FLAGS = [
 /** Buckets that collect a repeatable parameter, in the name `--x` uses. */
 const LIST_FLAGS = ["--set", "--child-set", "--expect", "--cache", "--show", "--filter", "--ctx"];
 /** Flags that are their own value. */
-const BOOL_FLAGS = ["--events", "--summary", "--mobile", "--real-cache", "--schedule", "--raw"];
+const BOOL_FLAGS = ["--events", "--summary", "--mobile", "--schedule", "--raw"];
 /** Everything `run` accepts anywhere, for the "you misspelled it" message. */
 export const KNOWN_FLAGS = [...LIST_FLAGS, ...BOOL_FLAGS, ...VALUE_FLAGS, "--case"].sort();
 
@@ -343,7 +342,7 @@ function checkPush(parsed: ParsedRunArgs): KernelError[] {
 		errors.push(
 			invalid(
 				`run push 的目标写转换规则 id（一串数字），收到 ${target}`,
-				"规则 id 用 cosmic_meta botp list --plugin <插件类名> 查；改了转换插件时，预检给的验证路线里已经填好。",
+				"规则 id 用 cosmic_meta botp list --plugin <插件类名> 查。",
 				{ kind: "push", target },
 			),
 		);
@@ -724,10 +723,6 @@ function collectParsedRunArgs(argv: readonly string[]): { parsed: ParsedRunArgs;
 			out.flags.mobile = "1";
 			continue;
 		}
-		if (arg === "--real-cache") {
-			out.flags["real-cache"] = "1";
-			continue;
-		}
 		if (arg === "--schedule") {
 			out.flags.schedule = "1";
 			continue;
@@ -911,7 +906,7 @@ export interface RunPlan {
 	probe: string;
 	/** Exactly the variables this probe should see. Never written to process.env. */
 	env: Record<string, string>;
-	/** Forced cold. Writes and real-cache runs always are. */
+	/** Forced cold. No run kind needs it today; kept for the probe contract. */
 	cold: boolean;
 	/** Batch scenarios, when `--case` was used. Null otherwise. */
 	scenarios: BatchScenario[] | null;
@@ -1906,15 +1901,6 @@ function planRunBody(argv: readonly string[]): KernelResult<RunPlan> {
 	if (statusError) return err(statusError);
 	const actionError = formActionError(flags);
 	if (actionError) return err(actionError);
-	if (flags["real-cache"] === "1" && flags.schedule === "1") {
-		return err(
-			invalid(
-				"--real-cache 和 --schedule 不能一起用",
-				"--real-cache 单独起冷进程，跑完就退；调度服务只在常驻进程里起，派出去的后台任务要它接着执行。两个只留一个。",
-				{ flags: ["--real-cache", "--schedule"] },
-			),
-		);
-	}
 	return ok({
 		kind,
 		target,
@@ -1937,14 +1923,13 @@ function planRunBody(argv: readonly string[]): KernelResult<RunPlan> {
 			// 不给时探针按 `--set` 写过的行模拟选中 —— 当前行喂 getValue，选中行喂
 			// getSelectRows()，两者不是一回事，而一个 donothing 计算按钮读的正是后者。
 			FORM_SELECT: flags.select ?? "",
-			FORM_REAL_CACHE: flags["real-cache"] ?? "",
 			FORM_TOOLBAR: flags.toolbar ?? "",
 			FORM_STATUS: flags.status ?? "",
 		},
-		// A real-cache run writes temporary Redis keys and needs its own JVM/session,
-		// or the resident SessionManager pollutes the conclusion. Buttons and
-		// operations commit since S27 and stay on the resident JVM.
-		cold: flags["real-cache"] === "1",
+		// FormSim always uses the real Redis page/model cache and splits the run into
+		// requests with a fresh SessionManager each, the way FormCallbackSim and
+		// FormFlowSim already do on the resident JVM; nothing here needs a JVM of its own.
+		cold: false,
 		scenarios: null,
 		notes,
 	});
@@ -1962,11 +1947,6 @@ export interface RunOptions {
 	 * 不转下去的话，界面只知道「run 开始了」，然后一分钟没有下文。
 	 */
 	onProgress?: (stage: ProbeProgressStage) => void;
-	/**
-	 * 本次会话已有的验证记录编号。只用来在这次运行顶掉同场景的一条 PASS 时当场说一句——
-	 * finish 按场景只认最后一次，不说的话要到交付时才发现（zlgd_ygpt2.0 复盘，2026-09-17）。
-	 */
-	sessionEvidence?: readonly { id: string }[];
 }
 
 export interface EvidenceOutcomeReport {
@@ -1992,32 +1972,6 @@ export interface RunReport extends ProbeOutcome {
 }
 
 /**
- * 这次没过的运行顶掉了本次会话里同一场景上一条过了的记录时，当场说清。
- *
- * 场景键不含 `--expect`（D19.1：改对期望再跑是正常纠错），所以拿同一组 --pk / --set 故意跑一条
- * 反例，就把前面那条正例的 PASS 换成了 FAIL。规则本身不改，只是不能让人到 finish 才知道。
- */
-function replacedPass(
-	ctx: KernelContext,
-	session: readonly { id: string }[],
-	record: AssertionEvidence,
-): string | null {
-	if (record.result === "PASS") return null;
-	let previous: AssertionEvidence | null = null;
-	for (const entry of session) {
-		const earlier = readEvidence(ctx, entry.id);
-		if (earlier === null || earlier.scenarioKey !== record.scenarioKey) continue;
-		if (previous === null || Date.parse(earlier.at) >= Date.parse(previous.at)) previous = earlier;
-	}
-	if (previous === null || previous.result !== "PASS") return null;
-	return (
-		`这次和 ${previous.id} 是同一个场景（命令去掉 --expect 之后一样），交付只认同一场景的最后一次：` +
-		`那次的 PASS 已经被这次的 ${record.result} 顶掉，现在这个场景算没过，finish 只出 PARTIAL 部分完成回执，不记为已交付。` +
-		"只有同一场景真实通过才能替换失败。先读原日志核对现场，已落库的操作不要为改断言而重复执行；反例要留作通过证据，断言应符合预期。"
-	);
-}
-
-/**
  * Files one verification record per asserting scenario (S22.1.2).
  *
  * A record is not an asset: it is the fact that this code was exercised in this
@@ -2034,7 +1988,6 @@ function stashEvidence(
 	argv: readonly string[],
 	outcome: ProbeOutcome,
 	warnings: readonly string[],
-	session: readonly { id: string }[],
 	sourceFingerprint: string,
 ): EvidenceOutcomeReport {
 	const at = new Date(ctx.ports.clock.now()).toISOString();
@@ -2073,8 +2026,6 @@ function stashEvidence(
 			}
 			return;
 		}
-		const replaced = replacedPass(ctx, session, built.evidence);
-		if (replaced !== null) notes.push(replaced);
 		if (unconfirmedPush([built.evidence]).length > 0) notes.push(PUSH_READBACK_REQUIRED);
 		writeEvidence(ctx, built.evidence);
 		filed.push(built.evidence);
@@ -2093,8 +2044,7 @@ function stashEvidence(
 		const passed = filed.filter((entry) => entry.result === "PASS").length;
 		const asserts = filed.reduce((sum, entry) => sum + entry.asserts.length, 0);
 		notes.push(
-			`验证记录：这次留下 ${String(filed.length)} 条（${String(passed)} 条断言全过、共 ${String(asserts)} 条断言）。` +
-				`交付时 finish 只认本次会话在当前代码上留下的这类记录。`,
+			`验证记录：这次留下 ${String(filed.length)} 条（${String(passed)} 条断言全过、共 ${String(asserts)} 条断言）。`,
 		);
 	}
 	return { filed, notes };
@@ -2211,15 +2161,7 @@ export async function run(
 	// The warnings a record carries are the ones the reader has to weigh before
 	// believing it -- the same list that leads `notes` below, so the receipt can
 	// reproduce them months later without the run's own output still being around.
-	const evidence = stashEvidence(
-		ctx,
-		plan,
-		argv,
-		outcome.value,
-		prepared.warnings,
-		options.sessionEvidence ?? [],
-		sourceFingerprint,
-	);
+	const evidence = stashEvidence(ctx, plan, argv, outcome.value, prepared.warnings, sourceFingerprint);
 	return ok({
 		...outcome.value,
 		// Prepare warnings lead. They are what the run could not refuse but the

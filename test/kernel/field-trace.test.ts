@@ -94,10 +94,17 @@ const meta: MetaIndex = {
 	fieldsMs: 1,
 };
 
-const index = (): ImpactIndex => mergeIndex(src, meta);
+const index = (extra: Partial<MetaIndex> = {}): ImpactIndex => mergeIndex(src, { ...meta, ...extra });
 
-const answer = (term: string): string => {
-	const idx = index();
+/** A snapshot that can say "not on this bill": own fields all collected, zlgd_qty built on a platform template only. */
+const complete: Partial<MetaIndex> = {
+	fieldsAll: true,
+	fieldBases: { zlgd_qty: { outside: "bos_billtpl" } },
+	fieldIsv: "zlgd",
+};
+
+const answer = (term: string, extra: Partial<MetaIndex> = {}): string => {
+	const idx = index(extra);
 	const lk = lookup(idx);
 	const [target] = resolveTarget(idx, term, lk).filter((t) => t.kind === "field");
 	if (!target) throw new Error(`没认出 ${term}`);
@@ -145,13 +152,36 @@ describe("字段入口：读写处清单", () => {
 
 describe("「单据.字段」对不上", () => {
 	it("字段只在另一张单上：说出来，按那张单列", () => {
-		const text = answer("zlgd_qty.zlgd_b");
+		const text = answer("zlgd_qty.zlgd_b", complete);
 		expect(text).toContain("字段 zlgd_other.zlgd_b（分录 zlgd_e1）");
 		expect(text).toContain("zlgd_b 不在 zlgd_qty 上，在 zlgd_other（快照 09-23）");
 	});
 
+	it("快照说不清这张单继承了什么时，不把人引到别的单上", () => {
+		// 旧快照没记继承：zlgd_b 可能是 zlgd_qty 从本 ISV 模板继承来的
+		expect(answer("zlgd_qty.zlgd_b")).not.toContain("不在 zlgd_qty 上");
+		// 继承自本 ISV 的模板、模板的字段没收进来：同样说不清
+		const text = answer("zlgd_qty.zlgd_b", {
+			...complete,
+			fieldBases: { zlgd_qty: { parents: ["zlgd_basetpl"], outside: "bos_billtpl" } },
+		});
+		expect(text).not.toContain("不在 zlgd_qty 上");
+		expect(text).toContain("zlgd_qty 继承自 zlgd_basetpl、bos_billtpl，继承来的字段快照里不收");
+	});
+
+	it("继承自原厂模板的字段（不带本 ISV 前缀）不说「不在这张单上」", () => {
+		// 真机：zlgd_sys_test_bill.billno 在 bos_billtpl 上，全库只有几张单在自己的设计里重写了它
+		const text = answer("zlgd_qty.billno", {
+			...complete,
+			fields: [...meta.fields, { entity: "zlgd_other", key: "billno", level: "header" }],
+			fieldOwners: { ...meta.fieldOwners, billno: 1 },
+		});
+		expect(text).not.toContain("billno 不在 zlgd_qty 上");
+		expect(text).toContain("快照没记到 zlgd_qty 上有 billno；zlgd_qty 继承自 bos_billtpl，继承来的字段快照里不收");
+	});
+
 	it("字段在别的几张单上：列出来，不列读写处", () => {
-		const idx = index();
+		const idx = index(complete);
 		const lk = lookup(idx);
 		const text = formatTrace(traceField(idx, lk, { kind: "field", value: "zlgd_c", entity: "zlgd_qty" }), lk).join(
 			"\n",

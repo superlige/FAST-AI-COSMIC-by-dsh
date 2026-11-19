@@ -32,7 +32,7 @@ describe("write targets", () => {
 		expect(result.ok).toBe(false);
 		if (!result.ok) {
 			expect(result.error.code).toBe("WRITE_TARGETS_UNCONFIRMED");
-			expect(result.error.remedy).toContain("cosmic_authorize");
+			expect(result.error.remedy).toContain("附 report");
 		}
 	});
 

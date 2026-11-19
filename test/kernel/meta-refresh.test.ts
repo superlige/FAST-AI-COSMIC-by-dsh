@@ -520,14 +520,53 @@ describe("字段收全之后能说「不在这张单上」", () => {
 			fieldOwners: { zlgd_x: 1, zlgd_y: 3 },
 			fieldsMs: 1,
 		} as MetaIndex;
-		const say = (all: boolean) => {
-			const index = mergeIndex(src, { ...meta, ...(all ? { fieldsAll: true } : {}) }, "2026-10-04T00:00:00.000Z");
+		const known = { fieldsAll: true, fieldBases: { zlgd_a: { outside: "bos_billtpl" } }, fieldIsv: "zlgd" };
+		const say = (extra: Partial<MetaIndex>, value = "zlgd_y") => {
+			const index = mergeIndex(src, { ...meta, ...extra }, "2026-10-04T00:00:00.000Z");
 			const lk = lookup(index);
-			const trace = traceField(index, lk, { kind: "field", value: "zlgd_y", entity: "zlgd_a" });
+			const trace = traceField(index, lk, { kind: "field", value, entity: "zlgd_a" });
 			return formatTrace(trace, lk).join("\n");
 		};
-		expect(say(true)).toContain("zlgd_y 不在 zlgd_a 上（快照 10-04）；全库 3 张单有它");
-		expect(say(false)).toContain("快照没记到 zlgd_a 上有 zlgd_y");
+		// 原厂模板上不可能有本 ISV 前缀的字段：自己的设计里没有就是没有
+		expect(say(known)).toContain("zlgd_y 不在 zlgd_a 上（快照 10-04）；全库 3 张单有它");
+		expect(say({})).toContain("快照没记到 zlgd_a 上有 zlgd_y");
+		// 收全了但不知道继承了什么（继承信息之前建的快照）：只说没记到
+		expect(say({ fieldsAll: true })).toContain("快照没记到 zlgd_a 上有 zlgd_y");
+		// 不带本 ISV 前缀的字段可能是从原厂模板继承来的（billno、billstatus）
+		const inherited = say(known, "billno");
+		expect(inherited).not.toContain("billno 不在 zlgd_a 上");
+		expect(inherited).toContain("zlgd_a 继承自 bos_billtpl，继承来的字段快照里不收");
+		// 没有父设计的单：自己的设计就是全部
+		expect(say({ ...known, fieldBases: { zlgd_a: {} } }, "billno")).toContain("billno 不在 zlgd_a 上");
+	});
+
+	it("补扫后继承信息跟着换：重扫的单用新的，没扫的照旧，扫回来没有的就不留旧的", () => {
+		const meta = {
+			kind: "MetaIndex",
+			at: "2026-10-04T00:00:00.000Z",
+			ms: 1,
+			scanned: 1,
+			bindings: [],
+			templates: [],
+			fields: [row("zlgd_a", "zlgd_x"), row("zlgd_b", "zlgd_y")],
+			fieldOwners: {},
+			fieldsMs: 1,
+			fieldBases: { zlgd_a: { outside: "bos_billtpl" }, zlgd_b: { outside: "bos_billtpl" } },
+			fieldIsv: "zlgd",
+		} as MetaIndex;
+		const whitelist = { fields: new Set(["zlgd_x", "zlgd_y"]), entities: new Set(["zlgd_a", "zlgd_b", "zlgd_c"]) };
+		const patched = patchFields(meta, whitelist, {
+			rescanned: new Set(["zlgd_a", "zlgd_c"]),
+			rows: [row("zlgd_c", "zlgd_x")],
+			billNames: [],
+			bases: { zlgd_c: { parents: ["zlgd_tpl"], outside: "bos_basetpl" } },
+			isv: "zlgd",
+		});
+		expect(patched.fieldBases).toEqual({
+			zlgd_b: { outside: "bos_billtpl" },
+			zlgd_c: { parents: ["zlgd_tpl"], outside: "bos_basetpl" },
+		});
+		expect(patched.fieldIsv).toBe("zlgd");
 	});
 
 	it("代码没读写过、但快照收全了的字段也认得出；没有读写处时说的是现在真不记的几种写法", () => {

@@ -8,6 +8,9 @@ when: 开发插件但不确定该选 UI、操作还是集成类型
 本页是插件开发的入口，只保留公共流程、类型决策、跨类型规则和文档路由。选定插件类型后，
 只加载对应的详细 reference，不要一次读完所有插件文档。
 
+插件只做配置表达不了的那一段：字段和控件属性、界面规则、业务规则、转换规则字段映射各能做什么，
+见 [metadata-or-code.md](metadata-or-code.md)。
+
 > **官方语义索引**：插件基类、生命周期、通用场景和 SDK 说明通过
 > [official-knowledge.md](official-knowledge.md) 按需检索；本文只维护本地探查、验证和交付流程。
 
@@ -192,4 +195,4 @@ for (DynamicObject bill : e.getDataEntities()) {
 1. UI、数据包、事务和并发边界没有混用（同一段逻辑没有同时依赖 `getView()` 和事务回调）。
 2. 业务代码变化后先 `fast`，再让探针或 `run` 加载最新 classes；`deploy` 只在用户明确要求时跑。
 3. 只有界面或视觉行为必须确认时才启动节点。
-4. 元数据修改按 dry-run → 一次 cosmic_authorize → `APPLY=1` → 常驻回读执行；测试业务数据用 DataSeedProbe / DataUpdateProbe，默认直接落库，不需要确认。
+4. 元数据修改在写调用里附 report（写探针 `APPLY=1`，`cosmic_meta` 写动作 `apply=true`），工具预演、弹确认单，用户确认后在常驻进程里落库并回读；测试业务数据用 DataSeedProbe / DataUpdateProbe，默认直接落库，不需要确认。

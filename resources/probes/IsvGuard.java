@@ -108,8 +108,8 @@ public final class IsvGuard {
         if (targets.isEmpty()) {
             return;
         }
-        System.out.println("[PROBE] 写入目标清单（cosmic_authorize 的 targets 照抄这一行，"
-                + "少一个 APPLY 会被拦下、整份授权作废）：" + String.join(", ", targets));
+        System.out.println("[PROBE] 写入目标清单（确认单上的写入范围就是这一行，"
+                + "APPLY 时碰到清单外的对象会被拦下）：" + String.join(", ", targets));
     }
 
     private static java.util.List<String> splitTargets(String raw) {
@@ -209,8 +209,8 @@ public final class IsvGuard {
         }
         System.out.println("[PROBE] !! 目标按完整路径匹配；只确认裸 key 或清单里出现同名末段都不算命中。");
         System.out.println("[PROBE] !! 需要确认的目标：" + expected);
-        System.out.println("[PROBE] !! 真要改它：向用户展示风险与回滚方式后，调用 cosmic_authorize，"
-                + "targets=[\"" + expected + "\"]");
+        System.out.println("[PROBE] !! 它不在用户确认过的写入范围里，没有写。真要改它：重新预演，"
+                + "让它出现在写入目标清单里，用户确认后再写");
         throw new IllegalStateException("IsvGuard 拒绝：" + what + " 缺少完整目标 " + expected);
     }
 
@@ -424,6 +424,15 @@ public final class IsvGuard {
     public static void assertOperationHost(String key) {
         requireIsv();
         assertConfirmedUnder("操作", owner, key);
+    }
+
+    /**
+     * 改本单据的单据头或某个分录自身的配置（拆分表）之前调。分录可以是模板带来的（entryentity 这类没有前缀的）：
+     * 配置存在本单据自己的实体上，模板不动，所以不查前缀，只把 `实体.<单据或分录>` 记进写入目标。
+     */
+    public static void assertEntityPart(String key) {
+        requireIsv();
+        assertConfirmedUnder("单据头或分录", owner, key);
     }
 
     /**

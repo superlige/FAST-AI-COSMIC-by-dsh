@@ -1,4 +1,4 @@
 # S55 真机样本：单据上加一个普通分录，再往里加两个字段
-add entry zlgd_s55mx after advconap S55验证分录
-add field TextField zlgd_s55txt into zlgd_s55mx 文本
-add field DecimalField zlgd_s55qty into zlgd_s55mx 数量
+add entry zlgd_s55mx after advconap S55验证分录 visible=all lock=none
+add field TextField zlgd_s55txt into zlgd_s55mx 文本 visible=all lock=none
+add field DecimalField zlgd_s55qty after zlgd_s55txt 数量 visible=all lock=submit,audit

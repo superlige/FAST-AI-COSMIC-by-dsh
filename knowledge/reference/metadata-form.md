@@ -82,9 +82,14 @@ add plugin demo.xx.HistOpPlugin to op demo_ophist' node .claude/skills/long-cosm
   边框写 `宽度_线型_颜色`，边距写长度；给一个值是四条边一样，分边写 `top`、`right`、`bottom`、`left`。
   只改写到的边，别的边留着；写空串清掉那条边，`Style=` 留空清掉全部。`LAYOUT_PROPS` 列的当前值就是这种写法。
 - `move <控件> into <容器>` 放到容器最后；`move <控件> before|after <控件>` 放到另一个控件前后，同一容器里调顺序也用它。
-- `add <控件类型> <新标识> into|before|after <目标> [名称]` 加界面控件，类型写平台类名（`FlexPanelAp`、`TabAp`、`TabPageAp`、`AttachmentPanelAp`、`LabelAp`、工具栏按钮 `BarItemAp`），属性再用 `set` 改；`remove <控件>` 连里面的控件一起删。
-- `add field <字段类型> <新标识> into|before|after <目标> <名称>` 加字段，`copy field <源单据>.<字段> into|before|after <目标>` 照搬别的单据上的字段，`remove field <字段>` 删字段；`add entry <新分录标识> into|before|after <目标> <名称>` 加分录，分录面板、增行删行按钮和业务表跟着建；字段类型、参数和平台行为见 [metadata-entity-write.md](metadata-entity-write.md)。
+- 加到界面上的东西（字段、分录、控件）都要定四样：上级容器、位置、可见性、锁定性。`visible=all|none|<状态,…>` 必给，状态有 `init` 初始、`new` 新增、`edit` 修改、`view` 查看、`submit` 已提交、`audit` 已审核，`none` 是隐藏元素；`lock=none|all|<状态,…>`（`new`、`edit`、`submit`、`audit`）在设计器里有锁定性的控件上必给。看得见的用 `before|after <控件>` 指到具体控件旁边，`into` 只给隐藏元素和空容器。试算逐个报落点：上级容器、排第几、前后邻居各自的可见性和锁定性。
+- `add <控件类型> <新标识> into|before|after <目标> [名称] visible=… [lock=…]` 加界面控件，类型写平台类名（`FlexPanelAp`、`TabAp`、`TabPageAp`、`AttachmentPanelAp`、`LabelAp`、工具栏按钮 `BarItemAp`），属性再用 `set` 改；`remove <控件>` 连里面的控件一起删。
+- `add field <字段类型> <新标识> into|before|after <目标> <名称> visible=… lock=…` 加字段，`copy field <源单据>.<字段> into|before|after <目标> visible=… lock=…` 照搬别的单据上的字段（可见性、锁定性必给），`remove field <字段>` 删字段；`add entry <新分录标识> into|before|after <目标> <名称> visible=… lock=…` 加分录，分录面板、增行删行按钮和业务表跟着建；布局有派生布局时看得见的新东西再写 `layouts=all|<布局,…>`（在哪几张布局显示）；字段类型、参数和平台行为见 [metadata-entity-write.md](metadata-entity-write.md)。
+- `add split <单据或分录> <后缀> <说明>` 给单据头或分录加一张拆分表，`remove split <单据或分录> <后缀>` 去掉；字段放进拆分表用 `set <字段>.Suffix=<后缀>`，见 [metadata-entity-write.md](metadata-entity-write.md#拆分表add-split--remove-split--set-suffix)。
 - `add op <新标识> <操作类型> <名称>`、`remove op <操作>`；按钮绑操作用 `set <按钮>.OperationKey=<操作>`。
+- `add check <操作> pass|fail <表达式> ;; <提示文字> [;; when <前置条件>]` 给操作加一条合法性校验，操作执行时平台在服务端跑：`pass` 是表达式成立才放行（不成立就拦下、报提示），`fail` 是表达式成立就拦下，`when` 是前置条件成立这条校验才生效。`remove check <操作> <校验 id>` 删掉，id 用 `OpMetaProbe` 的 `OP_FOCUS=<操作>` 看。
+- `set <字段或分录>.MustInputCondition=<表达式>` 配必录条件：条件成立时才必录（同时设成必录），留空是去掉条件。
+- 必录条件和校验的表达式用本单字段和基础资料属性（`demo_org.number = '02'`），函数查 `meta formula biz`；写之前核语法、函数、字段，一条校验只能用表头和一个分录的字段。
 - `add plugin <类全名>` 挂单据插件（表单插件、报表界面插件同样挂），后面加 `to list` 挂列表插件、`to op <操作>` 挂操作插件；`remove plugin <类全名> [from list | from op <操作>]` 摘掉。
 - `layout bill|list|mobile|mobilelist`：后面的行改哪份布局。`list` 是电脑端列表，`mobile` 是单据带的移动端布局，`mobilelist` 是移动端列表，`bill` 切回单据电脑端（不写就是它）。
   切过去之后 `set`、`move`、`add <控件>`、`remove`、`add plugin` 都作用在那一份上：移动端插件写在 `layout mobile` 后面，移动端列表插件写在 `layout mobilelist` 后面。
@@ -179,6 +184,11 @@ show filter creator.id as demo_creator_search into fastsearchgridview
 - 字段属于实体，几份布局共用。加字段、加分录、加删操作只在电脑端那份做（`add field`、`add entry`、`add op`），
   移动端用 `show` 把已有字段摆出来。移动端上 `remove <字段>` 只撤下这份布局上的显示，字段本身还在；
   `remove field` 删字段时连它在移动端布局上的控件、电脑端列表和移动端列表上的列一起删。
+- 派生布局（继承主单据布局，布局 id 和实体 id 不同）和主单据共用一个实体，但字段控件建在主单据布局上、由派生布局继承：
+  开发平台打开主单据，大纲和表头分录只列主单据布局上有控件的字段。所以加删字段、加分录在主单据布局上做
+  （`LAYOUT_FORM=<实体标识>`），派生布局继承过来；只给某几张派生布局用的写 `layouts=<派生布局,…>`，别的布局上是隐藏元素
+  （见加字段一节）；位置要和主单据不一样，再在派生布局上 `move`。
+- 派生布局能改继承来的控件属性（可见性、隐藏元素、位置这类），改过的那几项以后不随主单据布局变。
 - 移动端布局的最外层直接放容器（流式面板这类）；字段要放进字段布局容器（`LayoutFlexAp`），它只收字段控件。
   分录字段在卡片分录（`CardEntryAp`）里，只能摆进它自己分录的那张卡片。
 - 移动端列表是卡片：每一列是卡片面板里的一个列控件，对应一个字段（`show` 建的就是这种列）。

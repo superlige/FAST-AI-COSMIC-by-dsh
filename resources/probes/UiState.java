@@ -446,6 +446,28 @@ public final class UiState {
         return v == null ? "" : String.valueOf(v);
     }
 
+    /**
+     * 界面路径指的字段，设计态布局上有、打开后的视图里却没有控件时，说明为什么判不了；别的情况返回 null。
+     *
+     * 视图按布局的运行态建控件，运行态是每张布局各存一份的合并结果（见 RuntimeMeta）。主单据布局加了字段、
+     * 派生布局的运行态没重建，设计态有这个字段、运行态没有，打开派生布局就没有这个控件。
+     * 这时底子取不到，不能按「默认」答显示、可编辑——真机 zlgd 两张派生布局上隐藏又锁定的字段，就是这样被判成显示、可编辑。
+     * 运行态是新的时，设计器里「隐藏元素」的字段照样有控件（isInvisible=true），不会落到这里。
+     */
+    static String notInRuntime(String path) {
+        Target t = target(path);
+        if (t == null || t.wholeRow || view == null) {
+            return null;
+        }
+        layout();
+        ControlAp<?> ap = apByKey.get(t.key);
+        if (ap == null || !ap.getClass().getSimpleName().endsWith("FieldAp") || control(t.key) != null) {
+            return null;
+        }
+        return "布局 " + FormSim.FORM + " 的设计态有字段 " + t.key + "，运行态里没有这个控件：这张布局的运行态比设计态旧，"
+                + "打开它也没有这个字段，显示、锁定判不了；重建这张布局的运行态后再验";
+    }
+
     /** 元数据底子：不看任何指令时这个控件是什么样。不适用（比如按钮的必录）返回 value=null。 */
     static Verdict base(String key, String prop) {
         int s = status();
@@ -584,7 +606,7 @@ public final class UiState {
     /** 给尺子和断言用：路径 + 属性 → "true" / "false"；解析不了或不适用返回 null。 */
     static String value(String path, String prop) {
         Target t = target(path);
-        if (t == null || !PROPS.contains(prop)) {
+        if (t == null || !PROPS.contains(prop) || notInRuntime(path) != null) {
             return null;
         }
         if (t.entry == null && !t.wholeRow) {
@@ -704,6 +726,10 @@ public final class UiState {
             }
             if (t.entry == null && !t.wholeRow && entryOf(t.key) != null) {
                 t = new Target(entryOf(t.key), -1, t.key, false);
+            }
+            if (notInRuntime(path) != null) {
+                System.out.println("[PROBE]     " + t + "  运行态里没有这个控件（设计态有），显示、锁定判不了");
+                continue;
             }
             StringBuilder b = new StringBuilder();
             for (String prop : PROPS) {

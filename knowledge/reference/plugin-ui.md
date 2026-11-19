@@ -49,6 +49,7 @@ when: 表单、单据、F7、列表、左树右表、报表界面插件
 - 保存、提交、审核是操作：直接改状态字段会绕过整条操作插件链。
 - 页面级状态放 `PageCache`；非 `final` 静态字段会在并发请求之间串页面，症状是偶发取值不对。
 - `afterCreateNewData` 里 `setValue` 不触发 `propertyChanged`（工程实测）：新增时要的联动，在 `afterBindData` 里显式调同一个业务方法。
+- 打开以后的每次改值、点按钮都是新请求，数据模型从页面缓存现取：表头和分录分开存，`getModel().getDataEntity()` 只有表头、分录集合是空的；读分录用 `getModel().getEntryEntity("分录")` 或 `getDataEntity(true)`。打开那次（`afterBindData`）两种写法都取得到，错的写法表现为改值不联动、退出重进才算对（平台实现）。
 - `registerListener` 时数据还没绑定，`getValue` 拿到 `null`；实现了监听接口要在这里 `addXxxListener(this)`，不注册就不会被回调（官方指南）。
 - 分录字段的锁定、隐藏、必录各管到哪一层：
   - 锁定某一格用 `setEnable(Boolean, int 行号, String...)`，行号给 `-1` 是整列；单头写法 `setEnable(Boolean, String...)` 给分录字段不报错也不生效（官方指南）。

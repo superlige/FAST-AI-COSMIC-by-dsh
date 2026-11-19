@@ -121,7 +121,7 @@ describe("monitor 查询", () => {
 		expect(!none.ok && none.error.code).toBe("PROD_MONITOR_LOGIN_REQUIRED");
 		const stale = await monitorQuery(http, MONITOR, { ...session, csrf: "OLD" }, {}, 0);
 		expect(!stale.ok && stale.error.code).toBe("PROD_MONITOR_LOGIN_REQUIRED");
-		if (!stale.ok) expect(stale.error.remedy).toContain("/cosmic-prod login");
+		if (!stale.ok) expect(stale.error.remedy).toContain("/cosmic-monitor-login");
 		expect(calls.some((c) => c.url.endsWith("/eye/login"))).toBe(false);
 	});
 

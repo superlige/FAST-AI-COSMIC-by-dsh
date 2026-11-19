@@ -1,20 +1,20 @@
 # S42 批 4 错法样本（zlgd_sys_bgjl）：每行错一种，应当一次列全、一处不写
-add field TextField s42f into fs_baseinfo 没带前缀
-add field TextField zlgd_s42f1 into tbmain 放进工具栏
-add field FooField zlgd_s42f2 into fs_baseinfo 不认识的类型
-add field QtyField zlgd_s42f3 into fs_baseinfo 要配单位的类型
-add field BasedataField zlgd_s42f4 into fs_baseinfo 缺基础资料
-add field BasedataField zlgd_s42f5 into fs_baseinfo 基础资料不存在 base=zlgd_nosuchbase
-add field ComboField zlgd_s42f6 into fs_baseinfo 缺下拉项
-add field AmountField zlgd_s42f7 into fs_baseinfo 缺币别
-add field TextField zlgd_s42f8 into fs_baseinfo 用不上的选项 base=bos_user
-add field TextField zlgd_s42_this_key_is_far_too_long into fs_baseinfo 列名太长
-add field TextField zlgd_s42f9 into fs_baseinfo
-add field TextField zlgd_bgentry into fs_baseinfo 标识重了
-copy field zlgd_sys_test_bill.zlgd_nosuch into fs_baseinfo
-copy field zlgd_sys_test_bill.zlgd_ypbh into fs_baseinfo
-copy field zlgd_sys_test_bill.zlgd_bz into zlgd_bgentry
-copy field zlgd_nosuchbill.zlgd_bz into fs_baseinfo
+add field TextField s42f into fs_baseinfo 没带前缀 visible=none lock=none
+add field TextField zlgd_s42f1 into tbmain 放进工具栏 visible=none lock=none
+add field FooField zlgd_s42f2 into fs_baseinfo 不认识的类型 visible=none lock=none
+add field QtyField zlgd_s42f3 into fs_baseinfo 要配单位的类型 visible=none lock=none
+add field BasedataField zlgd_s42f4 into fs_baseinfo 缺基础资料 visible=none lock=none
+add field BasedataField zlgd_s42f5 into fs_baseinfo 基础资料不存在 base=zlgd_nosuchbase visible=none lock=none
+add field ComboField zlgd_s42f6 into fs_baseinfo 缺下拉项 visible=none lock=none
+add field AmountField zlgd_s42f7 into fs_baseinfo 缺币别 visible=none lock=none
+add field TextField zlgd_s42f8 into fs_baseinfo 用不上的选项 base=bos_user visible=none lock=none
+add field TextField zlgd_s42_this_key_is_far_too_long into fs_baseinfo 列名太长 visible=none lock=none
+add field TextField zlgd_s42f9 into fs_baseinfo visible=none lock=none
+add field TextField zlgd_bgentry into fs_baseinfo 标识重了 visible=none lock=none
+copy field zlgd_sys_test_bill.zlgd_nosuch into fs_baseinfo visible=none lock=none
+copy field zlgd_sys_test_bill.zlgd_ypbh into fs_baseinfo visible=none lock=none
+copy field zlgd_sys_test_bill.zlgd_bz into zlgd_bgentry visible=none lock=none
+copy field zlgd_nosuchbill.zlgd_bz into fs_baseinfo visible=none lock=none
 remove field billno
 remove field zlgd_bgentry
 remove field zlgd_nosuchfield

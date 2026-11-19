@@ -2,7 +2,7 @@
 class: A
 when: 免界面跑操作、表单、列表、规则、打印、BOTP 下推、工作流插件，以及直接调本工程类的方法
 note: 正常路径按 cosmic_run 的工具说明组合参数；被拒、拿不准或首次失败时再读全文
-probes: ProbeAssert.java@f0f84f74ead0, ExpectSpec.java@3a22e27875d0, PrintSim.java@d0e5fec2cd60, CallSim.java@4ff18e7b315d, CallArgs.java@17c32989d5b4, PushSim.java@ff727f2bc1a3, WfSim.java@6937308b25ab
+probes: ProbeAssert.java@358eead601de, ExpectSpec.java@3a22e27875d0, PrintSim.java@d0e5fec2cd60, CallSim.java@4ff18e7b315d, CallArgs.java@17c32989d5b4, PushSim.java@bc6c94cf4602, WfSim.java@6937308b25ab
 ---
 
 # run —— 免界面跑真实业务动作
@@ -42,7 +42,7 @@ probes: ProbeAssert.java@f0f84f74ead0, ExpectSpec.java@3a22e27875d0, PrintSim.ja
 node .claude/skills/long-cosmic-dev/driver.mjs run op   <实体> <操作> [--set 字段=值 …] [--pk id | --billno 编号] [--filter 字段=值]
 node .claude/skills/long-cosmic-dev/driver.mjs run form <表单标识>     [--set 字段=值 …] [--pk id | --billno 编号] [--status new|edit|view] [--f7 F7字段key]
                                                         [--op 操作] [--click 按钮key] [--hyperlink 分录[行].字段] [--show 字段,…]
-                                                        [--real-cache] [--cache 键=值 …]
+                                                        [--cache 键=值 …]
                                                         [--expect 字段=值|控件.visible=true|分录[行].字段.enabled=false|opened=页面|message=片段 …]
                                                         [--select 分录标识=行号,…] [--skip 插件简名,…] [--events] [--calls N]
 node .claude/skills/long-cosmic-dev/driver.mjs run list <列表布局> [--filter 字段=值 …] [--main-org id,…] [--limit 1..200] [--summary] [--mobile]
@@ -81,8 +81,7 @@ node .claude/skills/long-cosmic-dev/driver.mjs run flow …
 | [BOTP 转换插件](plugin-operation.md#botp-转换插件)（下推出来的目标单字段是什么值） | `run push` |
 | [工作流插件](plugin-integration.md#工作流插件)（到某个节点、审批人选某个决策项时插件改了单据什么；超时、参与人、会审结果算成什么） | `run wf` |
 
-- **除了 `run form --real-cache`，所有运行都走常驻进程**（它要自己的真实 Redis 会话，单独起一个冷进程）。
-  `run rule` 只读、不建 View、不开事务。
+- **所有运行都走常驻进程**。`run rule` 只读、不建 View、不开事务。
 - 带操作的路径在门口过一道 `IsvGuard.assertOwnEntity`：授权范围只到本 ISV 单据。
 
 ## 运行真提交
@@ -318,7 +317,6 @@ run op demo_bzwz_wl save   --pk 2552980953672728576 --set demo_byzjl.demo_iabyz=
 run form demo_wtd_xbl --set demo_jylx=2                       # 开表单 + 改值，2 秒
 run form demo_sys_test_bill --pk 2550820804057116672 --skip QTYWTDFormPlugin --click bar_save
 run form demo_qty_wtd --pk 2550820804057116672 --events       # 打开已有单据 + 事件明细
-run form demo_sys_test_bill --real-cache                       # 真实 Redis 页面/模型缓存
 run form demo_qty_wtd --set demo_checkboxfield=true --show demo_qbfc,demo_jgfs_head,demo_syentry.demo_jgfs
 run form demo_qty_wtd --set demo_syentry[1].demo_zj1=2 --select demo_syentry=1 --click demo_advconbaritemap
 run form demo_bill --pk 100001 --hyperlink demo_entry[0].demo_contractno --expect opened=demo_progress --expect opened.contractno=HT-001
@@ -361,7 +359,7 @@ run form demo_bill --pk 100001 --hyperlink demo_entry[0].demo_contractno --expec
   - `opened=页面标识,…`：这次打开了哪些页面，不看顺序；`opened=`（留空）是一个都没开；`opened~=页面` 是包含。
   - `opened.参数=值`：唯一打开的那个页面带的参数（插件 `setCustomParam` 放的；打开单据时还有 `pk`），`~=` 是包含。
     参数名照输出里「捕获 showForm」下面那几行「参数 名 = 值」抄。打开了不止一个页面时报「没法判断」，不算过。
-  - `message=片段`：弹给用户的话里有这一段（提示、错误、成功通知、消息框都算）；`message=`（留空）是一句没弹。
+  - `message=片段`：弹给用户的话里有这一段（提示、错误、成功通知、消息框都算；插件抛业务异常 `KDBizException` 拒绝这一下，浏览器弹的那句报错也算）；`message=`（留空）是一句没弹。
   例如「某组织下点合同号打开进度页、别的组织照旧打开原页面、合同号为空时提示」，三种情况各跑一次：
   `--expect opened=demo_progress --expect opened.contractno=HT-001`、`--expect opened=demo_old_page`、
   `--expect opened= --expect message=合同号为空`。
@@ -377,9 +375,9 @@ run form demo_bill --pk 100001 --hyperlink demo_entry[0].demo_contractno --expec
   「请先选择要计算的分录行」—— 那不是插件算错，是根本没走到算的那一步，判据看「弹给用户的话」。
 - `--cache 键=值` 预置页面缓存。真实会话里有些键是**前序请求**写进去的，仿真里是空的，
   插件当场 NPE —— 见下面「坑」。
-- `--real-cache` 使用真实 Redis `PageCache + ModelCache`。探针创建唯一 session/pageId，提交
-  `FormShowParameter` 和 `model.updateCache()`，结束主动释放，另设 300 秒 TTL 防异常中断残留。
-  这个模式固定冷进程；默认内存模式保留给不跨请求的秒级验证。
+- **每个动作是一次请求，和浏览器一样**：打开、每一条 `--set`、按钮/操作/超链接/F7 各一次。请求之间提交真实 Redis
+  页面缓存和模型缓存，再按 pageId 从缓存重建页面、`registerListener`，数据模型从缓存现取；`--show`、`--expect`
+  读的是最后一次请求提交进缓存的数据。输出里「请求 N（…）：按 pageId 从缓存重建页面」一行一次。
 
 ## run list：列表插件
 
@@ -430,7 +428,7 @@ run rule biz demo_xnl_gzbz --set demo_qcdw=SC08 --expect demo_xnl_qcdwlb=2
 
 **改前看一眼用 `--show`。** 写成 `--expect` 等于在断言「改之前的样子是对的」：
 改完代码之后，这条记录的源码指纹对不上、直接作废；照原样重跑一遍它必红，
-红的那一次仍保留，finish 只能出部分完成回执。`--show` 只打值、不断言，也不留验证记录。
+这个场景就算没过。`--show` 只打值、不断言，也不留验证记录。
 一次调用只算一个场景；`--case` 只有 `run op` 有。
 
 ### `run rule form` 的显隐判据：三层，缺一层结论就是错的
@@ -534,7 +532,7 @@ run print demo_sys_test_bill_prtpl_58 --billno SYSJC-20260701-0259 --expect "lay
 run print demo_sys_test_bill_jxzyw --pk 2560941241403458560 --set demo_entryentity_jxsy[1].demo_ypbh_jxsy=1-1 --set demo_entryentity_jxsy[0].demo_bz_jx=甲 --set demo_entryentity_jxsy[1].demo_bz_jx=乙 --expect datacell9=甲，乙
 ```
 
-拿一张真单据出一次打印，断言**打印插件改完之后**格子里最终输出的文字。带 `--expect` 且全过的那次就是交付证据。
+拿一张真单据出一次打印，断言**打印插件改完之后**格子里最终输出的文字。带 `--expect` 且全过的那次才算验过。
 
 - **第一个参数是模板编码**，不是单据标识；`--pk`（或 `--billno 单据编号`）必给；`--expect` 和 `--show` 至少给一个。
   误把单据标识写进来，探针会报「模板编码查不到」并列出这张单上的模板。
@@ -567,14 +565,14 @@ run print demo_sys_test_bill_jxzyw --pk 2560941241403458560 --set demo_entryenti
   打印插件按试样号之类合并行时两者对不上：4 条分录合成 2 行，只清 `[0]`、`[1]` 两条分录，第 2 行还是剩下两条拼出来的
   `23，23`。写 `--set` 之前先用 `DataQueryProbe` 查清这张单实际有几条分录、各自是什么。
 - **同一场景只认最后一次**：场景 = 命令去掉 `--expect`，也就是「模板 + `--pk` + `--set`」。
-  拿同一组 `--pk` / `--set` 故意跑一条反例，会把前面那条正例的 PASS 顶成 FAIL，交付被挡——
-  运行返回里当场会说。反例要留作通过证据就写成符合预期的断言；仍有失败时 finish 出 PARTIAL 回执，不记为已交付。已落库的操作复查先读原日志，不为改断言而重复写库。
+  拿同一组 `--pk` / `--set` 故意跑一条反例，会把前面那条正例的 PASS 顶成 FAIL，这个场景就算没过——
+  运行返回里当场会说。反例要留作通过证据就写成符合预期的断言；仍有失败就照实写没过。已落库的操作复查先读原日志，不为改断言而重复写库。
 - **冷热**：带不带 `--set` 都走常驻。常驻里第一次出打印要预热打印引擎（约 35～55 秒），之后每次约 5～8 秒。
 - **副作用**：出打印走的是预览，数据库**不写**打印结果表；平台留下一份临时 PDF 和一条缓存，3 小时内自己过期。
   模板上的打印插件里有外部接口、发消息这类调用的照跑，前检在提醒里列出来——出打印时它们会真的发出去。
-- **它验不了的**：排版位置、图片尺寸、换行截断、分页——那些用 `PrintMeasureProbe` 量；它不是交付证据。
-- **交付时分开说**：格子文字断言过了，只说明「文字对」。交付报告会自动列上「版面只核对了格子里的字，请预览一张看看」；
-  `report` 里 `points` 的 `check` 照实写验的是打出来的字，不写成验过了版面。
+- **它验不了的**：排版位置、图片尺寸、换行截断、分页——那些用 `PrintMeasureProbe` 量；它不算验过。
+- **完成情况里分开说**：格子文字断言过了，只说明「文字对」，版面只核对了格子里的字，请用户预览一张看看；
+  「怎么验的」照实写验的是打出来的字，不写成验过了版面。
 
 原理（给改 harness 的人）：打印内核建插件列表时会回调平台的「打印单元测试」登记口
 `PrtUnitTestFacadeFactory`，`PrintSim` 借它挂一个只读观察插件，在每输出一行时记下每个格子的文字；
@@ -589,7 +587,7 @@ run call demo.zljy.printplugin.MetallographicBilingualPrintPlugin#collapse --arg
 run call demo.ygwc.task.lfjuge.LfJugeUpdateValidityTasl#execute --args [{}] --expect error=
 ```
 
-调度任务、导入插件、报表取数里的计算，以及插件里抽出来的纯逻辑，没有表单或单据可以跑。`run call` 直接调那个方法（真提交：方法里写库就真的写进去），带 `--expect` 且全过的那次就是交付证据。
+调度任务、导入插件、报表取数里的计算，以及插件里抽出来的纯逻辑，没有表单或单据可以跑。`run call` 直接调那个方法（真提交：方法里写库就真的写进去），带 `--expect` 且全过的那次才算验过。
 
 - **目标写 `类名#方法名`**：全类名，或本工程里不重名的简单类名。同名重载分不清时写 `#方法名(List,List)`。
   只调**本工程源码里**的类；静态方法直接调，实例方法用无参构造器建一个对象再调，私有方法也能调。
@@ -636,6 +634,7 @@ run push 2424161753291052032 --billno SFLF-20260920-00000018 --expect demo_suppl
 - **`--expect`** 的路径写在目标单上，和 `run op` 一样（`字段`、`分录[0].字段`，基础资料按编码比）；
   `[1].字段` 指第 2 张目标单（规则按分单策略可能从一张源单生成好几张）。
   保留字：`success=true|false` 下推成没成、`message=片段` 平台提示里有这段、`bills=张数` 生成了几张。
+  平台提示是总提示加每张源单没推成的原因（前面带「源单 编号：」），日志里打的 `message=` 就是断言比对的那一份。
   `--show 字段,…` 只打值、不断言。
 - **输出先列规则上挂的转换插件和启停**。没有启用的本工程插件时会明说：这时全过只证明规则的字段映射，先去查插件挂没挂、启没启用。
 - **真提交**：工具明确执行目标实体的 `save` 操作，按返回的目标单主键逐张从数据库重新读取，不使用转换缓存里的对象做断言。输出列出实体和主键，保存或回读失败就不能确认结果；失败后先读日志及查询目标单，不能直接重推。
@@ -653,7 +652,7 @@ run wf ReplyRejectionMessageWorkFlow --billno GDDDEPTPLAN202609030190 --ctx mess
 ```
 
 直接调一个工作流插件（`IWorkflowPlugin`）的方法，**流程不真跑**：插件挂在哪个流程、哪个节点、什么时机，从已发布的流程定义里读，
-照引擎的样子拼出它拿到的流程上下文，调一次，断言方法返回值和插件跑完之后库里的单据。带 `--expect` 且全过的那次就是交付证据。
+照引擎的样子拼出它拿到的流程上下文，调一次，断言方法返回值和插件跑完之后库里的单据。带 `--expect` 且全过的那次才算验过。
 
 - **目标写插件类名**，调哪个方法按它在流程里挂的位置定：节点监听（进入、离开节点，审批人提交某个决策项）调 `notify`，
   超时设置调 `getExpireTime`，参与人设置调 `calcUserIds`。输出开头列出它挂的每一处。
@@ -740,12 +739,11 @@ run wf ReplyRejectionMessageWorkFlow --billno GDDDEPTPLAN202609030190 --ctx mess
 
 | 现象 | 真因 | 判据 |
 |---|---|---|
-| 某个插件报错后，后面的插件像是没配 | **一个插件抛异常，整条派发链就断了**，它后面的插件这一步全收不到 | 探针会把异常归到具体插件头上并给出 `--skip 简名`；打开表单那一步断的，这次结果标「没跑完整」，断言全过也不留验证记录。抛错的不是要验的插件就摘掉重跑，别去改别的插件 |
+| 某个插件报错后，后面的插件像是没配 | **一个插件抛异常，整条派发链就断了**，它后面的插件这一步全收不到 | 探针会把异常归到具体插件和行号头上（不是插件抛的，说明是仿真自己还是平台），打出起因链和栈，并给出 `--skip 简名`。打开表单的任一步、`--set` 改值、点按钮、跑操作、点超链接、点 F7 抛了异常，这次结果标「没跑完整」，断言全过也不留验证记录。抛错的不是要验的插件就摘掉重跑，别去改别的插件 |
 | 点计算按钮后值没变，输出里有「请先选择要计算的分录行」 | 操作第一行读 `control.getSelectRows()`，而**当前行不是选中行**：只 `--set` 不选行时它是空的 | 探针默认已按 `--set` 写过的行模拟选中；仍为空就用 `--select 分录标识=行号` 明写，并确认写的是**分录标识**不是 grid 别名 |
 | `--click` 报「操作未定义实现类」 | `Toolbar.itemClick(itemKey, operationKey)` **两个参数不是一回事**，第二个传按钮 key 会被当成操作去找实现类 | 探针已从元数据解析按钮绑的操作，输出里有 `bar_save → 操作 save` |
 | 操作失败但一条校验信息都没有 | 根本没走到服务端校验器，是某个表单插件在 `beforeDoOperation` 里 `setCancel` 了 | 看「弹给用户的话」，通常就是它给的理由；`--skip` 逐个摘定位 |
 | 业务插件在 `registerListener` 里 NPE | 它读了页面缓存里某个键，真实会话里那个键由**前序请求**写入（典型：另一个回调里 `put`），仿真里是空的 | `--cache 键=值` 把它补上；补不出来才 `--skip` |
-| Redis 地址端口通，却报「获取缓存连接客户端失败」 | 旧内存模式没有创建 `RedisModelCache` 初始化标志；错误文案不等于 socket/客户端不可用 | 用 `--real-cache`；输出必须有 `PageCache=true FormShowParameter=true`，不能只测 TCP |
 | F7 放行且一条过滤都没有，但源码里明明写了 `addCustomQFilter` | `registerListener` 没跑完，监听器压根没挂上 —— **不是过滤逻辑没生效** | 先看输出里 `registerListener` 那行是不是 OK |
 | `showErrorNotification` 的内容没出现在「弹给用户的话」里 | 它走 `IClientViewProxy.addNotificationMsg`，**不是 `addAction`** | 已修；type 0/1/2 = 成功/错误/提示 |
 | `--pk` 打开单据时冒出「XXX 正在PC端编辑该记录」 | EDIT 状态会走数据互斥（`IFormMutexService`），平台弹确认框 | 仿真里没人点那个框；只读验证用新增模式，或接受这条通知 |

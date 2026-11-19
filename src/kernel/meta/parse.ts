@@ -99,8 +99,8 @@ BOTP 转换规则（cosmic_knowledge action=show path=metadata-botp.md）
   wf backup <目录> [--bill 单据标识] [--key 关键字] [--max N]
   wf diff  <目录A> <目录B>
 
-写通道（botp restore / ptpl apply / ptpl restore）默认 dry-run。apply=true 时先过「已确认写入目标」这道门：
-没有 cosmic_authorize 产生的一次性授权，请求根本不会发出去。写在常驻进程里执行，写完同一进程马上读得到新的。
+写通道（botp restore / ptpl apply / ptpl restore）默认 dry-run。apply=true 要附 report：工具先预演、弹确认单，
+用户确认后才写，写入范围就是确认单上的范围。写在常驻进程里执行，写完同一进程马上读得到新的。
 原厂和别家 ISV 的对象由 IsvGuard 拦在探针里。`;
 
 export type MetaPlan =

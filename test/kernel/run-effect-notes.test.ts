@@ -18,6 +18,7 @@ interface IndexedClass {
 	kind: string;
 	numbers?: string[];
 	source: string;
+	enabled?: boolean;
 }
 
 /** 一个有代码关系表的工程：每个类既有源码，也有登记。 */
@@ -34,7 +35,15 @@ function project(classes: IndexedClass[]): FakeContext {
 				class: `com.demo.${cls.name}`,
 				file: `src/main/java/com/demo/${cls.name}.java`,
 				pluginType: cls.kind === "form" ? "form" : cls.kind === "print" ? "print" : "operation",
-				bindings: [{ entity: BILL, kind: cls.kind, layouts: 1, enabled: true, numbers: cls.numbers ?? [BILL] }],
+				bindings: [
+					{
+						entity: BILL,
+						kind: cls.kind,
+						layouts: 1,
+						enabled: cls.enabled ?? true,
+						numbers: cls.numbers ?? [BILL],
+					},
+				],
 				entities: [],
 				fields: [],
 				chain: [],
@@ -88,6 +97,13 @@ describe("事务外动作只提醒、不拦（S27）", () => {
 		expect(prepared.warnings.join("\n")).toContain("UploadFormPlugin");
 	});
 
+	it("登记了但停用的插件不在插件链上，不提", () => {
+		const fake = project([{ ...FORM_PLUGIN, enabled: false }]);
+		const prepared = prepareRunInvocation(fake.ctx, ["form", BILL, "--click", "bar_save"]);
+		expect(prepared.blockers).toEqual([]);
+		expect(prepared.warnings.join("\n")).not.toContain("UploadFormPlugin");
+	});
+
 	it("run print 只提登记在这张模板上的打印插件", () => {
 		const fake = project([PRINT_PLUGIN, OP_PLUGIN]);
 		const prepared = prepareRunInvocation(fake.ctx, ["print", TPL, "--pk", "100", "--show", "datacell1"]);
@@ -99,13 +115,13 @@ describe("事务外动作只提醒、不拦（S27）", () => {
 });
 
 describe("运行不再强制冷进程（S27）", () => {
-	it("带改值、按钮、操作的运行都走常驻进程；只有 --real-cache 仍然冷", () => {
+	it("带改值、按钮、操作的运行都走常驻进程", () => {
 		const fake = project([]);
 		const cold = (argv: string[]) => prepareRunInvocation(fake.ctx, argv).plan?.cold;
 		expect(cold(["op", BILL, "save", "--set", "billno=T1"])).toBe(false);
 		expect(cold(["print", TPL, "--pk", "100", "--set", "zlgd_bz=x", "--show", "datacell1"])).toBe(false);
 		expect(cold(["form", BILL, "--op", "save"])).toBe(false);
-		expect(cold(["form", BILL, "--real-cache", "1"])).toBe(true);
+		expect(cold(["form", BILL, "--set", "billno=T1", "--click", "bar_save"])).toBe(false);
 	});
 
 	it("计划里不再带 ROLLBACK=1", () => {

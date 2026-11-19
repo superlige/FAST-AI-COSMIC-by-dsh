@@ -45,6 +45,22 @@ when: 操作插件、事务阶段、BOTP、反写
 - 只对接口数据生效时，按单据上的「接口传输」标记字段判断，不按操作 key 判断：界面保存走的是同一个 `save`。
 - 先用 `OpMetaProbe` 确认按钮绑的操作和插件，不凭 `save` / `submit` / `audit` 这类常见标识判断。
 - `afterExecuteOperationTransaction` 里不改核心单据数据；多个状态转换不重复推动同一状态机。
+- 本单的改动写进事件参数里的数据包，平台在这次操作里一起存；字段不够在 `onPreparePropertys` 里加，不为补字段重读本单、不对本单再调 `SaveServiceHelper`。别的单分录有增删用 `SaveServiceHelper.save`，`update` 不插新行（见[本单和别的单](#本单和别的单在操作事务里怎么写)）。
+
+### 本单和别的单在操作事务里怎么写
+
+一次操作碰到两种单，写法不同。
+
+**本单**（`e.getDataEntities()` 里正在被操作的单）：
+
+- 在 `beginOperationTransaction` 里改数据包——改表头字段、清掉分录再 `addNew` 新行——平台在这次操作里一起存进库，插件不用自己存。
+  **当前环境实测**（`submit`）：插件只往本单数据包的分录里加了行，没有对本单调任何保存；提交前库里没有这几行，提交后从库里读回来了。
+- 要读的字段在 `onPreparePropertys` 里加齐，数据包里就有。不为补字段按内码重读本单：重读出来的是另一个对象，
+  改它不会进这次操作的保存，再对它调 `SaveServiceHelper` 就是在同一个事务里把正在操作的单另存一遍。
+- 已经保存过的单（提交、审核这类操作），数据包里的分录行带真实内码，`endOperationTransaction` 里可以直接拿来写进别的单。
+
+**别的单**（反写的上游单、被占用额度的记录单）：按内码 `load`，改完自己存，存法见
+[sdk.md](sdk.md#saveservicehelperupdate-不插新加的分录行)：分录有增删用 `save`。
 
 ### 三个裁决点（官方事件表之外）
 

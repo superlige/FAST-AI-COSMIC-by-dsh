@@ -300,6 +300,10 @@ public class ListSim {
             businessSelection.restore();
             containerSelection.restore();
         }
+        //合并后的清单只给 initialize；之后 activate 里平台按两份配置各自再建一遍插件，
+        //摘掉的要 hold 到这次运行结束（常驻进程跑完探针时统一还原），不然被摘的类照样被加载
+        containerSelection.hold();
+        businessSelection.hold();
         capturePlugins(view);
         view.addPlugin(new RecListPlugin());
         view.addPlugin(new RecTreePlugin());

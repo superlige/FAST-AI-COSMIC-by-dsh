@@ -46,6 +46,7 @@ import kd.bos.form.control.AbstractGrid;
 import kd.bos.form.control.Toolbar;
 import kd.bos.form.control.AbstractGrid.GridState;
 import kd.bos.form.control.events.ItemClickEvent;
+import kd.bos.form.field.FieldEdit;
 import kd.bos.list.ListShowParameter;
 import kd.bos.form.events.AfterDoOperationEventArgs;
 import kd.bos.form.events.BeforeDoOperationEventArgs;
@@ -54,6 +55,7 @@ import kd.bos.form.plugin.IFormPlugin;
 import kd.bos.metadata.dao.MetaCategory;
 import kd.bos.metadata.dao.MetadataDao;
 import kd.bos.metadata.entity.EntityMetadata;
+import kd.bos.mvc.SessionManager;
 import kd.bos.mvc.cache.PageCache;
 import kd.bos.mvc.form.FormController;
 import kd.bos.mvc.form.FormView;
@@ -88,7 +90,9 @@ import kd.bos.servicehelper.BusinessDataServiceHelper;
  *   FORM_HYPERLINK  点分录某一格的超链接：`分录[行].字段`（子分录 `分录[行].子分录[行].字段`），走真表格控件的
  *                `hyperLinkClick`，派发给插件在 registerListener 里 addHyperClickListener 挂上的监听；不提交
  *   FORM_SKIP    摘掉的插件（类简名，逗号分隔）—— 强依赖真实会话的插件用它绕开
- *   FORM_REAL_CACHE=1  使用真实 Redis PageCache/ModelCache；默认仍是快速内存缓存
+ *   缓存和请求：页面缓存、模型缓存都用真实 Redis；打开、每一条 --set、按钮/操作/超链接/F7 各是一次请求，
+ *                请求之间照平台提交缓存、按 pageId 从缓存重建页面（{@link #nextRequest}），断言读的是最后一次请求
+ *                提交进缓存的数据 —— 和浏览器里一格一格改、再点按钮走的是同一条路
  *   FORM_SELECT  模拟前端回传的分录选中行：`分录标识=0,2` 用 `;` 隔开，`分录标识=` 表示这个分录一行没选。
  *                不给这个参数时，按 FORM_SET 写过的分录行自动选中 —— 真实前端里改一行的值必然先点中那一行，
  *                而 `control.getSelectRows()` 只认选中行，不认当前行（见 {@link #TOUCHED_ROWS}）。
@@ -238,7 +242,7 @@ public class FormSim {
         String click = env("FORM_CLICK", "");
         String hyperlink = env("FORM_HYPERLINK", "");
         String skip = env("FORM_SKIP", "");
-        REAL_CACHE = "1".equals(env("FORM_REAL_CACHE", ""));
+        REAL_CACHE = true;
         //run 的 --billno 传进来是 billno:编号
         try {
             pk = MetaResolve.pkOf(ENTITY, pk);
@@ -261,9 +265,8 @@ public class FormSim {
         System.out.println("[PROBE] === FormSim 开布局=" + FORM
                 + (FORM.equals(ENTITY) ? "" : "（字段按实体 " + ENTITY + " 查）")
                 + (edit ? ("view".equals(status) ? " 查看单据 pk=" : " 打开单据 pk=") + pk : " 新增") + " ===");
-        System.out.println("[PROBE] 缓存模式=" + (REAL_CACHE
-                ? "真实 Redis（PageCache + ModelCache，结束清理，TTL 300 秒兜底）"
-                : "内存（加 --real-cache 切到真实 Redis）"));
+        System.out.println("[PROBE] 缓存=真实 Redis（PageCache + ModelCache，结束清理，TTL 300 秒兜底）；"
+                + "打开、每条 --set、动作各一次请求，请求之间从缓存重建页面");
 
         //只有真要跑操作时才动写通道，那时才需要红线：授权范围（docs/项目管理/验收记录.md D3）只到本 ISV 单据。
         //纯仿真（只开表单、只改值）全在内存里，读别家单据的插件行为是安全的。
@@ -283,7 +286,7 @@ public class FormSim {
 
         List<FormView> views = new ArrayList<FormView>();
         try {
-            final FormView view = open(openView(FORM, pk, edit, skip, status), skip, views);
+            FormView view = open(openView(FORM, pk, edit, skip, status), skip, views);
             //控件是不是这张布局上的，要等转完布局才知道
             badPaths.addAll(badPaths(valueExpects, uiExpects, true));
             rejectBadPaths(badPaths);
@@ -293,20 +296,28 @@ public class FormSim {
             Map<String, String> prior = edit
                     ? ExpectSpec.priorValues(view.getModel().getDataEntity(true), valueExpects, env("FORM_SET", ""))
                     : null;
-            applySets(view, env("FORM_SET", ""));
+            //浏览器里改一格就是一次请求：每条 --set 都在从缓存重建的页面上改
+            for (String one : env("FORM_SET", "").split(";")) {
+                if (!one.trim().isEmpty()) {
+                    view = nextRequest(view, "改值 " + one.trim(), skip, views, true);
+                    applySets(view, one);
+                }
+            }
             System.out.println("[PROBE] 页面状态：" + UiState.statusName(UiState.status())
                     + "（" + UiState.statusSource() + "；锁定性、可见性按它算）");
+            String f7Key = env("FORM_F7", "");
+            if (!click.isEmpty() || !op.isEmpty() || link != null || !f7Key.trim().isEmpty()) {
+                //选中行、当前行随这次请求一起回传（postData），所以和动作放在同一次请求里
+                view = nextRequest(view, "动作", skip, views, true);
+            }
             //点的那一行要在定选中行之前记下：浏览器里点一格，那一行先成了当前行、选中行
             if (link != null) {
                 hyperlinkRow(view, link);
             }
             //选中行必须在触发动作之前定下来：插件在 afterDoOperation 里读的就是它
             selectRows(env("FORM_SELECT", ""));
-            f7(view, env("FORM_F7", ""));
+            f7(view, f7Key);
 
-            if (REAL_CACHE) {
-                persistReal(view, "动作前");
-            }
             if (!click.isEmpty()) {
                 clickItem(view, click, before, ENTITY);
             } else if (!op.isEmpty()) {
@@ -314,9 +325,8 @@ public class FormSim {
             } else if (link != null) {
                 hyperlink(view, link);
             }
-            if (REAL_CACHE) {
-                persistReal(view, "请求结束");
-            }
+            //终值读最后一次请求提交进缓存的数据：下一次请求、保存时平台看到的就是它
+            view = nextRequest(view, "读结果", skip, views, false);
 
             //--show 里的界面路径和不是字段的控件，归到「界面状态」一段点名，不当字段取值
             Set<String> named = new LinkedHashSet<String>();
@@ -334,13 +344,15 @@ public class FormSim {
                     "action", !click.isEmpty() ? click : !op.isEmpty() ? op : link != null ? "hyperlink:" + hyperlink : null,
                     "realCache", Boolean.valueOf(REAL_CACHE),
                     "status", UiState.statusName(UiState.status()));
+            RunFacts.plugins(ENTITY, "form " + FORM, PLUGIN_NAMES);
             suggestFlow(pk, op, click, link == null ? "" : hyperlink, env("FORM_TOOLBAR", ""), skip);
             ExpectSpec.model(view.getModel(), valueExpects);
             for (String[] kv : uiExpects) {
                 String[] up = uiPath(kv[0]);
                 String got = UiState.value(up[0], up[1]);
+                String stale = UiState.notInRuntime(up[0]);
                 if (got == null) {
-                    ProbeAssert.unresolved("ui", kv[0], kv[1], "这个控件没有「" + up[1] + "」这一项");
+                    ProbeAssert.unresolved("ui", kv[0], kv[1], stale != null ? stale : "这个控件没有「" + up[1] + "」这一项");
                 } else {
                     ProbeAssert.isEqual("ui", kv[0], kv[1].trim(), got);
                 }
@@ -351,13 +363,15 @@ public class FormSim {
                 throw new ProbeAssert.Failed("断言失败：" + FORM);
             }
         } finally {
-            for (FormView v : views) {
-                if (REAL_CACHE) {
+            //同一个页面重建过几次，缓存只有一份：每个 pageId 按最后那个视图清一次
+            Set<String> released = new HashSet<String>();
+            for (int i = views.size() - 1; i >= 0; i--) {
+                FormView v = views.get(i);
+                if (released.add(v.getPageId())) {
                     releaseReal(v);
-                } else {
-                    releaseMutex(v);
                 }
             }
+            SessionManager.reset();
         }
     }
 
@@ -715,6 +729,9 @@ public class FormSim {
     static void resetState() {
         resetViewState();
         PAGE_CACHE.clear();
+        SEEDED_PAGES.clear();
+        CLIENT_STATES.clear();
+        REQUESTS = 1;
         GRID_SELECTIONS.clear();
         PRINTED_SELECTIONS.clear();
         TOUCHED_ROWS.clear();
@@ -848,6 +865,52 @@ public class FormSim {
 
     /** 按现成的打开参数建视图、装插件。转布局时用平台给的那份参数，pk、状态、布局方案都在里面。 */
     static FormView openWith(FormShowParameter fsp, String skip) {
+        return buildView(fsp, skip, false);
+    }
+
+    /**
+     * 一次请求结束、下一次请求开始，返回下一次请求里的视图。
+     *
+     * 线上每个动作（打开、改一格、点按钮）都是一次独立请求，平台照 FormServiceImpl.invokeAction 做：
+     * 收尾在 getActionResult 里 model.updateCache()，再 SessionManager.commitCache()（{@link #persistReal}）；
+     * 下一次请求的线程拿一个新的 SessionManager，按 pageId 从 Redis 读回 FormShowParameter 新建视图、initialize，
+     * 不 activate、不 loadData，接着 registerListener，然后才派发这次的动作。新视图的数据模型手里没有数据，
+     * 走 DataModelCacheRepository 现从 ModelCache 取，而 ModelCache 的表头和分录是分开存的：
+     * 这时 getDataEntity() 只有表头、分录集合是空的，getDataEntity(true) / getEntryEntity 才取全。
+     *
+     * 一个视图从打开跑到断言就看不到这个区别：模型一直拿着 loadData 那份完整数据，getDataEntity() 带着全部分录。
+     * 插件照它写，探针断言全过，部署上去改值不联动、退出重进才算对（真机 2026-11-17：疲劳试验改应力比不重算）。
+     *
+     * @param dispatch 这次请求要派发动作（改值、点按钮）时为 true，照平台先 registerListener；只读结果时为 false
+     */
+    static FormView nextRequest(FormView done, String phase, String skip, List<FormView> views, boolean dispatch) {
+        persistReal(done, "请求 " + REQUESTS + " 结束");
+        REQUESTS++;
+        String pageId = done.getPageId();
+        SessionManager.reset();
+        FormShowParameter fsp = SessionManager.getCurrent().getFormShowParameter(pageId);
+        if (fsp == null) {
+            throw new IllegalStateException("下一次请求从缓存读不回页面参数 " + pageId);
+        }
+        FormView view = buildView(fsp, skip, true);
+        views.add(view);
+        System.out.println("[PROBE] —— 请求 " + REQUESTS + "（" + phase + "）：按 pageId 从缓存重建页面，"
+                + "数据模型从 ModelCache 现取 ——");
+        //懒建 formRoot：不建的话动作完回写界面时 NPE（和打开时一样）
+        view.getRootControl();
+        if (dispatch) {
+            final FormController ctl = (FormController) view.getService(IFormController.class);
+            step("registerListener", new Step() {
+                public void go() {
+                    ctl.registerListener();
+                }
+            });
+        }
+        return view;
+    }
+
+    /** @param restored 下一次请求从缓存重建的视图：插件清单打开时已经报过，不再报、不再记 */
+    static FormView buildView(FormShowParameter fsp, String skip, boolean restored) {
         FormConfig fc = fsp.getFormConfig();
         if (fc == null) {
             fc = FormMetadataCache.getFormConfig(fsp.getFormId());
@@ -855,16 +918,17 @@ public class FormSim {
         }
         fsp.setSendToClient(false);
 
-        //FormConfig 来自元数据缓存，是全 JVM 共享的同一个对象：改完不还原，
-        //之后所有跑到这张表单的探针都会跟着少插件，而且不报任何错。
+        //FormConfig 来自元数据缓存，是全 JVM 共享的同一个对象：摘掉的插件 hold 到这次运行结束，
+        //由常驻进程跑完探针时统一还原（HeadlessUiSupport.restoreHeld）。不能只在 initialize 前后换：
+        //activate 里平台又按这份清单建一遍插件，摘掉的类照样被加载。
         HeadlessUiSupport.PluginSelection selection = HeadlessUiSupport.selectPlugins(fc, skip);
         List<Object> origin = selection.origin();
         List<Object> kept = selection.kept();
-        for (String className : selection.dropped()) {
+        for (String className : restored ? new ArrayList<String>() : selection.dropped()) {
             System.out.println("[PROBE]   摘掉插件 " + className + "（FORM_SKIP）");
         }
         int dropped = selection.dropped().size();
-        if (!QUIET) {
+        if (!QUIET && !restored) {
             System.out.println("[PROBE] " + (fsp instanceof BaseShowParameter ? "基础资料"
                     : fsp instanceof BillShowParameter ? "单据" : "表单") + " modelType=" + fc.getModelType()
                     + "，元数据里配了 " + origin.size() + " 个插件，装 " + kept.size() + " 个"
@@ -872,14 +936,10 @@ public class FormSim {
         }
 
         FormView view = newView(fsp);
-        try {
-            selection.install();
-            view.initialize(fsp);
-            ((HeadlessViews.Page) view).ensurePluginProxy();
-        } finally {
-            selection.restore();
-        }
-        for (Object pp : livePlugins(((HeadlessViews.Page) view).pluginProxy())) {
+        selection.hold();
+        view.initialize(fsp);
+        ((HeadlessViews.Page) view).ensurePluginProxy();
+        for (Object pp : restored ? new ArrayList<Object>() : livePlugins(((HeadlessViews.Page) view).pluginProxy())) {
             PLUGIN_NAMES.add(pp.getClass().getName());
             PLUGIN_TYPES.add(pp.getClass());
             if (!QUIET) {
@@ -898,9 +958,9 @@ public class FormSim {
      * 分录上的指令（按行锁定 setLockState、整列隐藏 setVisibleState、分录必录 setColEditorProp）
      * 走的是控件自己存的那份；换晚了，表头那类走视图通道的收得到，分录这几类全漏，而且不报错。
      */
-    static Object swapClientProxy(Class<?> clazz, Object service) {
+    static Object swapClientProxy(String pageId, Class<?> clazz, Object service) {
         return clazz == IClientViewProxy.class && service != null && !HeadlessUiSupport.isRecorder(service)
-                ? recorder(IClientViewProxy.class) : service;
+                ? recorder(IClientViewProxy.class, pageId) : service;
     }
 
     /**
@@ -938,7 +998,7 @@ public class FormSim {
             //而且不报错 —— 症状要等到操作完回写界面时才以 updateView 的 NPE 出现。
             view.addService(IPageCache.class, pageCache(view.getFormShowParameter().getPageId()));
         } else if ("addService".equals(what)) {
-            return swapClientProxy((Class<?>) args[1], args[2]);
+            return swapClientProxy(view.getPageId(), (Class<?>) args[1], args[2]);
         } else if ("showForm".equals(what)) {
             captureOpenedForm((FormShowParameter) args[1]);
         }
@@ -1067,6 +1127,7 @@ public class FormSim {
             c = view.getControl(grid);
         } catch (Throwable t) {
             System.out.println("[PROBE] 【点超链接】" + pos + " ⚠ 取表格控件 " + grid + " 失败：" + brief(t));
+            threw("点超链接 " + pos + "（取表格控件）", t);
             return;
         }
         if (!(c instanceof AbstractGrid)) {
@@ -1093,7 +1154,7 @@ public class FormSim {
             g.hyperLinkClick(pos.field, row);
         } catch (Throwable t) {
             System.out.println("[PROBE]   ⚠ hyperLinkClick 抛异常 " + brief(t));
-            System.out.println("[PROBE]   栈顶: " + top(t, 6));
+            threw("点超链接 " + pos, t);
         }
         System.out.println("[PROBE]   耗时 " + (System.currentTimeMillis() - t0) + "ms，插件事件 +" + (EVENTS.size() - ev)
                 + "，打开页面 +" + (OPENED_FORMS.size() - opened) + "，弹给用户的话 +" + (NOTICES.size() - said));
@@ -1138,6 +1199,7 @@ public class FormSim {
             c = view.getControl(key);
         } catch (Throwable t) {
             System.out.println("[PROBE] 【点 F7】" + key + " ⚠ 取控件失败：" + brief(t));
+            threw("点 F7 " + key + "（取控件）", t);
             return;
         }
         //别按类型判断：BasedataEdit / MulBasedataEdit / RefBillEdit / OrgEdit / UserEdit
@@ -1157,7 +1219,7 @@ public class FormSim {
             lsp = (ListShowParameter) entry.invoke(c, "click");
         } catch (Throwable t) {
             System.out.println("[PROBE]   ⚠ 失败：" + brief(t));
-            System.out.println("[PROBE]   栈顶: " + top(t, 5));
+            threw("点 F7 " + key, t);
             return;
         }
         System.out.println("[PROBE]   插件事件 +" + (EVENTS.size() - ev));
@@ -1249,12 +1311,14 @@ public class FormSim {
             try {
                 Object v = value(met, pos, val);
                 if (pos.entry == null) {
+                    editCheck(view, pos.field);
                     model.setValue(pos.field, v);
                 } else if (pos.sub == null) {
                     ensureRows(model, met, pos.entry, pos.row);
                     //当前行跟着一起挪：插件里大量 getValue(key) 读的是当前行，
                     //只写值不挪行的话，插件看到的还是第 0 行
                     model.setEntryCurrentRowIndex(pos.entry, pos.row);
+                    editCheck(view, pos.field);
                     model.setValue(pos.field, v, pos.row);
                     //当前行只喂 getValue；getSelectRows() 要的是选中行，记在这里等 selectRows() 统一模拟
                     touchRow(pos.entry, pos.row);
@@ -1266,6 +1330,7 @@ public class FormSim {
                     //父行只能从集合上取：getEntryEntity(String,int) 在 AbstractFormDataModel
                     //上有，在 IDataModel 接口上没有，按接口类型调编译不过
                     ensureSubRows(model, rowAt(model, pos.entry, pos.row), pos.sub, pos.subRow);
+                    editCheck(view, pos.field);
                     //四参重载：(key, value, rowIndex, parentRowIndex)，子分录行在前
                     model.setValue(pos.field, v, pos.subRow, pos.row);
                 }
@@ -1276,8 +1341,45 @@ public class FormSim {
                         + "，界面指令 +" + (UiState.size() - ui)
                         + "，规则动作 +" + (RULE_ACTIONS - ra));
             } catch (Throwable t) {
-                System.out.println("[PROBE] setValue " + pos + " = " + val + "  ⚠ 失败：" + brief(t));
+                System.out.println("[PROBE] setValue " + pos + " = " + val + "  ⚠ 失败：" + brief(t)
+                        + "  → 插件事件 +" + (EVENTS.size() - ev));
+                //仿真自己在改值之前拒掉的（值转不成这个字段的类型、分录标识写错）是输入写错了，不是联动断了
+                if (t instanceof IllegalArgumentException && HeadlessUiSupport.thrownBySimulator(t)) {
+                    ProbeAssert.inputInvalid("form-set", pos + "=" + val, oneLine(t.getMessage()));
+                } else {
+                    threw("setValue " + pos + " = " + val, t);
+                }
             }
+        }
+    }
+
+    /**
+     * 浏览器改一格走字段控件的 postBack：postDataCheck → checkEditFieldStatus → setValue。--set 照它在 setValue 之前
+     * 判一次这格能不能改；判不过的，浏览器里会被拒（「字段不可编辑」），这里照样改值、打一行说明，造数不因此中断。
+     *
+     * 这一步不只是判锁：单据的 checkEditFieldStatus 会先 getDataEntity() 读一次表头取单据状态。从缓存重建的请求里，
+     * 谁先碰表头决定了表头是什么样 —— 表头先按「不带分录」读进来，之后改的那一格只按行从缓存取、不挂回表头，
+     * 插件里 getDataEntity().getDynamicObjectCollection(分录) 就是空的；先碰的若是 getEntryEntity，整个分录会挂到表头上。
+     * 跳过这一步直接 setValue，等于换了首个碰表头的人：真机疲劳试验单改应力比，线上取不到分录、不重算，
+     * 仿真里却取得到 2 行、断言全过。
+     */
+    static void editCheck(FormView view, String field) {
+        Object control;
+        try {
+            control = view.getControl(field);
+        } catch (Throwable t) {
+            return;
+        }
+        if (!(control instanceof FieldEdit)) {
+            return;
+        }
+        try {
+            if (!((FieldEdit) control).checkEditFieldStatus()) {
+                System.out.println("[PROBE]   ⚠ " + field + " 在浏览器里此刻不能改（锁定或单据状态不允许），"
+                        + "真实页面上这一格改不了；这里照样改值");
+            }
+        } catch (Throwable t) {
+            System.out.println("[PROBE]   ⚠ " + field + " 判能不能改时出错：" + brief(t) + "；照样改值");
         }
     }
 
@@ -1341,6 +1443,8 @@ public class FormSim {
             return;
         }
         IDataModel model = view.getModel();
+        //从缓存重建的模型 getDataEntity() 只有表头，基础资料外键要按完整路径进分录行查，得取全
+        DynamicObject whole = model.getDataEntity(true);
         System.out.println("[PROBE] --- 字段终值 ---");
         for (String one : spec.split("[;,]")) {
             String key = one.trim();
@@ -1350,14 +1454,14 @@ public class FormSim {
             try {
                 ExpectSpec.Pos pos = ExpectSpec.Pos.parse(key);
                 if (pos.entry == null) {
-                    ExpectSpec.checkReference(model.getDataEntity(), pos, key, false);
+                    ExpectSpec.checkReference(whole, pos, key, false);
                     System.out.println("[PROBE]   " + key + " = " + showVal(model.getValue(pos.field)));
                 } else if (pos.sub == null) {
                     Collection<?> rows = model.getEntryEntity(pos.entry);
                     int n = rows == null ? 0 : rows.size();
                     System.out.println("[PROBE]   " + key + "  " + n + " 行");
                     for (int i = 0; i < n; i++) {
-                        ExpectSpec.checkReference(model.getDataEntity(), ExpectSpec.Pos.parse(pos.entry + "[" + i + "]." + pos.field), key + "[" + i + "]", false);
+                        ExpectSpec.checkReference(whole, ExpectSpec.Pos.parse(pos.entry + "[" + i + "]." + pos.field), key + "[" + i + "]", false);
                         System.out.println("[PROBE]     [" + i + "] = " + showVal(model.getValue(pos.field, i)));
                     }
                 } else {
@@ -1368,7 +1472,7 @@ public class FormSim {
                             + "." + pos.field + "  " + n + " 行");
                     for (int i = 0; i < n; i++) {
                         //四参 getValue 同样是 (key, rowIndex, parentRowIndex)
-                        ExpectSpec.checkReference(model.getDataEntity(), ExpectSpec.Pos.parse(pos.entry + "[" + pos.row + "]." + pos.sub + "[" + i + "]." + pos.field), key + "[" + i + "]", false);
+                        ExpectSpec.checkReference(whole, ExpectSpec.Pos.parse(pos.entry + "[" + pos.row + "]." + pos.sub + "[" + i + "]." + pos.field), key + "[" + i + "]", false);
                         System.out.println("[PROBE]     [" + i + "] = "
                                 + showVal(model.getValue(pos.field, i, pos.row)));
                     }
@@ -1477,7 +1581,7 @@ public class FormSim {
             fb.itemClick(key, ok);
         } catch (Throwable t) {
             System.out.println("[PROBE]   ⚠ itemClick 抛异常 " + brief(t));
-            System.out.println("[PROBE]   栈顶: " + top(t, 5));
+            threw("点按钮 " + bar + "." + itemKey, t);
         }
         System.out.println("[PROBE]   耗时 " + (System.currentTimeMillis() - t0)
                 + "ms，插件事件 +" + (EVENTS.size() - ev));
@@ -1514,7 +1618,7 @@ public class FormSim {
             r = view.invokeOperation(op);
         } catch (Throwable t) {
             System.out.println("[PROBE]   ⚠ 抛异常 " + brief(t));
-            System.out.println("[PROBE]   栈顶: " + top(t, 6));
+            threw("跑操作 " + op, t);
         }
         System.out.println("[PROBE]   耗时 " + (System.currentTimeMillis() - t0)
                 + "ms，插件事件 +" + (EVENTS.size() - ev));
@@ -1552,7 +1656,10 @@ public class FormSim {
         } catch (Throwable ignore) {
             //拿不到就不报现状：行数那一行已经说了落没落
         }
-        MetaResolve.reportCommitted(entity, pk, what, done);
+        //这次操作前后行数多了，就是这次新建的（界面上新增后保存）；数不出行数时拿不准
+        Boolean created = before < 0 || after < 0 ? null : Boolean.valueOf(after > before);
+        MetaResolve.reportCommitted(entity, pk, what, done, created);
+        RunFacts.plugins(entity, "op " + what, RunFacts.opPlugins(entity, what));
     }
 
     // ---------- 输出 ----------
@@ -1769,12 +1876,29 @@ public class FormSim {
 
     // ---------- 记账代理 ----------
 
-    @SuppressWarnings("unchecked")
-    static <T> T recorder(final Class<T> iface) {
-        //每个视图一份，和平台一样：发往浏览器的通道是一个视图一个
+    /**
+     * 发往浏览器的通道记下的状态，一个页面一份，跨请求留着：发过的锁定和页面状态、分录的当前行和选中行。
+     * 平台的通道对象一个请求一个，这些状态它存在页面缓存里（ClientViewProxy.cacheLockState）、浏览器每次请求也回传，
+     * 下一次请求从缓存重建页面时还在；按视图存的话，重建一次「这格锁了」就丢了，checkEditFieldStatus 当它能改。
+     */
+    static final class ClientState {
         final Map<String, Map<String, Object>> metaState = new HashMap<String, Map<String, Object>>();
         final Map<String, GridState> gridStates = new HashMap<String, GridState>();
         final Map<String, String> appliedSelections = new HashMap<String, String>();
+    }
+
+    static final Map<String, ClientState> CLIENT_STATES = new HashMap<String, ClientState>();
+
+    @SuppressWarnings("unchecked")
+    static <T> T recorder(final Class<T> iface, String pageId) {
+        ClientState client = CLIENT_STATES.get(pageId);
+        if (client == null) {
+            client = new ClientState();
+            CLIENT_STATES.put(pageId, client);
+        }
+        final Map<String, Map<String, Object>> metaState = client.metaState;
+        final Map<String, GridState> gridStates = client.gridStates;
+        final Map<String, String> appliedSelections = client.appliedSelections;
         return HeadlessUiSupport.recorder(iface, new HeadlessUiSupport.ClientCallSink() {
             public void accept(Class<?> type, Method method, Object[] args) {
                 CALLS.add(type.getSimpleName() + "." + method.getName() + deep(args));
@@ -2015,8 +2139,16 @@ public class FormSim {
         return HeadlessUiSupport.memPageCache(PAGE_CACHE);
     }
 
+    /** 已经建过真实页面缓存的 pageId。--cache 的预置值只在第一次写：之后的请求读的是缓存里的现值，重写会盖掉插件改过的 */
+    static final Set<String> SEEDED_PAGES = new HashSet<String>();
+    /** 第几次请求：打开是第 1 次，{@link #nextRequest} 每次加 1 */
+    static int REQUESTS = 1;
+
     static IPageCache pageCache(String pageId) {
-        return REAL_CACHE ? HeadlessUiSupport.realPageCache(pageId, PAGE_CACHE) : memPageCache();
+        if (!REAL_CACHE) {
+            return memPageCache();
+        }
+        return HeadlessUiSupport.realPageCache(pageId, SEEDED_PAGES.add(pageId) ? PAGE_CACHE : null);
     }
 
     static void persistReal(FormView view, String phase) {
@@ -2043,11 +2175,19 @@ public class FormSim {
         }
     }
 
+    /** 编辑锁的结果和缓存清理写在同一行：没占也写，省得人和模型把「没写」猜成「放了」 */
     static void releaseReal(FormView view) {
         String pageId = view.getPageId();
+        String lock;
+        try {
+            String released = HeadlessUiSupport.releaseMutex(view);
+            lock = released == null ? "没占" : "已放 " + released;
+        } catch (Throwable t) {
+            lock = "⚠ 没放掉：" + brief(t) + "；之后提交这张单会被拒「正在PC端编辑该记录」，换掉常驻进程才放";
+        }
         List<String> errors = HeadlessUiSupport.releaseRealView(view);
         boolean remains = PageCache.existView(pageId);
-        System.out.println("[PROBE] 真实缓存清理 pageId=" + pageId + "  remains=" + remains);
+        System.out.println("[PROBE] 真实缓存清理 pageId=" + pageId + "  remains=" + remains + "  编辑锁=" + lock);
         for (String error : errors) {
             System.out.println("[PROBE]   ⚠ 清理失败 " + error);
         }
@@ -2084,26 +2224,61 @@ public class FormSim {
                 return false;
             }
             System.out.println("[PROBE] " + name + " ⚠ 失败：" + brief(t));
-            //一个插件抛异常，整条派发链就断了 —— 它后面的插件这一轮什么都收不到，
-            //而输出里看不出「后面还有几个没跑」。所以要么修它，要么摘掉它重跑。
-            String blame = culprit(root(t));
-            String skip = blame == null ? null : "--skip " + blame.substring(blame.lastIndexOf('.') + 1);
-            if (blame != null) {
-                System.out.println("[PROBE]   出错的是插件 " + blame
-                        + "，它后面的插件这一步全没跑到。摘掉它重跑：" + skip);
-            }
-            System.out.println("[PROBE]   栈顶: " + top(t, 5));
-            //插件把通道强转成平台具体类、而这次通道只能是动态代理（没有换类入口）时，说清为什么
-            String channel = String.valueOf(root(t)).contains("ClientViewProxy") ? HeadlessUiSupport.channelWhy() : null;
-            if (channel != null) {
-                System.out.println("[PROBE]   仿真的发往浏览器的通道这次没能建成平台真类 ClientViewProxy：" + channel);
-            }
-            //后面的步骤照常跑，断言也照常判；但这次的现场不完整，全过也不能记成验证通过
-            ProbeAssert.incomplete(name, blame, brief(t) + "  栈顶: " + top(t, 5)
-                    + (channel == null ? "" : "。仿真的通道这次没能建成平台真类：" + channel)
-                    + (skip == null ? "" : "。它不是要验的插件就摘掉重跑：" + skip));
+            broke(name, t);
             return false;
         }
+    }
+
+    /**
+     * 一个动作抛了异常（开表单的某一步、--set 改值、点按钮、跑操作、点超链接、点 F7）：打出起因链、
+     * 抛点落在谁身上（哪个插件的哪一行 / 仿真自己 / 平台）和栈，并记成「这次没跑完整」。
+     *
+     * <p>后面的动作照常跑、断言照常判，但全过也不记成验证通过：抛点之后该跑的联动——排在它后面的插件、
+     * 抛错那个方法里剩下的代码——这一下全断了，最终值对上了也证明不了中途的回调都跑完了。
+     * 真机见过两次 --set 抛空指针只打一行「⚠ 失败：NullPointerException: (无)」，断言 9/9 过、记成了 PASS。</p>
+     *
+     * <p>插件抛的：一个插件抛异常，整条派发链就断了，它后面的插件这一轮什么都收不到，
+     * 所以要么修它，要么摘掉它重跑（--skip）。</p>
+     */
+    static void threw(String action, Throwable t) {
+        StackTraceElement at = HeadlessUiSupport.pluginFrame(PLUGIN_NAMES, t);
+        //插件有意抛的业务异常（KDBizException）是在拒绝这一下：浏览器里用户看到的是这句报错，后面本来就不该再跑。
+        //它是要验的行为，不是现场坏了——记成弹给用户的话，能用 message 断言验，不记「没跑完整」
+        String refusal = HeadlessUiSupport.bizMessage(t);
+        if (refusal != null) {
+            NOTICES.add("报错: " + refusal);
+            System.out.println("[PROBE]   业务异常（弹给用户的报错）：" + refusal + (at == null ? "" : "  位置 " + at));
+            return;
+        }
+        broke(action, t);
+    }
+
+    /** {@link #threw} 去掉业务异常那一支：开表单的步骤用它——插件拒绝打开，后面的步骤和断言都落在一张没打开的单上。 */
+    static void broke(String action, Throwable t) {
+        StackTraceElement at = HeadlessUiSupport.pluginFrame(PLUGIN_NAMES, t);
+        String blame = culprit(t);
+        boolean simulator = blame == null && HeadlessUiSupport.thrownBySimulator(t);
+        String causes = HeadlessUiSupport.causes(t);
+        String stack = HeadlessUiSupport.stack(t, 8);
+        String skip = blame == null ? null : "--skip " + blame.substring(blame.lastIndexOf('.') + 1);
+        System.out.println("[PROBE]   异常：" + causes);
+        if (blame != null) {
+            System.out.println("[PROBE]   抛错的是插件 " + blame + "，位置 " + at
+                    + "；它后面的插件这一步全没跑到。不是要验的插件就摘掉重跑：" + skip);
+        } else if (simulator) {
+            System.out.println("[PROBE]   抛点在仿真自己的代码里，不在业务代码和平台");
+        }
+        System.out.println("[PROBE]   栈: " + stack);
+        //插件把通道强转成平台具体类、而这次通道只能是动态代理（没有换类入口）时，说清为什么
+        String channel = String.valueOf(root(t)).contains("ClientViewProxy") ? HeadlessUiSupport.channelWhy() : null;
+        if (channel != null) {
+            System.out.println("[PROBE]   仿真的发往浏览器的通道这次没能建成平台真类 ClientViewProxy：" + channel);
+        }
+        ProbeAssert.incomplete(action, blame, simulator, causes
+                + (at == null ? "" : "  插件位置: " + at)
+                + "  栈: " + stack
+                + (channel == null ? "" : "。仿真的通道这次没能建成平台真类：" + channel)
+                + (skip == null ? "" : "。它不是要验的插件就摘掉重跑：" + skip));
     }
 
     /** 栈里第一个「装进来的插件」类 —— 判据是它在 PLUGIN_NAMES 里，不是包名长得像 */

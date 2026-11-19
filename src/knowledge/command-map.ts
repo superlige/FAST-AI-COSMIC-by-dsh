@@ -92,10 +92,10 @@ export const COMMAND_MAP: readonly CommandMapping[] = [
 	},
 	{
 		command: "verify",
-		status: "migrated",
-		tool: "cosmic_verify",
+		status: "redesigned",
+		tool: null,
 		owner: "S5.2",
-		note: "回归用例集：run/list/show/drafts/adopt",
+		note: "没有回归用例集；断言用 cosmic_run --expect，本会话跑过哪些、过没过由 cosmic_facts 列出",
 	},
 	{
 		command: "probe-server",
@@ -141,14 +141,14 @@ export const COMMAND_MAP: readonly CommandMapping[] = [
 		status: "redesigned",
 		tool: null,
 		owner: "S14",
-		note: "需求台账已删除；交付改由 cosmic_verify action=finish 依据当前源码与回归证据生成回执",
+		note: "没有需求台账；完成情况按系统提示里的模板写，事实取自 cosmic_facts",
 	},
 	{
 		command: "bundle",
 		status: "redesigned",
 		tool: null,
 		owner: "S14",
-		note: "批次台账视图已删除；当前交付回执由 cosmic_verify action=finish 生成，复看用 action=show",
+		note: "没有批次台账；完成情况按系统提示里的模板写，事实取自 cosmic_facts",
 	},
 	{
 		command: "meta",

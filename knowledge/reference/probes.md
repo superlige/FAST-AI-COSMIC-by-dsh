@@ -76,7 +76,7 @@ W 会修改共享环境。同一个探针兼有读写模式时，只有明确的
 | `ApiMetaProbe` | 开放接口清单、触发的单据操作、插件绑定、请求体与返回参数 | [plugin-integration.md](plugin-integration.md) |
 | `PrintTplProbe` / `PrintTplDesignProbe` / `PrintGridDumpProbe`（走 `meta ptpl list|dump`） | 模板清单、严格审计和网格展开 | [print-template.md](print-template.md) |
 | `PrintTplControlAssertProbe`（用 `cosmic_probe` 只读核对；不自动成为交付断言证据） | 按模板编码、稳定控件 id 和属性路径断言打印控件标量属性 | [verify.md](verify.md) |
-| `IsvCheckProbe` / `IsvGuardProbe`（用 `cosmic_probe` 核对；交付证据以 preflight 判定为准） | 实体 ISV 归属；红线三个非实体家族的放行/拦截回归 | [metadata-write.md](metadata-write.md) |
+| `IsvCheckProbe` / `IsvGuardProbe`（用 `cosmic_probe` 核对） | 实体 ISV 归属；红线三个非实体家族的放行/拦截回归 | [metadata-write.md](metadata-write.md) |
 | `PluginIndexProbe`（走 `impact build`） | 扫本 ISV 设计态元数据全文，摘「哪个插件类登记在哪张单据上」 | [impact.md](impact.md) |
 | `UserProbe` / `EnvDiagProbe` | 用户 id；环境、账套和连接诊断 | 本页下文；[runtime.md](runtime.md) |
 
@@ -96,7 +96,7 @@ W 会修改共享环境。同一个探针兼有读写模式时，只有明确的
 | `FormRegisterProbe`（`APPLY=1`） | 把新建表单登记进开发平台功能单元 / 回滚登记 | [metadata-create.md](metadata-create.md) |
 | `FormRuleProbe`（`APPLY=1`） | 新增 / 回滚界面规则 | [metadata-form-rules.md](metadata-form-rules.md) |
 | `BizRuleProbe`（`APPLY=1`） | 新增 / 回滚实体业务规则 | [metadata-business-rules.md](metadata-business-rules.md) |
-| `BotpRuleSyncProbe`（`APPLY=1`，走 `meta botp backup|restore`） | 批量复制业务规则、统一映射、备份与恢复 | [metadata-botp-write.md](metadata-botp-write.md) |
+| `BotpRuleSyncProbe`（`APPLY=1`，走 `meta botp backup|restore`） | 批量复制业务规则、改字段映射和建行层级、备份与恢复 | [metadata-botp-write.md](metadata-botp-write.md) |
 | `FormLayoutWriteProbe`（`APPLY=1` 带 `LAYOUT_BACKUP`） | 加删字段、加分录、照搬字段，改控件属性和位置，加删控件和操作；电脑端列表加字段列、加工具栏按钮并绑定操作；配置常用过滤和快捷搜索字段（show filter），改筛选项属性、排序、撤下；挂摘插件，按备份恢复；整份清单在内存里改完再存一次，问题一次列全 | [metadata-form.md](metadata-form.md)、[metadata-entity-write.md](metadata-entity-write.md) |
 | `PrintTplWriteProbe`（`APPLY=1`，走 `meta ptpl apply` / `meta ptpl restore`） | 三条写法：`--set` 按「控件 + 属性路径」改已有标量（不新建属性、类型跟旧值走）；`--file` 整份提交改好的设计数据，加控件、加表格、改公式走这条；`restore` 把备份目录里那份原样写回。落库前过差异比对、公式试算、平台解析和拓扑审计，落库后回读核对 | [print-template-write.md](print-template-write.md) |
 | `OpSandbox` / `FormSim` / `FormCallbackSim` / `FormFlowSim` / `ListSim`（走 `run op` / `run form` / `run callback` / `run flow` / `run list`） | 回滚操作、开表单、父子页回调/整条流程、限量运行标准/树列表插件；主动写交互强制回滚 | [run.md](run.md) |
@@ -348,7 +348,7 @@ node .claude/skills/long-cosmic-dev/driver.mjs probe-server [start|stop|status|r
 
 ⚠️ **`ServiceLookup not implemented` 从来不是保护措施** —— 它只是缺一层桥，而
 `SaveServiceHelper.save` / `QueryServiceHelper` / `MetadataDao` 直连 ORM、压根不走分发。
-桥装上之后写操作**真的会执行**，红线照旧：写元数据的探针默认 dry-run，`APPLY=1` 才落库，而且要先有一次性授权；
+桥装上之后写操作**真的会执行**，红线照旧：写元数据的探针默认 dry-run，`APPLY=1` 才落库，而且要用户在确认单上确认；
 临时探针只准读。
 
 **备选绕行（桥能用时不必走）**：`XxxServiceHelper` 多是 RPC 薄壳，服务端实现类

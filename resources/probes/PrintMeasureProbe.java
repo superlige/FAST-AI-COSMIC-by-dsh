@@ -66,8 +66,8 @@ import kd.bos.svc.util.print.PrtTaskResultServiceHelper;
  * PAGES        只测这几页，逗号分隔，1 起；留空=全部；-1=最后一页
  * TEXT=1       连文字一起量（图片居中 ≠ 图片下面那行字也居中，两者是不同的格子）
  * TEXT_LIKE    只打印含这个子串的文本段，整页文字多时用它过滤
- * PDF_OUT      顺带把 pdf 写到这个路径（可选）
- * PNG_OUT      顺带把测的页渲染成 PNG，文件名 &lt;前缀&gt;_p&lt;页码&gt;.png（可选，肉眼复核用）
+ * PDF_OUT      顺带把 pdf 存一份，给文件名（可选，工具放进本会话的导出目录）
+ * PNG_OUT      顺带把测的页渲染成 PNG，给文件名前缀，存成 &lt;前缀&gt;_p&lt;页码&gt;.png（可选，肉眼复核用，同上）
  * PLANT_FROM   渲染前造占位图，值形如 实体标识:图片字段路径[,字段路径...]，
  *              从 BILL_ID 这几张单据里把路径查出来，如
  *              demo_sys_test_bill:demo_entryentity_jxsy.demo_subentryentity_jx.demo_picture

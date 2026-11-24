@@ -371,6 +371,21 @@ public final class IsvGuard {
         assertConfirmedTagged("wf", modelKey, "流程模型 " + q(modelKey));
     }
 
+    /**
+     * 原位改实体上一条已有业务规则之前调（先过 assertOwnEntity）。实体是本 ISV 的还不够：
+     * 二开单据上也挂着从模板、标准产品带来的规则，规则自己记的 isv 不是本 ISV 的一律不改。
+     * 写入确认精确到 `实体.规则id`。
+     */
+    public static void assertOwnBizRule(String ruleId, String ruleIsv) {
+        requireIsv();
+        System.out.println("[PROBE] ISV 检查 业务规则 " + ruleId + "  isv=" + ruleIsv);
+        if (!ISV.equalsIgnoreCase(nz(ruleIsv))) {
+            deny("业务规则 " + ruleId + " 的 ISV 是 " + q(ruleIsv) + "，不是 " + ISV
+                    + " —— 这是模板或标准产品带来的规则");
+        }
+        assertConfirmedUnder("业务规则", owner, ruleId);
+    }
+
     /** 改/删/加某个字段之前调。 */
     public static void assertOwnField(String key) {
         requireIsv();

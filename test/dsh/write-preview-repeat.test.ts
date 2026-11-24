@@ -40,7 +40,7 @@ function harness(tool: "cosmic_probe" | "cosmic_meta", overlay: Record<string, s
 			return FAILED;
 		},
 	} as unknown as CosmicKernel;
-	const host = new CosmicHost("dev", kernel);
+	const host = new CosmicHost(kernel);
 	const call: CallContext = {
 		tool,
 		session: new CosmicSession<ProjectHandle>(),

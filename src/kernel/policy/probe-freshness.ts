@@ -86,6 +86,7 @@ export const PLATFORM_PROBES: readonly string[] = [
 	"EntityFieldIndexProbe",
 	"EnvDiagProbe",
 	"FieldLimitProbe",
+	"FormCatalogProbe",
 	"FormLayoutProbe",
 	"FormPluginProbe",
 	"FormTreeProbe",

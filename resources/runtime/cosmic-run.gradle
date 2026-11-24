@@ -26,8 +26,8 @@ gradle.projectsEvaluated {
     def mainClass = props['cosmicMainClass']
     if (!debugName || codeNames.isEmpty() || !mainClass) {
         throw new GradleException('cosmic-run.gradle 缺参数：需要 -PcosmicDebugModule / '
-            + '-PcosmicCodeModules / -PcosmicMainClass。这些由 driver.mjs 传入，'
-            + '别手工调 gradle —— 用 node .claude/skills/long-cosmic-dev/driver.mjs build')
+            + '-PcosmicCodeModules / -PcosmicMainClass。这些由 cosmic 按工程配置传入，'
+            + '别手工调 gradle —— 用 cosmic_doctor action=rebuild')
     }
 
     def p = root.project(":${debugName}")
@@ -81,6 +81,19 @@ gradle.projectsEvaluated {
             f.parentFile.mkdirs()
             f.text = "-cp \"${paths}\"\n"
             println "COSMIC_JAVAC_ARGS=${f.absolutePath} (${cp().size()} entries)"
+
+            //同一次运行里把各模块的 Java 源码目录、class 输出目录照 Gradle 自己的解析结果写出来：
+            //工程改过 sourceSets 或 buildDir 时，cosmic 照这份编译、查新鲜度，不按默认目录猜
+            def slash = { File dir -> dir.absolutePath.replace('\\', '/') }
+            def dirsOf = { proj ->
+                def java = proj.sourceSets.main.java
+                def out = java.hasProperty('destinationDirectory') ? java.destinationDirectory.get().asFile : java.outputDir
+                [src: java.srcDirs.collect { slash(it) }, out: slash(out)]
+            }
+            def modules = [:]
+            ([p] + codeProjects).each { modules[it.path.replaceFirst(/^:/, '')] = dirsOf(it) }
+            def m = new File(root.buildDir, 'cosmic-modules.json')
+            m.write(groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson([modules: modules])), 'UTF-8')
         }
     }
 }

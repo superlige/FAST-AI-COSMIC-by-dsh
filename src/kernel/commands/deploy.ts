@@ -87,7 +87,7 @@ export async function deploy(ctx: KernelContext, options: DeployOptions = {}): P
 
 	return withProjectWriteLock(ctx, "deploy", async () => {
 		const started = ctx.ports.clock.now();
-		const run = await runGradlew(ctx, [...modules.map((name) => `:${name}:deployJar`), "--offline"]);
+		const run = await runGradlew(ctx, [...modules.map((name) => `:${name}:deployJar`), ...ctx.config.gradleArgs]);
 		if (run.status !== 0) {
 			return err(
 				new KernelError("DEPLOY_FAILED", `gradlew :${modules.join(" :")}:deployJar 失败（退出码 ${run.status}）`, {

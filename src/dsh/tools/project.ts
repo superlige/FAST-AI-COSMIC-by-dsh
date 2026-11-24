@@ -9,7 +9,7 @@ import type { CosmicToolSpec } from "../define.ts";
 import { AGENT_GATE_CODE, type CallContext, type CosmicHost, now } from "../host.ts";
 import { renderSuccess } from "../result.ts";
 
-const DOCTOR_ACTIONS = ["check", "rebuild", "index", "reindex", "lock"] as const;
+const DOCTOR_ACTIONS = ["check", "config", "rebuild", "index", "reindex", "lock"] as const;
 
 const RUNTIME_ACTIONS = [
 	"probe-status",
@@ -37,6 +37,13 @@ const NODE_BY_RUNTIME_ACTION = {
 	"node-stop": "stop",
 } as const;
 
+const NO_CONFIG_DOOR = {
+	code: "CONFIG_SET_INVALID",
+	message: "这个宿主不支持改工程配置",
+	detail: {},
+	remedy: "请用户手工改 <工程>/.cosmic-ai/config.json。",
+};
+
 export function projectTools(host: CosmicHost): CosmicToolSpec<never>[] {
 	const done = (call: CallContext, value: unknown): string[] => {
 		host.succeeded(call);
@@ -54,7 +61,14 @@ export function projectTools(host: CosmicHost): CosmicToolSpec<never>[] {
 		async execute(args, call) {
 			const session = call.session;
 			const root = args.projectRoot ?? (await call.cwd());
-			const opened = host.unwrap(call, await host.kernel.open(root, { rescanRuntime: true }), args);
+			const opened = host.unwrap(
+				call,
+				await host.kernel.open(root, {
+					rescanRuntime: true,
+					...(session.id === undefined ? {} : { sessionId: session.id }),
+				}),
+				args,
+			);
 			const summary = opened.summary;
 			const previous = session.project;
 			const changed =
@@ -135,10 +149,12 @@ export function projectTools(host: CosmicHost): CosmicToolSpec<never>[] {
 		force?: boolean;
 		srcOnly?: boolean;
 		token?: string;
+		set?: Record<string, unknown>;
 	}> = {
 		name: "cosmic_doctor",
 		description:
 			"工程体检与产物修复。check（默认）是只读的：工程配置的每一项值、它的出处、缺什么、知识库来源与版本，不连环境、不需要完整配置。" +
+			"config：自动探测认错或认不出时，读工程文件找出对的值写进 set；逐项对照工程核对后才写，返回改前改后和新体检。账套、用户只由用户选，不收。" +
 			"另外四个动作是别的工具报错时才用得上的修理口：rebuild 重建 pathing jar 与 javac argfile（产物「在但不对」时要 force=true，" +
 			"陈旧 classpath 报出来的是业务类的 NoClassDefFoundError，指不到这里）、index 看影响面索引本身、" +
 			"reindex 重建（平时自动跟上；srcOnly 只建代码部分约 10 秒，否则约 5 分钟）、" +
@@ -147,7 +163,7 @@ export function projectTools(host: CosmicHost): CosmicToolSpec<never>[] {
 			action: Type.Optional(
 				Type.Union(
 					DOCTOR_ACTIONS.map((action) => Type.Literal(action)),
-					{ description: "check（默认） | rebuild | index | reindex | lock" },
+					{ description: "check（默认） | config | rebuild | index | reindex | lock" },
 				),
 			),
 			projectRoot: Type.Optional(
@@ -161,6 +177,14 @@ export function projectTools(host: CosmicHost): CosmicToolSpec<never>[] {
 			force: Type.Optional(Type.Boolean({ description: "rebuild：产物已存在也重新构建" })),
 			srcOnly: Type.Optional(Type.Boolean({ description: "reindex：只重建静态侧，沿用上次的元数据侧，不连环境" })),
 			token: Type.Optional(Type.String({ description: "lock：锁上的 token；不给就是只读查看，不做任何清理" })),
+			set: Type.Optional(
+				Type.Record(Type.String(), Type.Unknown(), {
+					description:
+						"config：字段→值，null 删掉回到自动探测。可设：isv tenant debugModule codeModules extraCodeModules " +
+						"excludeCodeModules appClass appMethod cosmicHome javaHome jvmArgs gradleArgs knowledgeRoot debugPort " +
+						"probeServerPort jrebel dbLink",
+				}),
+			),
 		}),
 		async execute(args, call) {
 			const action = args.action ?? "check";
@@ -168,6 +192,18 @@ export function projectTools(host: CosmicHost): CosmicToolSpec<never>[] {
 				// 体检就是为打不开的工程准备的：不经打开工程那一步。
 				const root = args.projectRoot ?? call.session.project?.root ?? (await call.cwd());
 				return done(call, host.unwrap(call, await host.kernel.doctor(root), args));
+			}
+			if (action === "config") {
+				const root = args.projectRoot ?? call.session.project?.root ?? (await call.cwd());
+				if (host.kernel.setConfig === undefined) throw host.fail(call, NO_CONFIG_DOOR, args);
+				const result = host.unwrap(call, await host.kernel.setConfig(root, args.set ?? {}), args);
+				if (result.set.changes.length > 0) {
+					// 配置变了，运行时身份多半跟着变：下一次要工程的调用按新配置重开，不报「身份变了」
+					call.session.project = undefined;
+					call.session.freshness = undefined;
+					call.session.compiledAt = undefined;
+				}
+				return done(call, result);
 			}
 			const project = await host.project(call, args);
 			if (action === "rebuild") {

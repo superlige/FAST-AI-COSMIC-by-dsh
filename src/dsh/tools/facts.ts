@@ -82,11 +82,12 @@ function codeSection(
 	return { lines };
 }
 
-/** 现在的代码编译过没有：只看最后一次改代码之后的那次编译。 */
-function compileLine(session: CosmicSession): string {
+/** 现在的代码编译过没有：只看最后一次改业务 Java 之后的那次编译。 */
+function compileLine(session: CosmicSession, root: string | undefined): string {
 	if (session.lastEditAt === null) return "- 现在的代码：本会话没改过业务代码";
 	const last = session.compiles.at(-1);
-	if (last === undefined || last.at < session.lastEditAt) return "- 现在的代码：最后一次改代码之后还没编译过";
+	const which = session.lastEditFile === null ? "" : `（${shown(root, session.lastEditFile)}）`;
+	if (last === undefined || last.at < session.lastEditAt) return `- 现在的代码：最后一次改代码${which}之后还没编译过`;
 	return last.ok ? "- 现在的代码：最后一次改代码之后编译通过" : "- 现在的代码：最后一次改代码之后编译失败";
 }
 
@@ -294,7 +295,7 @@ export function factsText(session: CosmicSession): string {
 	// 真跑业务：逐条，标出之后有没有再改过代码、跑的是不是本会话自己建的单。
 	const made = runCreatedBills(session);
 	lines.push("", `## 真跑业务（cosmic_run）：${String(session.runs.length)} 次`);
-	lines.push(compileLine(session));
+	lines.push(compileLine(session, root));
 	session.runs.forEach((run, index) => {
 		lines.push(
 			`- ${run.at} ${verdictOf(run)}${staleOf(session, run)}${ownBillNote(run, index, made)}：run ${run.argv.join(" ")}`,

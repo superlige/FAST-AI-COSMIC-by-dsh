@@ -192,6 +192,19 @@ export interface KernelConfig {
 	jrebel: string | null;
 	/** 本机进程连数据库的方式，见 {@link DbLink}。配置里写 "platform" / "off" / false 退回平台默认，其余都是 "fast"。 */
 	dbLink: DbLink;
+	/**
+	 * 编译、起 JVM、跑 gradlew 用的那一个 JDK。先后：config.json 的 javaHome → 工程 gradle.properties 的
+	 * org.gradle.java.home（工程自己的构建就用它）→ 环境变量 JAVA_HOME；都没有是 null，用 PATH 上的 java。
+	 * 打开工程时它被放到子进程 PATH 的最前面，运行时身份记的版本和真正跑的就是同一个。
+	 */
+	javaHome: string | null;
+	/**
+	 * 追加给跑工程启动类的 JVM（常驻探针宿主、冷探针、调试节点）的参数。写了 -Xmx / -XX:MaxMetaspaceSize
+	 * 就替换产品默认的那一项，其余照原样追加在产品参数后面。
+	 */
+	jvmArgs: string[];
+	/** 每次调 gradlew 追加的参数；没配是 ["--offline"]，配了整体替换（要联网构建就不写 --offline）。 */
+	gradleArgs: string[];
 
 	/** Per-call field origins. Replaces the frozen module-level SOURCES map. */
 	sources: Readonly<Record<string, FieldOrigin>>;
@@ -322,6 +335,45 @@ export function loadConfig(input: LoadConfigInput, fs: FileSystemPort): KernelCo
 
 	const jrebel = normalizeJrebel(pick<unknown>("jrebel", null));
 	const dbLink = normalizeDbLink(pick<unknown>("dbLink", null, "fast"));
+	const jvmArgs = argList(pick<unknown>("jvmArgs", null, []));
+	const gradleArgs = argList(pick<unknown>("gradleArgs", null, DEFAULT_GRADLE_ARGS));
+
+	// The JDK takes its own path: the project's own Gradle declaration outranks the
+	// process-wide JAVA_HOME (the build compiles with it, so probes must too), and
+	// an explicit config.json value outranks both.
+	let javaHome: string | null = null;
+	const javaOwner = owner("javaHome");
+	if (javaOwner !== undefined && typeof javaOwner.values.javaHome === "string") {
+		javaHome = javaOwner.values.javaHome.trim();
+		sources.javaHome = { source: javaOwner.source, via: javaOwner.file };
+	} else if (auto.javaHome !== null) {
+		javaHome = auto.javaHome;
+		sources.javaHome = { source: "自动探测", via: "工程 gradle.properties 的 org.gradle.java.home" };
+	} else if ((env.JAVA_HOME ?? "").trim() !== "") {
+		javaHome = (env.JAVA_HOME ?? "").trim();
+		sources.javaHome = { source: "环境变量", via: "JAVA_HOME" };
+	} else {
+		sources.javaHome = { source: "(缺失)", via: "用 PATH 上的 java" };
+	}
+
+	const isv = pick<string>("isv", auto.isv);
+	const tenant = pick<string>("tenant", auto.tenant, "ierp");
+	const debugModule = pick<string>("debugModule", auto.debugModule);
+	const appClass = pick<string>("appClass", auto.appClass);
+	const appMethod = pick<string>("appMethod", auto.appMethod);
+	// Auto-detected values name what they were read from: "which file did cosmic read
+	// this out of" is the first question when the answer is wrong.
+	const autoVia: Record<string, string | null> = {
+		isv: "工程 gradle.properties 的 systemProp.developer_flag",
+		tenant: auto.appFile === null ? null : `${auto.appFile} 里的 setTenantNumber`,
+		debugModule: "构建脚本用了 java-application-conventions 的那个模块（没有就按名字含 cosmic-debug）",
+		appClass: auto.appFile,
+		appMethod: auto.appFile,
+	};
+	for (const [field, via] of Object.entries(autoVia)) {
+		const origin = sources[field];
+		if (origin?.source === "自动探测" && origin.via === "" && via !== null) sources[field] = { ...origin, via };
+	}
 
 	// The project file is checked first: it is the one users are told to write, so
 	// a syntax error in it must not hide behind the machine-wide file.
@@ -336,14 +388,14 @@ export function loadConfig(input: LoadConfigInput, fs: FileSystemPort): KernelCo
 		parseError: broken?.parseError ?? null,
 		parseErrorFile: broken?.file ?? null,
 		fileLayers: layers,
-		isv: pick<string>("isv", auto.isv),
-		tenant: pick<string>("tenant", null, "ierp"),
+		isv,
+		tenant,
 		account: pick<string>("account", null),
 		user: pick<string>("user", null),
-		debugModule: pick<string>("debugModule", auto.debugModule),
+		debugModule,
 		codeModules: mods.modules,
-		appClass: pick<string>("appClass", auto.appClass),
-		appMethod: pick<string>("appMethod", auto.appMethod),
+		appClass,
+		appMethod,
 		cosmicHome: cosmicHomeResolution.value,
 		cosmicHomeResolution,
 		knowledgeRoot: pick<string>("knowledgeRoot", null),
@@ -351,9 +403,21 @@ export function loadConfig(input: LoadConfigInput, fs: FileSystemPort): KernelCo
 		probeServerPort,
 		jrebel,
 		dbLink,
+		javaHome,
+		jvmArgs,
+		gradleArgs,
 		sources,
 		auto,
 	};
+}
+
+/** What every gradlew call gets when config.json says nothing: the build must not wait on the network. */
+export const DEFAULT_GRADLE_ARGS: readonly string[] = ["--offline"];
+
+/** A list of command-line arguments: a JSON array of strings, or one string split on whitespace. */
+export function argList(value: unknown): string[] {
+	const raw = Array.isArray(value) ? value : typeof value === "string" ? value.split(/\s+/) : [];
+	return raw.map((item) => String(item).trim()).filter((item) => item !== "");
 }
 
 /** true / "on" / "auto" → "auto"；false / "off" / "false" / 空 → null；别的字符串原样当路径。 */
@@ -405,14 +469,37 @@ export function requireRuntime(config: KernelConfig): KernelError | null {
 	}
 	const missing = missingRequired(config);
 	if (missing.length === 0) return null;
+	const askUser = missing.filter((m) => USER_ANSWERED_FIELDS.includes(m.field)).map((m) => m.field);
+	const fromProject = missing.filter((m) => !USER_ANSWERED_FIELDS.includes(m.field)).map((m) => m.field);
+	const remedy: string[] = [];
+	if (fromProject.length > 0)
+		remedy.push(
+			`${fromProject.join("、")} 本该从工程文件里认出来，这个工程没认出来：cosmic_doctor 看每一项读到了什么、从哪读的，` +
+				"再读工程的 settings.gradle、调试模块的构建脚本和启动类源码找出对的值，用 cosmic_doctor action=config 写进工程配置。",
+		);
+	if (askUser.length > 0)
+		remedy.push(
+			`${askUser.join("、")} 只有用户知道：其余各项齐了以后，打开工程时会弹框让用户选；弹不了就请用户输入 /cosmic-env。`,
+		);
 	return new KernelError(
 		"CONFIG_INCOMPLETE",
 		`配置不全，缺 ${missing.length} 项：${missing.map((m) => m.field).join("、")}`,
 		{
-			detail: { configFile: config.projectConfigFile, missing: missing.map((m) => `${m.field}: ${m.why}`) },
-			remedy:
-				`补在 ${config.projectConfigFile}（工程级，只对这个工程生效，优先于全局 ${config.configFile}），` +
-				"然后跑一次 doctor 复查。",
+			detail: {
+				configFile: config.projectConfigFile,
+				missing: missing.map((m) => `${m.field}: ${m.why}`),
+				fromProject,
+				askUser,
+			},
+			remedy: `${remedy.join("")}工程配置在 ${config.projectConfigFile}（只对这个工程生效）。`,
 		},
 	);
 }
+
+/**
+ * The two required fields nothing in the project can answer: which account set (数据中心)
+ * and which user. Wrong values have no symptom -- another account's data, another person
+ * recorded as modifier -- so only a person picks them, never a model and never a default.
+ * Every other required field is a fact about the project's files and is the model's to fix.
+ */
+export const USER_ANSWERED_FIELDS: readonly string[] = ["account", "user"];

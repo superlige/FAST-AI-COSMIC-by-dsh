@@ -190,6 +190,26 @@ describe("「单据.字段」对不上", () => {
 		expect(text).not.toContain("写 ");
 	});
 
+	it("扩展设计加的字段按原单编号问：认得，不说「不在这张单上」；位置没认出就不核分录", () => {
+		// 真机：sm_salorder 的扩展字段 zlgd_ljjdjsc 快照记在 zlgd_sm_salorder_ext 上，按 sm_salorder 问曾报「不在 sm_salorder 上」
+		const extra: Partial<MetaIndex> = {
+			...complete,
+			billNames: [{ bill: "zlgd_demo_salorder_ext", name: "销售订单", base: "demo_salorder" }],
+			fields: [
+				...meta.fields,
+				{ entity: "zlgd_demo_salorder_ext", key: "zlgd_m", level: "unknown" },
+				{ entity: "zlgd_x", key: "zlgd_m", level: "header" },
+			],
+			fieldOwners: { ...meta.fieldOwners, zlgd_m: 2 },
+		};
+		for (const term of ["demo_salorder.zlgd_m", "demo_salorder.billentry.zlgd_m"]) {
+			const text = answer(term, extra);
+			expect(text).not.toContain("不在 demo_salorder");
+			expect(text).not.toContain("不在 billentry");
+			expect(text).toContain("字段 demo_salorder.zlgd_m（快照认不出在表头还是哪条分录）");
+		}
+	});
+
 	it("单据只在快照里有、没有类按名字加载它：照样认出来", () => {
 		expect(resolveTarget(index(), "zlgd_snap.zlgd_d")).toEqual([
 			{ kind: "field", value: "zlgd_d", entity: "zlgd_snap" },

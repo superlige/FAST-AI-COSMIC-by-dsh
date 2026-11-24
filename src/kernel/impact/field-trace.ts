@@ -149,6 +149,8 @@ function pathNote(
 ): string | null {
 	if (given.length === 0) return null;
 	const written = given.join(".");
+	// The snapshot could not tell where it sits (an extension adding it to the original bill's entry): nothing to check against
+	if (place?.level === "unknown") return null;
 	if (place) {
 		const actual =
 			place.level === "subentry"
@@ -450,7 +452,11 @@ const placeText = (row: FieldOwnership): string =>
 			? `分录 ${row.entry}`
 			: row.level === "subentry"
 				? `子分录 ${row.entry}${row.parentEntry ? `（属 ${row.parentEntry}）` : ""}`
-				: [row.level, row.entry].filter(Boolean).join(" ");
+				: row.level === "unknown"
+					? row.entry
+						? `挂在 ${row.entry} 下，不是分录`
+						: "快照认不出在表头还是哪条分录"
+					: [row.level, row.entry].filter(Boolean).join(" ");
 
 const sinkName = (via: string | null | undefined): string =>
 	String(via ?? "")

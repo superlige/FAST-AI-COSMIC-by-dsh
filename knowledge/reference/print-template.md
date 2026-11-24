@@ -64,13 +64,13 @@ TPL_NUMBERS=demo_xxx_prtpl_1,demo_xxx_prtpl_2 \
 里要改的结构逐字段一致 —— 定位、改法设计、改完比对，全在本地文件上做。
 
 ```bash
-TPL_NUMBER=demo_sys_test_bill_prtpl_21 OUT_DIR=outputs/print-tpl-json/before \
+TPL_NUMBER=demo_sys_test_bill_prtpl_21 OUT_DIR=before \
   node .claude/skills/long-cosmic-dev/driver.mjs probe PrintTplJsonProbe
 ```
 
 产出 `<编码>.meta.json`（主设计数据）和 `<编码>.locale.json`（多语言旁路映射，
 键的含义见 [print-template-write.md](print-template-write.md#多语言旁路映射)），
-同名文件直接覆盖 —— **改前改后要用不同的 `OUT_DIR`**，否则基线就被自己盖掉了。
+存在本会话的导出目录里（返回里报完整路径），同名文件直接覆盖 —— **改前改后要用不同的 `OUT_DIR` 名字**，否则基线就被自己盖掉了。
 输出里的 `modifyVersion` 和 `dataSha256` 就是落库前后的比对基线。
 
 拿到文件之后：控件按 `id` / `key` grep，公式按可见文字 grep（`grep -o "CONCAT('批准者：'" …`）；
@@ -138,7 +138,7 @@ TPL_NUMBER=demo_sys_test_bill_prtpl_21 \
   node .claude/skills/long-cosmic-dev/driver.mjs probe PrintTplBackupProbe
 ```
 
-默认写到 `outputs/print-template-backups/`，`BACKUP_DIR` 可改。内部走官方导出：
+存进 `.cosmic-ai/evidence/backups/<时间>-<名字>/`，一直留，`BACKUP_DIR` 只给名字。内部走官方导出：
 
 ```java
 String downloadUrl = new PrintTplImpExp().doExport(Collections.singletonList(tplId), 0);

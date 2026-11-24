@@ -1,4 +1,4 @@
-/** 本产品挂给模型的工具。哪种模式挂哪几个见 `state/prod-state.ts` 的 `toolsForMode`。 */
+/** 本产品挂给模型的工具，每个会话都全部挂上。 */
 export const COSMIC_TOOL_NAMES = [
 	"cosmic_open_project",
 	"cosmic_lint",

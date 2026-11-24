@@ -11,8 +11,8 @@
     },
     {
       "path": "probes/BizRuleProbe.java",
-      "bytes": 24525,
-      "sha256": "03d8bd835d1a20dc652c62b7b9dff1c514492203ad49eab22707d665ad63b673"
+      "bytes": 34661,
+      "sha256": "fead2264a6756187b0fba84fdb8bf686adcc21e1b7be9e0562c04d0e53250499"
     },
     {
       "path": "probes/BotpRuleProbe.java",
@@ -21,8 +21,8 @@
     },
     {
       "path": "probes/BotpRuleSyncProbe.java",
-      "bytes": 51211,
-      "sha256": "d0bf8483890e641b906f74cf802e1d312554d442ba6dad6f50049be2da5673ea"
+      "bytes": 60159,
+      "sha256": "877a9b2d59a59421c3d16a50ba0934aa455bcaf7f3e2ede95daa7ae4a5def22d"
     },
     {
       "path": "probes/CallArgs.java",
@@ -71,8 +71,8 @@
     },
     {
       "path": "probes/EntityFieldIndexProbe.java",
-      "bytes": 24019,
-      "sha256": "94058d6c9a2ad83b0ec58e000aa78664e416ee3ae7a9515ee5c6ca851cdba1c3"
+      "bytes": 26499,
+      "sha256": "72bc8db76a1151f592b303c3386f9c99c2a6aca5a50a30696f3819074c530d9f"
     },
     {
       "path": "probes/EnvDiagProbe.java",
@@ -91,13 +91,18 @@
     },
     {
       "path": "probes/FormCallbackSim.java",
-      "bytes": 19912,
-      "sha256": "9c83b3d7ee0098ea1b8a06bbcb72fff981f2c130f441c2bfa17ec693e0b8d1da"
+      "bytes": 20141,
+      "sha256": "5ad6a27d89f274174a6f34d3857c2f9189aacf784b0cbec2fbfbec69abcfa48e"
+    },
+    {
+      "path": "probes/FormCatalogProbe.java",
+      "bytes": 4600,
+      "sha256": "cd05cb5c08fab2c83a745a980063c1bedf6fedf9eec694a13cc0e2a240258bb7"
     },
     {
       "path": "probes/FormFlowSim.java",
-      "bytes": 8211,
-      "sha256": "8efd2d6fe7e516a4ae2183adb3e2e8ac27cc77af478c21cc0a7fe497b4e27f79"
+      "bytes": 8112,
+      "sha256": "6f1daae487c70669650dddbbd6076704b642d48064f6a606a149b39e8d49244f"
     },
     {
       "path": "probes/FormLayoutProbe.java",
@@ -106,8 +111,8 @@
     },
     {
       "path": "probes/FormLayoutWriteProbe.java",
-      "bytes": 254766,
-      "sha256": "8e6f1469b0e808d758ea91a3459ed6e11d300658494ff0fa8659a400c896afe3"
+      "bytes": 254798,
+      "sha256": "185a7a67098d566a356faa8b952975708c51db71062cd73ace6395d23765ddb3"
     },
     {
       "path": "probes/FormPluginProbe.java",
@@ -161,8 +166,8 @@
     },
     {
       "path": "probes/IsvGuard.java",
-      "bytes": 26841,
-      "sha256": "12f3af82e9c8c20baa5cd0aa6c913f355756bd913f08a84f8ecde0df215b1d0e"
+      "bytes": 27646,
+      "sha256": "fe000481d4b712ecf290a33919e17ee91521752d3c6dea63d31322de51cafe15"
     },
     {
       "path": "probes/IsvGuardProbe.java",
@@ -191,8 +196,8 @@
     },
     {
       "path": "probes/MetaProbe.java",
-      "bytes": 9435,
-      "sha256": "2030fbec2d381c342c4bf6b507d81c282221be2c393e930cba2ff083dfef00ee"
+      "bytes": 11316,
+      "sha256": "bfe81a0f2d853a5b36747c1ad55c9662bb68b87f86a2f6b809e0929b7526550f"
     },
     {
       "path": "probes/MetaResolve.java",
@@ -236,8 +241,8 @@
     },
     {
       "path": "probes/PrintMeasureProbe.java",
-      "bytes": 27652,
-      "sha256": "23fa538cd9d4e0f24360d1fab648d795633ad960dcb65de2b5dce810a482730f"
+      "bytes": 27724,
+      "sha256": "a66bde476a0678e1fc59f250312defb116d6198e738145e47816c37d02d03d27"
     },
     {
       "path": "probes/PrintSim.java",
@@ -246,8 +251,8 @@
     },
     {
       "path": "probes/PrintTplBackupProbe.java",
-      "bytes": 5333,
-      "sha256": "a47762761ed4c1c008bd70fe6c4794eee697173edf4b302c756b6a7dc2285cba"
+      "bytes": 5367,
+      "sha256": "a3bbc4f5f6d7fe34fe03a484c82e8b0c74c6aac9fc27835c6e9e7cffcabbcf82"
     },
     {
       "path": "probes/PrintTplControlAssertProbe.java",
@@ -271,8 +276,8 @@
     },
     {
       "path": "probes/PrintTplJsonProbe.java",
-      "bytes": 4828,
-      "sha256": "4804a5d2ff660f8e61672a026496c9e071b35f372d5eb653c706e32f585bc5cb"
+      "bytes": 4860,
+      "sha256": "e5a1316a94993806d72c186acd9a6d7e341bb3a0335ce6bc8d98db2fbe33bd7a"
     },
     {
       "path": "probes/PrintTplProbe.java",
@@ -281,8 +286,8 @@
     },
     {
       "path": "probes/PrintTplWriteProbe.java",
-      "bytes": 46760,
-      "sha256": "e508e8da83dcd2cd031dbfa4ad0f0847894b809e84c9b182d5981d493e9262b1"
+      "bytes": 46795,
+      "sha256": "43858c133280ce18f2a20408911a49f45b16df9155545b9dd16c3ea67f130369"
     },
     {
       "path": "probes/ProbeAssert.java",
@@ -346,8 +351,8 @@
     },
     {
       "path": "probes/WfModelProbe.java",
-      "bytes": 10119,
-      "sha256": "2b5b74f9ed1959caa70c355f3147864cba7e4959a69ebddada7504115e71d3ab"
+      "bytes": 10171,
+      "sha256": "aa4872e85fd13bdb257e4757ee6b9fe4089bc504d3ad18e734f4e0f4bc98f21b"
     },
     {
       "path": "probes/WfSim.java",
@@ -371,18 +376,18 @@
     },
     {
       "path": "runtime/cosmic-run.gradle",
-      "bytes": 4606,
-      "sha256": "3cdf5d1d327d0d3fc807468178055d096e93d3f4b1d9f042614c26c5702d54bf"
+      "bytes": 5530,
+      "sha256": "61d3a20f5963e02930fe175db009fee92502cdbc302aec517ce1951c8a76c16d"
     },
     {
       "path": "runtime/CosmicProbe.java",
-      "bytes": 19357,
-      "sha256": "75785296ab6b1176093aff764044818dae4004bcabb94f3bb1c89b82fd1ed67c"
+      "bytes": 21231,
+      "sha256": "02702dadaa7a786ca7ba1cb35d8e8d0bf0b7eba0107b6cde82dc087d499f87f2"
     },
     {
       "path": "runtime/CosmicProbeServer.java",
-      "bytes": 66954,
-      "sha256": "70e51906f1fd2f3844649dc3038dd61ee051bd53e9d05f23e1db5f1d57c12081"
+      "bytes": 67001,
+      "sha256": "021bb850f78e7e31e546573e3e0976c2e3b8ff0e5de57ecad1d00bcdf2def626"
     },
     {
       "path": "runtime/HeadlessViews.java",

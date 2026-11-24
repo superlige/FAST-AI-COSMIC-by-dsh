@@ -16,7 +16,7 @@ export function scanReferenceCapabilities(text: string): ReferenceCapabilityIssu
 			issues.push({
 				line: i + 1,
 				rule: "legacy-scratchpad",
-				detail: "临时探针用工程内 .cosmic-ai/probes/；输出用 .cosmic-ai/evidence/",
+				detail: "临时探针用工程内 .cosmic-ai/probes/；要反复筛的输出存 .cosmic-ai/scratch/",
 			});
 		}
 	}

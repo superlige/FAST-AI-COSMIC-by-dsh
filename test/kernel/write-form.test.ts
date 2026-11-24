@@ -422,6 +422,75 @@ describe("S23 打印模板、BOTP、业务规则", () => {
 			{ text: "clear:zlgd_amount" },
 		]);
 	});
+
+	it("原位改已有业务规则：改前改后、规则名、宿主只取探针的 t=biz-rule-change，条件换了要一格人话", () => {
+		const env = {
+			BIZ_ENTITY: "zlgd_bill",
+			BIZ_RULE: "5Y45GDKB/RP=",
+			BIZ_CONDITION: "org.number in ('0101','0301')",
+			BIZ_FORMULA: "zlgd_amount = zlgd_qty * zlgd_price * 2",
+		};
+		const change = (item: string, before: string, after: string) => ({
+			t: "biz-rule-change",
+			rule: "5Y45GDKB/RP=",
+			name: "算金额",
+			host: "zlgd_entry",
+			item,
+			before,
+			after,
+		});
+		const built = form("BizRuleProbe", env, [
+			change("条件", "org.number = '0101'", "org.number in ('0101','0301')"),
+			change(
+				"计算公式 zlgd_amount",
+				"zlgd_amount = zlgd_qty * zlgd_price",
+				"zlgd_amount = zlgd_qty * zlgd_price * 2",
+			),
+		]);
+		expect(built.head).toContainEqual({ label: "规则", cells: [{ text: "算金额（id 5Y45GDKB/RP=）" }] });
+		expect(built.names).toEqual(["zlgd_bill", "zlgd_entry"]);
+		expect(built.slots.map((slot) => slot.key)).toEqual(["condition"]);
+		expect(built.tables.map((table) => table.columns)).toEqual([["改哪一项", "改前", "改后"]]);
+		expect(texts(built.tables[0]?.rows[0])).toEqual(["条件", "org.number = '0101'", "org.number in ('0101','0301')"]);
+		expect(built.summary).toBe("改业务规则「算金额」的条件、计算公式 zlgd_amount");
+		expect(built.undo).toContain("BIZ_RULE=5Y45GDKB/RP=");
+
+		const unreported = form("BizRuleProbe", { BIZ_ENTITY: "zlgd_bill", BIZ_RULE: "r1", BIZ_ENABLED: "0" });
+		expect(unreported.slots).toEqual([]);
+		expect(texts(unreported.tables[0]?.rows[0])).toEqual(["（预演没报）", "—", "—"]);
+	});
+
+	it("BOTP 改源单过滤、执行条件：改前是平台实际生效的那一条，取自探针的 t=botp-condition", () => {
+		const env = { SYNC_TARGETS: "r1", SYNC_RUN_CONDITION: "org.number in ('0101','0301')", SYNC_FILTER: "clear" };
+		const built = form(
+			"BotpRuleSyncProbe",
+			env,
+			[
+				{ t: "botp-condition", rule: "r1", part: "源单过滤", before: "billstatus = 'C'", after: "" },
+				{
+					t: "botp-condition",
+					rule: "r1",
+					part: "执行条件",
+					before: "org.number in ('0101')",
+					after: "org.number in ('0101','0301')",
+				},
+			],
+			["botp:r1"],
+		);
+		expect(built.head).toContainEqual({ label: "源单过滤改成", cells: [{ text: "清掉，不再限制" }] });
+		expect(built.head).toContainEqual({ label: "执行条件改成", cells: [{ text: "org.number in ('0101','0301')" }] });
+		expect(built.slots.map((slot) => slot.key)).toEqual(["condition"]);
+		expect(built.tables.map((table) => table.columns)).toEqual([
+			["转换规则", "规则 id"],
+			["规则 id", "哪一处", "改前（下推时实际生效的条件）", "改后"],
+		]);
+		expect(texts(built.tables[1]?.rows[0])).toEqual(["r1", "源单过滤", "billstatus = 'C'", "（清掉，不再限制）"]);
+		expect(built.impact).toContain("原来的条件行清空");
+
+		const onlyClear = form("BotpRuleSyncProbe", { SYNC_TARGETS: "r1", SYNC_FILTER: "CLEAR" }, [], ["botp:r1"]);
+		expect(onlyClear.slots).toEqual([]);
+		expect(texts(onlyClear.tables[1]?.rows[0])).toEqual(["（预演没报）", "—", "—", "—"]);
+	});
 });
 
 describe("S23 数据", () => {

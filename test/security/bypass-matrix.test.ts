@@ -2,11 +2,11 @@
  * 绕过矩阵：每一行是一种可能把写入（或过期的验证）带过闸的走法，断言拒在调用方真会走的那条路上。
  *
  * 只写在这里、不测的两条边界（测了反而是假装）：
- *   - 模型的终端和读写文件工具本来就不在 cosmic 的闸里：自己敲 javac 的不经 cosmic 的 Java 入口、也不被扫。守的是 cosmic 这条链本身；
+ *   - 模型的终端和读写文件工具本来就不在 cosmic 的闸里：自己敲 javac 的不经 cosmic 的 Java 入口、也不被扫。守的是 cosmic 这条链本身
+ *     （唯一的例外是本机生产凭据目录，执行前拒，在 `test/dsh/gates.test.ts`）；
  *   - 临时探针的写 API 是实测出来的黑名单，没列到的写 API 会过扫描（`IMPLEMENTATION.md` 第六节登记着）。
  *
- * 写元数据要确认、确认的范围就是落库范围，在 `test/dsh/write.test.ts`；生产只读三道闸在 `prod-readonly.test.ts`；
- * 排障会话的执行前门槛在 `test/dsh/gates.test.ts`。
+ * 写元数据要确认、确认的范围就是落库范围，在 `test/dsh/write.test.ts`；生产只读三道闸在 `prod-readonly.test.ts`。
  */
 
 import { describe, expect, it } from "vitest";
@@ -110,7 +110,7 @@ function fakeRunKernel(input: { runtimeKeys?: string[]; fingerprints?: string[] 
 describe("第 1 行：调用所依赖的事实在两次调用之间变了", () => {
 	it("运行时身份变了：这次拒、清掉编译记录，内核的 run 一次都没叫", async () => {
 		const { kernel, calls } = fakeRunKernel({ runtimeKeys: ["rk-1", "rk-2"] });
-		const host = new CosmicHost("dev", kernel);
+		const host = new CosmicHost(kernel);
 		const session = new CosmicSession<ProjectHandle>();
 		const call = callFor(session);
 		await host.project(call, {});
@@ -125,7 +125,7 @@ describe("第 1 行：调用所依赖的事实在两次调用之间变了", () =
 
 	it("编译之后源码在别处被改了：run 在进 JVM 之前拒", async () => {
 		const { kernel, calls } = fakeRunKernel({ fingerprints: ["src-edited-outside"] });
-		const host = new CosmicHost("dev", kernel);
+		const host = new CosmicHost(kernel);
 		const session = new CosmicSession<ProjectHandle>();
 		const call = callFor(session);
 		await host.project(call, {});
@@ -141,7 +141,7 @@ describe("第 1 行：调用所依赖的事实在两次调用之间变了", () =
 
 	it("本会话没编译过也没改过 Java（纯探查）：不拿别人的过期源码拦它", async () => {
 		const { kernel, calls } = fakeRunKernel({ fingerprints: ["whatever"] });
-		const host = new CosmicHost("dev", kernel);
+		const host = new CosmicHost(kernel);
 		const session = new CosmicSession<ProjectHandle>();
 		const failure = await failureOf(runTool(host).execute({ argv: ["op", "demo_bill", "save"] }, callFor(session)));
 		expect(failure.code).toBe("FAKE_STOP");

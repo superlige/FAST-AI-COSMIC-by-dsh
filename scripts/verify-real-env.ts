@@ -14,6 +14,8 @@
  * Steps: open | lint <file> | fast [files...] | probe <name> [KEY=VALUE|位置参数...] | stop
  *        | run <argv...>
  *        | impact [src-only]
+ *        | mention <词…>   （输入框 @ 引用：建表单目录、找候选；「单据.词」先现查这张单的运行态）
+ *        | caches           （「缓存」面板的清单：每样缓存在哪、多大、新不新、下次自动什么时候；只读）
  *        | meta <argv...> | meta-apply <targets> <argv...>
  *        | node <start|status|logs|stop> | deploy [modules...]
  *        | prod-sql <select 语句>   （生产只读，账号在 ~/.fast-ai-cosmic/prod/prod.json）
@@ -28,10 +30,12 @@
 import { mkdirSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
+import { runTouches } from "../src/dsh/tools/run.ts";
 import { deploy } from "../src/kernel/commands/deploy.ts";
 import { fast } from "../src/kernel/commands/fast.ts";
-import { impact } from "../src/kernel/commands/impact.ts";
+import { impact, indexStaleReason } from "../src/kernel/commands/impact.ts";
 import { lint } from "../src/kernel/commands/lint.ts";
+import { buildFormCatalog, fetchRuntimeFields, readMentionSources } from "../src/kernel/commands/mention.ts";
 import { meta } from "../src/kernel/commands/meta.ts";
 import { NODE_ACTIONS, type NodeAction, node } from "../src/kernel/commands/node.ts";
 import { probe } from "../src/kernel/commands/probe.ts";
@@ -39,10 +43,19 @@ import { prod } from "../src/kernel/commands/prod.ts";
 import { run } from "../src/kernel/commands/run.ts";
 import { resolveSources } from "../src/kernel/commands/sources.ts";
 import { KernelError } from "../src/kernel/errors.ts";
+import {
+	buildMentionCatalog,
+	describeMention,
+	mentionHint,
+	mentionLabel,
+	mentionSection,
+	parseMentionQuery,
+	searchMentions,
+} from "../src/kernel/impact/mention.ts";
 import { openProject } from "../src/kernel/open-project.ts";
 import { stopServer } from "../src/kernel/probe/server.ts";
 import { nodeHttp } from "../src/kernel/prod/monitor.ts";
-import { runTouches } from "../src/dsh/tools/run.ts";
+import { cacheInventory } from "../src/kernel/project/cache-inventory.ts";
 import { EMBEDDED_RESOURCES } from "../src/resources/embedded.generated.ts";
 
 const AGENT_VERSION = "0.0.0-s3";
@@ -297,6 +310,60 @@ async function main(): Promise<void> {
 		console.log(`\nimpact build  元数据侧=${value.metadata ? "跑了" : "没跑"}  → ${value.file}`);
 		console.log(value.text);
 		for (const note of value.notes) console.log(`  note ${note}`);
+		return;
+	}
+
+	if (step === "caches") {
+		const t0 = Date.now();
+		const stale = indexStaleReason(ctx);
+		const t1 = Date.now();
+		const groups = cacheInventory({ ctx, indexStale: stale, now: Date.now() });
+		const t2 = Date.now();
+		const mb = (b: number | null) => (b === null ? "?" : `${(b / 1024 / 1024).toFixed(1)} MB`);
+		const at = (ms: number | null) => (ms === null ? "—" : new Date(ms).toLocaleString("zh-CN", { hour12: false }));
+		for (const group of groups) {
+			console.log(`
+【${group.name}】`);
+			for (const it of group.items) {
+				console.log(`  [${it.state}] ${it.name}  ${it.files} 个文件 ${mb(it.bytes)}  更新 ${at(it.updatedAt)}`);
+				if (it.stateText) console.log(`      状态：${it.stateText}`);
+				console.log(`      下次：${it.nextAt === null ? "" : `${at(it.nextAt)} · `}${it.nextText}`);
+				if (it.actions.length > 0) console.log(`      动作：${it.actions.map((a) => a.label).join("、")}`);
+			}
+		}
+		console.log(`
+判断代码关系表新旧 ${t1 - t0}ms，清点其余 ${t2 - t1}ms`);
+		return;
+	}
+
+	if (step === "mention") {
+		// 输入框 `@` 引用走的那条路，不经界面：建表单目录、按词找候选、往单里钻（现查运行态）、
+		// 打出第一个候选发给模型的那段。宿主里探针只搭已经在跑的 JVM；这里是验证脚本，允许把 JVM 拉起来。
+		const runner = ((c: typeof ctx, name: string, options?: Parameters<typeof probe>[2]) =>
+			probe(c, name, { ...options, startResident: true })) as typeof probe;
+		const t0 = Date.now();
+		const forms = await buildFormCatalog(ctx, runner);
+		console.log(
+			`\n表单目录 ${forms.ok ? `${forms.value.forms.length} 份` : `没建成：${forms.error.message}`}，${Date.now() - t0}ms`,
+		);
+		for (const raw of rest) {
+			let catalog = buildMentionCatalog(readMentionSources(ctx));
+			const scope = parseMentionQuery(catalog, raw).scope;
+			if (scope !== undefined) {
+				const t1 = Date.now();
+				const got = await fetchRuntimeFields(ctx, scope, runner);
+				console.log(
+					`  现查 ${scope} 运行态：${got.ok ? `${got.value.fields.length} 个字段` : got.error.message}，${Date.now() - t1}ms`,
+				);
+				catalog = buildMentionCatalog(readMentionSources(ctx));
+			}
+			const t2 = Date.now();
+			const hits = searchMentions(catalog, raw);
+			console.log(`\n@${raw}  ${hits.length} 个候选，${Date.now() - t2}ms`);
+			for (const hit of hits)
+				console.log(`  [${mentionSection(hit)}] ${mentionLabel(hit, catalog)} — ${mentionHint(hit, catalog)}`);
+			if (hits[0]) console.log(`--- 选第一个，发给模型 ---\n${describeMention(catalog, hits[0].id)}`);
+		}
 		return;
 	}
 

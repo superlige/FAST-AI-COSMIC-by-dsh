@@ -39,7 +39,6 @@ export function isArgsContractCode(code: string | undefined): boolean {
 		code?.endsWith("_INPUT_INVALID") === true ||
 		code === "RUN_ASSERT_FAILED" ||
 		code === "COSMIC_WRITE_REPORT_INVALID" ||
-		code === "COSMIC_WRITE_BACKUP_REQUIRED" ||
 		code === "KNOWLEDGE_QUERY_INVALID" ||
 		// 生产库按语句报的错（类型不匹配、方言不认、列名不对）和语句闸拒掉的原因：报错本身就是改法，
 		// 改了语句是照着改。按同一个错误码数，一次 varchar 比 bigint、一次 openGauss 不认 FILTER，

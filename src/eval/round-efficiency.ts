@@ -311,8 +311,8 @@ export const ROUND_SAFETY_BASELINE: readonly SafetyBaselineRow[] = [
 	},
 	{
 		id: "prod-readonly",
-		boundary: "生产排障会话不编译、不跑业务、不写元数据和工程文件；生产查询只读",
-		testRefs: ["test/dsh/gates.test.ts", "test/security/prod-readonly.test.ts"],
+		boundary: "生产查询只读；修复在测试环境编译、真跑验证",
+		testRefs: ["test/kernel/prod-sql-guard.test.ts", "test/security/prod-readonly.test.ts"],
 	},
 ];
 

@@ -1,13 +1,14 @@
 /**
  * 安全门槛的回归测试：
- *   - 生产排障会话：改东西的产品调用、写工程文件（write / edit / apply_patch）在执行前拒；`.cosmic-ai/` 下放行；
+ *   - 开发和查生产在同一个会话里：执行前不按模式拦；
  *   - 临时探针只准读：带 APPLY=1 在进内核前拒；
+ *   - 终端和文件工具碰不到本机生产凭据（生产账号、monitor 登录、读取进程口令）；
  *   - 每个产品工具的参数都换成 dsh 认的 JSON Schema 子集。
  */
 import { describe, expect, it } from "vitest";
-import { toolsForMode } from "../../src/agent/state/prod-state.ts";
 import { COSMIC_TOOL_NAMES } from "../../src/agent/tools/names.ts";
 import { type CosmicToolSpec, toDshSchema } from "../../src/dsh/define.ts";
+import { mountedToolSpecs } from "../../src/dsh/fixed-text.ts";
 import { type HookDeps, patchPaths, preExecute } from "../../src/dsh/hooks.ts";
 import { type CallContext, CosmicHost } from "../../src/dsh/host.ts";
 import type { CosmicKernel, ProjectHandle } from "../../src/dsh/kernel.ts";
@@ -23,12 +24,14 @@ import { runTool } from "../../src/dsh/tools/run.ts";
 import type { Confirm } from "../../src/dsh/write.ts";
 
 const ROOT = "D:/demo/project";
+const AGENT_DIR = "C:/Users/demo/.fast-ai-cosmic";
 
-function deps(mode: "dev" | "prod", kernel: Partial<CosmicKernel> = {}): HookDeps {
+function deps(kernel: Partial<CosmicKernel> = {}): HookDeps {
 	return {
-		host: new CosmicHost(mode, kernel as CosmicKernel),
+		host: new CosmicHost(kernel as CosmicKernel),
 		cwdOf: async () => ROOT,
 		ungated: () => false,
+		agentDir: AGENT_DIR,
 	};
 }
 
@@ -36,49 +39,45 @@ function exec(name: string, args: unknown) {
 	return { name, arguments: args, signal: new AbortController().signal } as Parameters<typeof preExecute>[1];
 }
 
-async function decide(mode: "dev" | "prod", name: string, args: unknown) {
-	return preExecute(deps(mode), exec(name, args));
+async function decide(name: string, args: unknown) {
+	return preExecute(deps(), exec(name, args));
 }
 
-describe("生产排障会话的执行前门槛", () => {
-	it("编译、真跑业务、部署、写元数据、造改数据、APPLY 一律拒，理由里带错误码", async () => {
-		const refused: [string, unknown][] = [
+describe("一个会话里开发和查生产都放行", () => {
+	it("编译、真跑业务、写工程文件、生产查询在同一个会话里都放行", async () => {
+		for (const [name, args] of [
 			["cosmic_fast", {}],
 			["cosmic_run", { argv: ["op", "demo_bill", "save"] }],
-			["cosmic_runtime", { action: "deploy" }],
-			["cosmic_meta", { argv: ["botp", "restore", "D:/x"], apply: true }],
-			["cosmic_probe", { name: "DataSeedProbe", env: { SEED_ENTITY: "demo_bill" } }],
-			["cosmic_probe", { name: "MetaProbe", env: { APPLY: "1" } }],
-			["cosmic_probe", { name: ".cosmic-ai/probes/OneOff.java", env: { APPLY: "1" } }],
-		];
-		for (const [name, args] of refused) {
-			const decision = await decide("prod", name, args);
-			expect(decision, `${name} ${JSON.stringify(args)}`).toMatchObject({ kind: "deny" });
-			if (decision.kind === "deny") expect(decision.reason).toMatch(/^\[PROD_MODE_READ_ONLY\]/);
+			["cosmic_prod", { action: "sql", sql: "select 1" }],
+			["write", { file_path: `${ROOT}/src/Demo.java`, content: "x" }],
+		] as [string, unknown][])
+			expect(await decide(name, args), name).toEqual({ kind: "allow" });
+	});
+
+	it(".cosmic-ai 里只准写草稿、临时探针、会话目录：工具自己写的地方在执行前拒，说清该写哪", async () => {
+		for (const file of [".cosmic-ai/scratch/check.py", ".cosmic-ai/probes/OneOff.java"])
+			expect(await decide("write", { file_path: `${ROOT}/${file}`, content: "x" }), file).toEqual({ kind: "allow" });
+		for (const [name, args] of [
+			["write", { file_path: `${ROOT}/.cosmic-ai/work/Foo.javap.txt`, content: "x" }],
+			["edit", { file_path: `${ROOT}/.cosmic-ai/evidence/backups/x/a.xml`, old_string: "a", new_string: "b" }],
+			["apply_patch", { input: "*** Begin Patch\n*** Add File: .cosmic-ai/backup/a.xml\n+x\n*** End Patch" }],
+		] as [string, unknown][]) {
+			const decision = await decide(name, args);
+			expect(decision.kind, name).toBe("deny");
+			if (decision.kind === "deny") {
+				expect(decision.info.code).toBe("COSMIC_DIR_NOT_WRITABLE");
+				expect(decision.reason).toContain(".cosmic-ai/scratch/");
+			}
 		}
 	});
 
-	it("只读的照常放行：查元数据、造数预演、生产查询", async () => {
-		for (const [name, args] of [
-			["cosmic_probe", { name: "MetaProbe", env: { META_ENTITY: "demo_bill" } }],
-			["cosmic_probe", { name: "DataSeedProbe", env: { SEED_ENTITY: "demo_bill", PREVIEW: "1" } }],
-			["cosmic_meta", { argv: ["botp", "list"] }],
-			["cosmic_prod", { action: "sql", sql: "select 1" }],
-		] as [string, unknown][])
-			expect(await decide("prod", name, args), name).toEqual({ kind: "allow" });
+	it("产品工具每个会话都全部挂上，cosmic_prod 也在", () => {
+		const names = mountedToolSpecs().map((spec) => spec.name);
+		expect(names).toEqual(expect.arrayContaining([...COSMIC_TOOL_NAMES]));
+		expect(names).toHaveLength(COSMIC_TOOL_NAMES.length);
 	});
 
-	it("写工程文件拒，写 .cosmic-ai/ 下放行；apply_patch 里只要有一个路径在工程里就拒", async () => {
-		expect(await decide("prod", "write", { file_path: `${ROOT}/src/Demo.java`, content: "x" })).toMatchObject({
-			kind: "deny",
-		});
-		expect(await decide("prod", "edit", { file_path: "src/Demo.java" })).toMatchObject({ kind: "deny" });
-		expect(await decide("prod", "write", { file_path: `${ROOT}/cosmic-gate-test.txt`, content: "x" })).toMatchObject({
-			kind: "deny",
-		});
-		expect(await decide("prod", "write", { file_path: `${ROOT}/.cosmic-ai/probes/One.java`, content: "x" })).toEqual({
-			kind: "allow",
-		});
+	it("apply_patch 里动到的路径都认得出", () => {
 		const patch = [
 			"*** Begin Patch",
 			"*** Add File: .cosmic-ai/notes.md",
@@ -87,21 +86,49 @@ describe("生产排障会话的执行前门槛", () => {
 			"*** End Patch",
 		].join("\n");
 		expect(patchPaths(patch)).toEqual([".cosmic-ai/notes.md", "src/Demo.java"]);
-		expect(await decide("prod", "apply_patch", { input: patch })).toMatchObject({ kind: "deny" });
+	});
+});
+
+describe("终端和文件工具碰不到生产凭据", () => {
+	async function refused(name: string, args: unknown) {
+		const decision = await decide(name, args);
+		return decision.kind === "deny" && decision.info.code === "PROD_SECRET_OFF_LIMITS";
+	}
+
+	it("读、写、搜生产配置、monitor 登录、读取进程状态，都在执行前拒，说清该走哪条路", async () => {
+		for (const [name, args] of [
+			["read", { file_path: `${AGENT_DIR}/prod/prod.json` }],
+			["read", { file_path: "C:\\Users\\demo\\.FAST-AI-COSMIC\\prod\\prod.monitor-session.json" }],
+			["read", { file_path: "/c/Users/demo/.fast-ai-cosmic/cache/rk1/prod/state.json" }],
+			["edit", { file_path: `${AGENT_DIR}/prod/prod.json`, old_string: "a", new_string: "b" }],
+			["write", { file_path: `${AGENT_DIR}/prod/prod.json`, content: "{}" }],
+			["apply_patch", { input: `*** Begin Patch\n*** Update File: ${AGENT_DIR}/prod/prod.json\n*** End Patch` }],
+			["grep", { pattern: "password", path: `${AGENT_DIR}/prod` }],
+			["grep", { pattern: "password", path: AGENT_DIR }],
+			["glob", { pattern: `${AGENT_DIR}/**/*.json` }],
+			["bash", { command: "cat ~/.fast-ai-cosmic/prod/prod.json", description: "x" }],
+			["bash", { command: "cd $HOME/.fast-ai-cosmic && type prod\\prod.json", description: "x" }],
+			["bash", { command: "Get-Content prod.monitor-session.json", description: "x" }],
+			["bash", { command: "java -cp tools ProdReader", description: "x" }],
+			["bash", { command: "ls", workdir: `${AGENT_DIR}/prod`, description: "x" }],
+		] as [string, unknown][])
+			expect(await refused(name, args), `${name} ${JSON.stringify(args)}`).toBe(true);
+		const decision = await decide("read", { file_path: `${AGENT_DIR}/prod/prod.json` });
+		if (decision.kind === "deny") expect(decision.reason).toContain("cosmic_prod");
 	});
 
-	it("开发会话不拦这些", async () => {
-		expect(await decide("dev", "cosmic_run", { argv: ["op", "demo_bill", "save"] })).toEqual({ kind: "allow" });
-		expect(await decide("dev", "write", { file_path: `${ROOT}/README.txt`, content: "x" })).toEqual({
-			kind: "allow",
-		});
-	});
-
-	it("排障会话不挂编译和真跑业务的工具，开发会话不挂 cosmic_prod", () => {
-		expect(toolsForMode("prod", COSMIC_TOOL_NAMES)).not.toContain("cosmic_fast");
-		expect(toolsForMode("prod", COSMIC_TOOL_NAMES)).not.toContain("cosmic_run");
-		expect(toolsForMode("prod", COSMIC_TOOL_NAMES)).toContain("cosmic_prod");
-		expect(toolsForMode("dev", COSMIC_TOOL_NAMES)).not.toContain("cosmic_prod");
+	it("同目录下别的东西照常：探针日志、全局配置、工程里叫 prod 的文件", async () => {
+		for (const [name, args] of [
+			["read", { file_path: `${AGENT_DIR}/cache/rk1/probe-server.log` }],
+			["grep", { pattern: "Exception", path: `${AGENT_DIR}/cache/rk1/probe-runs` }],
+			["read", { file_path: `${AGENT_DIR}/config.json` }],
+			["read", { file_path: `${ROOT}/src/prod/DemoProdPlugin.java` }],
+			["grep", { pattern: "prod", path: ROOT }],
+			["bash", { command: "tail -50 ~/.fast-ai-cosmic/cache/rk1/probe-server.log", description: "x" }],
+			["bash", { command: "git log --oneline -- src/prod", description: "x" }],
+			["cosmic_prod", { action: "sql", sql: "select 1" }],
+		] as [string, unknown][])
+			expect(await refused(name, args), `${name} ${JSON.stringify(args)}`).toBe(false);
 	});
 });
 
@@ -123,7 +150,7 @@ describe("临时探针只准读", () => {
 				return { ok: false };
 			},
 		} as unknown as CosmicKernel;
-		const host = new CosmicHost("dev", kernel);
+		const host = new CosmicHost(kernel);
 		const call: CallContext = {
 			tool: "cosmic_probe",
 			session: new CosmicSession<ProjectHandle>(),
@@ -180,7 +207,7 @@ describe("产品工具的参数换成 dsh 认的 JSON Schema 子集", () => {
 	}
 
 	it("12 个工具一个不缺，每个换完都只剩允许的关键字", () => {
-		const host = new CosmicHost("dev", {} as CosmicKernel);
+		const host = new CosmicHost({} as CosmicKernel);
 		const confirm: Confirm = async () => ({ kind: "approved" });
 		const specs = [
 			...projectTools(host),

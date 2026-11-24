@@ -2,9 +2,10 @@
  * 挂在 dsh 工具流水线上的三处：执行前门槛、文件工具写完之后、读文件之后。
  *
  * 执行前（`tools/pre-execute`）：
- *   - 产品工具：排障会话里改东西的调用、同一失败第三次，在进工具之前拒；
- *   - 文件工具：排障会话里写工程文件（write / edit / apply_patch）拒，`.cosmic-ai/` 下自己的东西不拦；
- *     开发会话里，工程 Java 第一次被写之前记下原样（写法检查只报这次新加的），新建的源码 Java 记下要登记进 git。
+ *   - 产品工具：同一失败第三次，在进工具之前拒；
+ *   - 终端和文件工具：碰本机生产凭据（生产账号、monitor 登录、读取进程口令）的拒，见 `prod-secrets.ts`；
+ *   - 文件工具：`.cosmic-ai/` 里只准写草稿、临时探针、会话目录；工程 Java 第一次被写之前记下原样
+ *     （写法检查只报这次新加的），新建的源码 Java 记下要登记进 git。
  * 写完之后：记进本会话改过的文件（源码版本前进、编译新鲜度作废），附上这个插件族的知识卡片和这次新加的写法问题。
  * 读完之后：插件类第一次读到附上周边和知识卡片；大 Java 第一次整份读给提纲；原样再读一遍换成一句话。
  *
@@ -12,7 +13,6 @@
  */
 
 import type { ToolExecution, ToolExecutionResult } from "@deepseek-ai/dsh-tools";
-import { modeRefusal, PROD_MODE_REMEDY, prodModeBlocksFileWrite } from "../agent/state/prod-state.ts";
 import { surroundingsForRead } from "../agent/tools/class-surroundings.ts";
 import { outlineInsteadOfRead } from "../agent/tools/java-outline.ts";
 import { isCosmicToolName } from "../agent/tools/names.ts";
@@ -20,14 +20,17 @@ import { noteRead } from "../agent/tools/read-ledger.ts";
 import { rememberOriginal, styleAfterWrite } from "../agent/tools/style-check.ts";
 import { comparablePath, toolFilePath } from "../agent/tools/tool-path.ts";
 import { isAdHocProbeFile } from "../kernel/layout.ts";
-import { metaWritePlan } from "../kernel/meta/parse.ts";
+import { modelMayWrite } from "../kernel/project/cosmic-dirs.ts";
 import type { CosmicHost } from "./host.ts";
+import { PROD_SECRET_CODE, prodSecretRefusal } from "./prod-secrets.ts";
 import type { CosmicSession } from "./session.ts";
 import { streakRefusal } from "./streak.ts";
 
 type Decision = { kind: "allow" } | { kind: "deny"; reason: string; info: { name: string; code: string } };
 
 const ALLOW: Decision = { kind: "allow" };
+
+export const COSMIC_DIR_WRITE_CODE = "COSMIC_DIR_NOT_WRITABLE";
 
 function deny(code: string, message: string, remedy: string): Decision {
 	return { kind: "deny", reason: `[${code}] ${message}\n修复：${remedy}`, info: { name: "CosmicGate", code } };
@@ -61,6 +64,8 @@ export interface HookDeps {
 	cwdOf(exec: Pick<ToolExecution, "agent" | "signal">): Promise<string>;
 	/** 产品工具中不经门槛的那几种调用（问用法、按行取回）。 */
 	ungated(name: string, args: unknown): boolean;
+	/** cosmic 的本机目录（`~/.fast-ai-cosmic`），生产凭据在它下面。 */
+	agentDir: string;
 }
 
 export function sessionOf(host: CosmicHost, exec: Pick<ToolExecution, "agent">): CosmicSession {
@@ -73,22 +78,29 @@ export async function preExecute(deps: HookDeps, exec: ToolExecution): Promise<D
 	const session = sessionOf(host, exec);
 	if (isCosmicToolName(exec.name)) {
 		if (deps.ungated(exec.name, exec.arguments)) return ALLOW;
-		const mode = modeRefusal(host.mode, exec.name, exec.arguments, (argv) => metaWritePlan(argv) !== null);
-		if (mode !== null) return deny(mode.code, mode.message, mode.remedy);
 		const repeat = streakRefusal(session.streak, session.factsRevision, exec.name, exec.arguments);
 		if (repeat !== null) return deny(repeat.code, repeat.message, repeat.remedy);
 		return ALLOW;
 	}
 	const paths = writtenPaths(exec.name, exec.arguments);
-	if (paths === null || paths.length === 0) return ALLOW;
 	const root = session.project?.root ?? (await deps.cwdOf(exec));
+	const secret = prodSecretRefusal(exec.name, exec.arguments, root, deps.agentDir, paths ?? []);
+	if (secret !== null)
+		return deny(
+			PROD_SECRET_CODE,
+			secret,
+			"查生产用 cosmic_prod（会先请用户同意，只读）；生产配置或 monitor 登录有问题，请用户敲 /cosmic-prod-setup、/cosmic-monitor-login。",
+		);
+	if (paths === null || paths.length === 0) return ALLOW;
 	const files = paths.map((path) => toolFilePath(path, root));
-	if (host.mode === "prod") {
-		const blocked = files.filter((file) => prodModeBlocksFileWrite(file, root));
-		if (blocked.length > 0)
-			return deny("PROD_MODE_READ_ONLY", `生产排障会话里工程文件只读：${blocked.join("、")}`, PROD_MODE_REMEDY);
-		return ALLOW;
-	}
+	// .cosmic-ai 里除了草稿、临时探针、会话目录，都由工具自己写：模型写进去的东西对不上目录表，清理也认不出
+	const stray = files.filter((file) => !modelMayWrite(file));
+	if (stray.length > 0)
+		return deny(
+			COSMIC_DIR_WRITE_CODE,
+			`.cosmic-ai 下这几处由工具自己写，文件工具不能写：${stray.join("、")}`,
+			"临时脚本、草稿、要反复筛的输出写到 .cosmic-ai/scratch/，临时探针写到 .cosmic-ai/probes/（都是几天没改自动清）。改工程配置用 cosmic_doctor action=config。",
+		);
 	// 先接回重开前落盘的原文：不然这次写之前的内容会被当成「会话开始时」。
 	session.restore(root);
 	for (const file of files) {

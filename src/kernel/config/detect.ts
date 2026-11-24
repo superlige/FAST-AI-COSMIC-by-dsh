@@ -17,6 +17,7 @@ import {
 	parseProjectDirs,
 	resolveCodeModules,
 } from "./gradle.ts";
+import { BUILD_SCRIPTS, SETTINGS_SCRIPTS } from "./project-root.ts";
 
 export interface FileSystemPort {
 	/** Returns file text, or "" when unreadable -- matching the frozen `read` helper. */
@@ -55,10 +56,67 @@ export const nodeFileSystem: FileSystemPort = {
 
 /** Reads `systemProp.<key>` from gradle.properties. */
 export function gradleProp(root: string, key: string, fs: FileSystemPort): string | null {
-	const match = new RegExp(String.raw`^\s*systemProp\.${key}\s*=\s*(.+)$`, "m").exec(
+	return plainGradleProp(root, `systemProp.${key}`, fs);
+}
+
+/** Reads `<key>` from gradle.properties, unescaping the `\\` and `\:` a Windows path is usually written with there. */
+export function plainGradleProp(root: string, key: string, fs: FileSystemPort): string | null {
+	const escaped = key.replace(/\./g, String.raw`\.`);
+	const match = new RegExp(String.raw`^\s*${escaped}\s*[=:]\s*(.+)$`, "m").exec(
 		fs.read(join(root, "gradle.properties")),
 	);
-	return match?.[1] ? match[1].trim() : null;
+	const value = match?.[1]?.trim().replace(/\\(.)/g, "$1") ?? "";
+	return value === "" ? null : value;
+}
+
+/** The first of the Groovy / Kotlin spellings that has any text; "" when neither does. */
+export function readGradleScript(dir: string, fs: FileSystemPort, names: readonly string[] = BUILD_SCRIPTS): string {
+	for (const name of names) {
+		const text = fs.read(join(dir, name));
+		if (text !== "") return text;
+	}
+	return "";
+}
+
+/** Where Gradle itself says one module's sources and classes are; see `gradleModulesFile`. */
+export interface GradleModuleDirs {
+	src: string[];
+	out: string;
+}
+
+/**
+ * `build/cosmic-modules.json`, written by cosmic-run.gradle in the same run that writes the
+ * javac argfile: the debug module's and every code module's `sourceSets.main` Java source
+ * directories and class output directory, as Gradle resolved them.
+ *
+ * Without it every path is the convention (`src/main/java`, `build/classes/java/main`), and a
+ * project that moved either kept compiling into a directory its own classpath never lists.
+ */
+export function gradleModulesFile(root: string): string {
+	return join(root, "build", "cosmic-modules.json");
+}
+
+/** Parses `gradleModulesFile`; null when absent or not the expected shape (the convention applies then). */
+export function readGradleModuleDirs(
+	root: string,
+	fs: Pick<FileSystemPort, "read">,
+): Record<string, GradleModuleDirs> | null {
+	const raw = fs.read(gradleModulesFile(root));
+	if (raw === "") return null;
+	try {
+		const parsed = JSON.parse(raw) as { modules?: unknown };
+		if (parsed.modules === null || typeof parsed.modules !== "object") return null;
+		const out: Record<string, GradleModuleDirs> = {};
+		for (const [name, value] of Object.entries(parsed.modules as Record<string, unknown>)) {
+			const entry = (value ?? {}) as { src?: unknown; out?: unknown };
+			const src = Array.isArray(entry.src) ? entry.src.filter((dir): dir is string => typeof dir === "string") : [];
+			if (typeof entry.out !== "string" || entry.out === "" || src.length === 0) continue;
+			out[name.replace(/^:+/, "")] = { src, out: entry.out };
+		}
+		return out;
+	} catch {
+		return null;
+	}
 }
 
 /**
@@ -75,7 +133,7 @@ export function detectDebugModule(
 	dirs: ModuleDirMap = {},
 ): string | null {
 	const byPlugin = modules.filter((m) =>
-		/java-application-conventions/.test(decomment(fs.read(join(moduleRoot(root, m, dirs), "build.gradle")))),
+		/java-application-conventions/.test(decomment(readGradleScript(moduleRoot(root, m, dirs), fs))),
 	);
 	if (byPlugin.length === 1) return byPlugin[0] ?? null;
 	const byName = modules.filter((m) => /cosmic-debug/.test(m));
@@ -87,6 +145,8 @@ export interface AppDetection {
 	appClass: string | null;
 	appMethod: string | null;
 	appFile: string | null;
+	/** `setTenantNumber("x")` in the code the probe host actually runs (the configure method, or main). */
+	tenant: string | null;
 }
 
 /**
@@ -119,8 +179,9 @@ export function detectApp(
 	debugModule: string,
 	fs: FileSystemPort,
 	dirs: ModuleDirMap = {},
+	srcDirs: readonly string[] = [join(moduleRoot(root, debugModule, dirs), "src", "main", "java")],
 ): AppDetection {
-	const files = fs.listJavaFiles(join(moduleRoot(root, debugModule, dirs), "src", "main", "java"));
+	const files = srcDirs.flatMap((dir) => fs.listJavaFiles(dir));
 	for (const file of files) {
 		const text = decomment(fs.read(file));
 		const mainAt = text.search(/static\s+void\s+main\s*\(/);
@@ -128,13 +189,44 @@ export function detectApp(
 		const pkg = /^\s*package\s+([\w.]+)\s*;/m.exec(text);
 		const cls = basename(file, ".java");
 		const body = text.slice(mainAt);
+		const appMethod = configureMethod(body) ?? (startsThroughBooter(body, files, fs) ? APP_METHOD_MAIN : null);
 		return {
 			appClass: (pkg?.[1] ? `${pkg[1]}.` : "") + cls,
-			appMethod: configureMethod(body) ?? (startsThroughBooter(body, files, fs) ? APP_METHOD_MAIN : null),
+			appMethod,
 			appFile: file,
+			tenant: appMethod === null ? null : tenantIn(methodBody(text, appMethod) ?? ""),
 		};
 	}
-	return { appClass: null, appMethod: null, appFile: null };
+	return { appClass: null, appMethod: null, appFile: null, tenant: null };
+}
+
+/**
+ * The text of method `name` -- from its name to its closing brace -- in decommented source;
+ * null when there is no such method. String and char literals are skipped while matching
+ * braces, so a `}` inside a connection string does not end the method early.
+ */
+export function methodBody(source: string, name: string): string | null {
+	const head = new RegExp(String.raw`\b${name}\s*\([^)]*\)\s*(?:throws\s+[\w.,\s]+)?\{`).exec(source);
+	if (head === null) return null;
+	let depth = 0;
+	for (let i = head.index + head[0].length - 1; i < source.length; i++) {
+		const ch = source[i];
+		if (ch === '"' || ch === "'") {
+			for (i++; i < source.length && source[i] !== ch; i++) if (source[i] === "\\") i++;
+			continue;
+		}
+		if (ch === "{") depth++;
+		else if (ch === "}") {
+			depth--;
+			if (depth === 0) return source.slice(head.index, i + 1);
+		}
+	}
+	return null;
+}
+
+/** The tenant the launch code sets. Only a string literal counts: a variable or a call is not guessed at. */
+function tenantIn(body: string): string | null {
+	return /\.setTenantNumber\s*\(\s*"([^"]+)"\s*\)/.exec(body)?.[1] ?? null;
 }
 
 /** The first `XxxLauncher x = method();` inside the main body (the older template). */
@@ -167,22 +259,36 @@ export interface AutoDetected {
 	unresolvedDeps: string[];
 	appClass: string | null;
 	appMethod: string | null;
+	/** The launch class source the two values above were read from. */
+	appFile: string | null;
+	/** `setTenantNumber("x")` in the launch code the probe host runs; null when not a literal. */
+	tenant: string | null;
+	/** gradle.properties `org.gradle.java.home`: the JDK the project's own build runs on. */
+	javaHome: string | null;
+	/** Gradle's own source / class directories per module (see `gradleModulesFile`); null before the first build. */
+	gradleDirs: Record<string, GradleModuleDirs> | null;
 }
 
 export function detect(root: string, fs: FileSystemPort): AutoDetected {
-	const settings = fs.read(join(root, "settings.gradle"));
+	const settings = readGradleScript(root, fs, SETTINGS_SCRIPTS);
 	const modules = parseIncludes(settings);
 	const moduleDirs = parseProjectDirs(settings);
+	const gradleDirs = readGradleModuleDirs(root, fs);
 	const debugModule = detectDebugModule(root, modules, fs, moduleDirs);
 	// Code modules are collected along the transitive dependency closure: shared
 	// modules commonly hang off a business module rather than off the debug module.
 	const code = debugModule
-		? resolveCodeModules(debugModule, (m) => fs.read(join(moduleRoot(root, m, moduleDirs), "build.gradle")), modules)
+		? resolveCodeModules(debugModule, (m) => readGradleScript(moduleRoot(root, m, moduleDirs), fs), modules)
 		: { modules: [], unresolved: [] };
+	const debugSrc = debugModule === null ? undefined : gradleDirs?.[debugModule]?.src;
 	const app = debugModule
-		? detectApp(root, debugModule, fs, moduleDirs)
-		: { appClass: null, appMethod: null, appFile: null };
+		? detectApp(root, debugModule, fs, moduleDirs, debugSrc)
+		: { appClass: null, appMethod: null, appFile: null, tenant: null };
 	return {
+		appFile: app.appFile,
+		tenant: app.tenant,
+		javaHome: plainGradleProp(root, "org.gradle.java.home", fs),
+		gradleDirs,
 		isv: gradleProp(root, "developer_flag", fs),
 		cosmicHome: gradleProp(root, "cosmic_home", fs),
 		modules,

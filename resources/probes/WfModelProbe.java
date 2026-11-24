@@ -31,7 +31,7 @@ import kd.bos.workflow.engine.RepositoryService;
  *   WF_KEY=模型 key 或名称关键字   对 key / name 做 like
  *   WF_MAX=最多多少条，默认 50
  *   WF_MODEL=模型 id 或 key       dump 用，精确 id 优先，其次 key 精确，再次 key/name like
- *   WF_OUT=输出目录               dump 可选（默认 outputs/wf-model），backup 必填
+ *   WF_OUT=名字                   可选：dump 放进本会话的导出目录，backup 放进 .cosmic-ai/evidence/backups/，位置由工具定
  */
 public class WfModelProbe {
 

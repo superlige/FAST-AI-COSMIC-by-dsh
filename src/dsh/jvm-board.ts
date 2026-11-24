@@ -1,12 +1,12 @@
 /**
- * 苍穹 JVM 状态板：每个开发会话对应哪一个常驻 JVM、它起到哪一步了、是什么时候起的。给界面看，不发给模型。
+ * 苍穹 JVM 状态板：每个苍穹会话对应哪一个常驻 JVM、它起到哪一步了、是什么时候起的。给界面看，不发给模型。
  *
  * 界面那半边（`client/brand.js` 的 JVM 小标签）进到一个会话就请求一次 `ensure`：这时候才认工程、在后台起 JVM，
  * 用的是一次环境诊断探针（EnvDiagProbe）。它会顺带把常驻 JVM 拉起来，一步步报进度，最后核对连得上苍穹、
  * 账套和用户对不对。不在会话建好时就起，是因为恢复旧会话时 dsh 会一次建好几个，那样会给没人看的工程也起 JVM。
  *
  * 状态按「工程 + 运行时版本」记一份：同一个工程开两个会话，用的是同一个 JVM，起一次，两个会话看到的一样。
- * 只有开发模式的插件把会话登记进来；排障会话不登记，界面问到它就答「不管」，什么都不画。
+ * 本插件的预设建的会话都登记进来；别的预设的会话不登记，界面问到它就答「不管」，什么都不画。
  *
  * 起完以后它是不是还在，每次问都现查心跳（空闲 30 分钟会自己退；模型调工具时也可能重启它），
  * 不拿开机那一趟的结果冒充现在的状态。
@@ -96,7 +96,7 @@ export interface BootStepView {
 
 /** 界面拿到的样子。时间都是毫秒时间戳。 */
 export interface JvmView {
-	/** `untracked`：不是开发会话（排障会话、还没登记的），界面什么都不画。 */
+	/** `untracked`：不是本插件的会话（别的预设的、还没登记的），界面什么都不画。 */
 	tracked: boolean;
 	project: {
 		root: string;
@@ -277,7 +277,7 @@ export class JvmBoard<H> {
 		this.now = now;
 	}
 
-	/** 开发会话进来了（或者换了工作目录）。只登记，不起 JVM：界面问到它才起。 */
+	/** 会话进来了（或者换了工作目录）。只登记，不起 JVM：界面问到它才起。 */
 	track(sessionId: string, cwd: string): void {
 		const known = this.sessions.get(sessionId);
 		if (known !== undefined && samePath(known.cwd, cwd)) return;
@@ -292,6 +292,13 @@ export class JvmBoard<H> {
 		return this.sessions.has(sessionId);
 	}
 
+	/** 这个会话认出来的工程（进会话后 ensure 认过才有）；输入框 `@` 引用按它找目录。 */
+	projectOf(sessionId: string): { root: string; handle: H } | null {
+		const entry = this.sessions.get(sessionId);
+		const runtime = entry?.runtime == null ? undefined : this.runtimes.get(entry.runtime);
+		return runtime === undefined ? null : { root: runtime.root, handle: runtime.handle };
+	}
+
 	/**
 	 * 界面上的动作。都不等 JVM 起完就返回：
 	 *   ensure   进到会话：还没起过就起（已经在起、起完了都不重来；上次没起成也不自动重来，等人点）；
@@ -301,7 +308,7 @@ export class JvmBoard<H> {
 	 */
 	async act(sessionId: string, action: BoardAction): Promise<{ ok: boolean; text: string }> {
 		const entry = this.sessions.get(sessionId);
-		if (entry === undefined) return { ok: false, text: "这个会话不是开发会话，不管 JVM" };
+		if (entry === undefined) return { ok: false, text: "这个会话不是苍穹会话，不管 JVM" };
 		if (action === "ensure") {
 			if (entry.runtime === null && entry.boot === null) void this.boot(sessionId, entry, { build: false });
 			return { ok: true, text: "" };
@@ -351,7 +358,7 @@ export class JvmBoard<H> {
 			const phase = openFailure(opened.error.code);
 			const detail =
 				phase === "no-project"
-					? `这个目录不是苍穹工程（没有 gradle.properties 和 settings.gradle）：${entry.cwd}`
+					? `这个目录不是 Gradle 工程（往上都没有 settings.gradle）：${entry.cwd}`
 					: opened.error.message;
 			finishBoot(pending, phase, detail, this.now());
 			return;

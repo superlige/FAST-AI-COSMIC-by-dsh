@@ -26,7 +26,7 @@
  */
 
 import { requireRuntime } from "../config/load-config.ts";
-import { baseChildEnv, type KernelContext } from "../context.ts";
+import { baseChildEnv, type KernelContext, productJvmOptions, userJvmArgs } from "../context.ts";
 import { err, KernelError, type KernelResult, ok } from "../errors.ts";
 import { jvmDeps, NODE_KEY_PROP, verifyRecordedPid } from "../probe/local-jvms.ts";
 import { ensureBuilt } from "../toolchain.ts";
@@ -254,10 +254,10 @@ async function startNode(ctx: KernelContext): Promise<KernelResult<NodeReport>> 
 		command: "java",
 		// 版本号只为认得出它（停之前核对身份、本地进程面板），苍穹不读。
 		args: [
-			HEAP,
-			METASPACE,
+			...productJvmOptions(ctx.config, [HEAP, METASPACE]),
 			"-Dfile.encoding=UTF-8",
 			`${NODE_KEY_PROP}${ctx.runtimeKeyId}`,
+			...userJvmArgs(ctx.config),
 			"-jar",
 			ctx.layout.pathingJar,
 		],

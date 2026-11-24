@@ -1,4 +1,3 @@
-import java.util.EventObject;
 import java.util.List;
 import java.util.UUID;
 
@@ -13,7 +12,6 @@ import kd.bos.form.FormConfig;
 import kd.bos.form.FormMetadataCache;
 import kd.bos.form.FormShowParameter;
 import kd.bos.form.ShowType;
-import kd.bos.form.plugin.FormViewPluginProxy;
 import kd.bos.metadata.dao.MetaCategory;
 import kd.bos.metadata.dao.MetadataDao;
 import kd.bos.metadata.entity.EntityMetadata;
@@ -125,23 +123,21 @@ public class FormCallbackSim {
         return view;
     }
 
+    /**
+     * 照平台打开：activate → registerListener → 控制器的 loadData，新增和打开已有单据同一条。
+     *
+     * 不能自己调 createNewData 再手工派发 beforeBindData / afterBindData：loadData 先 beginInit，
+     * 建完数据再统一 updateView 绑定界面。跳过它，插件在 afterCreateNewData 里 setValue 会当场
+     * 绑定控件，FieldEdit.canRead 往打开参数里补 skipCheckFieldRule —— 插件正边遍历 customParams
+     * 边 setValue 时就抛 ConcurrentModificationException，真页面不会。打开已有单据时 loadData
+     * 自己已经绑定过，再手工派发一次，两个绑定事件就各跑了两遍。
+     */
     static void start(FormView view) {
-        start(view, false);
-    }
-
-    static void start(FormView view, boolean edit) {
         view.activate();
         view.getRootControl();
         FormController controller = (FormController) view.getService(IFormController.class);
         controller.registerListener();
-        if (edit) {
-            controller.loadData();
-        } else {
-            view.getModel().createNewData();
-        }
-        FormViewPluginProxy proxy = (FormViewPluginProxy) view.getService(FormViewPluginProxy.class);
-        proxy.fireBeforeBindData(new EventObject(view));
-        proxy.fireAfterBindData(new EventObject(view));
+        controller.loadData();
     }
 
     static void ensureEntry(IDataModel model, String entryKey) {

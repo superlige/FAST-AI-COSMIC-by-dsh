@@ -10,29 +10,26 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { type FixedTextBytes, fixedTextBytes } from "../../src/dsh/fixed-text.ts";
 
-const record = JSON.parse(readFileSync(new URL("./fixed-text-record.json", import.meta.url), "utf8")) as Record<
-	string,
-	Partial<Record<keyof FixedTextBytes, number>>
+const record = JSON.parse(readFileSync(new URL("./fixed-text-record.json", import.meta.url), "utf8")) as Partial<
+	Record<keyof FixedTextBytes, number>
 >;
 
 describe("固定文字改动必须有意", () => {
-	for (const mode of ["dev", "prod"] as const) {
-		it(`${mode}：系统提示、工具说明的字节数和记录一致`, () => {
-			const current = fixedTextBytes(mode);
-			const drift = Object.entries(current).flatMap(([key, bytes]) => {
-				const recorded = record[mode]?.[key as keyof FixedTextBytes];
-				if (typeof recorded !== "number") return [`${mode}.${key}：记录里没有这一项，补上 ${bytes}`];
-				if (bytes > recorded)
-					return [
-						`${mode}.${key}：${bytes} 比记录 ${recorded} 多 ${bytes - recorded} 字节——要加就改记录，并在提交说明写明想改善哪个数（用时、轮数、试错、质量）、怎么量`,
-					];
-				if (bytes < recorded)
-					return [
-						`${mode}.${key}：${bytes} 比记录 ${recorded} 少 ${recorded - bytes} 字节——把 fixed-text-record.json 里这一项改成 ${bytes}`,
-					];
-				return [];
-			});
-			expect(drift).toEqual([]);
+	it("系统提示、工具说明的字节数和记录一致", () => {
+		const current = fixedTextBytes();
+		const drift = Object.entries(current).flatMap(([key, bytes]) => {
+			const recorded = record[key as keyof FixedTextBytes];
+			if (typeof recorded !== "number") return [`${key}：记录里没有这一项，补上 ${bytes}`];
+			if (bytes > recorded)
+				return [
+					`${key}：${bytes} 比记录 ${recorded} 多 ${bytes - recorded} 字节——要加就改记录，并在提交说明写明想改善哪个数（用时、轮数、试错、质量）、怎么量`,
+				];
+			if (bytes < recorded)
+				return [
+					`${key}：${bytes} 比记录 ${recorded} 少 ${recorded - bytes} 字节——把 fixed-text-record.json 里这一项改成 ${bytes}`,
+				];
+			return [];
 		});
-	}
+		expect(drift).toEqual([]);
+	});
 });

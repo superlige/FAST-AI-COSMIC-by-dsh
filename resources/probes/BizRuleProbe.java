@@ -31,6 +31,12 @@ import kd.bos.metadata.entity.rule.TakeValueId;
  *   RULE_SET=zlgd_wtlx=炉前成分;分录.字段=值   预演时的字段值，写法同 run rule --set；预演会把内存里的候选规则按 run rule 同一套执行一遍，打它的条件、动作和写的字段值，不给就按新单默认值算
  *   RULE_SHOW=字段1,分录.字段2   预演试算时另外要看的字段
  *
+ *   BIZ_RULE=<规则id>             原位改一条已有规则（id 看只读输出的 RULE ... id=），配下面三项，至少给一项：
+ *     BIZ_CONDITION=<新条件>       换掉条件；BIZ_CONDITION_DESC 是设计器里给人看的说明，不给等于新条件
+ *     BIZ_FORMULA=<目标字段 = 新表达式>   换掉这条规则里给这个字段赋值的那个计算公式的表达式，多个用 ;; 隔开
+ *     BIZ_ENABLED=0|1              停用、启用
+ *   规则 id、动作 id、顺序和别的动作都不动；只改本 ISV 自己的规则。预演逐项打改前改后，APPLY 后重新读回核对。
+ *
  * 默认只读：列出业务规则条件、触发字段、真假分支和动作的完整运行参数。
  * 写模式参数见 reference/metadata-business-rules.md；默认 dry-run，APPLY=1 才落库。
  */
@@ -44,12 +50,21 @@ public class BizRuleProbe {
         String falseSpec = env("BIZ_FALSE", "");
         boolean rollback = "1".equals(env("ROLLBACK", "0"));
         boolean apply = "1".equals(env("APPLY", "0"));
+        String ruleId = env("BIZ_RULE", "");
         boolean write = rollback || !tag.isEmpty() || !trueSpec.isEmpty() || !falseSpec.isEmpty();
+        if (!ruleId.isEmpty() && write) {
+            throw new IllegalArgumentException("BIZ_RULE 是原位改一条已有规则，只配 BIZ_CONDITION、BIZ_FORMULA、BIZ_ENABLED；"
+                    + "不和 BIZ_TAG、BIZ_TRUE、BIZ_FALSE、ROLLBACK 一起用（换动作就不带 BIZ_RULE、按 BIZ_TAG 新增一条）");
+        }
         String id = MetaResolve.designId(input);
         EntityMetadata em = (EntityMetadata) MetadataDao.readMeta(id, MetaCategory.Entity);
         System.out.println("[PROBE] 业务规则实体 " + em.getKey() + " name=" + em.getName()
                 + " metaId=" + id + " host=" + dash(host));
 
+        if (!ruleId.isEmpty()) {
+            edit(em, id, host, ruleId, apply);
+            return;
+        }
         if (write) {
             write(em, id, host, tag, trueSpec, falseSpec, rollback, apply);
             return;
@@ -211,6 +226,176 @@ public class BizRuleProbe {
         System.out.println("[PROBE] save -> " + writer.save(em));
         MetadataDao.rebuildRuntimeMetaById(metaId);
         System.out.println("[PROBE] rebuildRuntimeMetaById(" + metaId + ") 完成；请另起冷读复核");
+    }
+
+    /**
+     * 原位改一条已有规则：条件、某个计算公式的表达式、启用。规则 id、动作 id、顺序、别的动作都不动。
+     *
+     * 为什么不是「摘掉旧的、按 BIZ_TAG 新增一条」：设计器里配的规则描述没有我们的前缀，摘不掉；
+     * 新增一条就成了两条规则给同一个字段赋值，谁后跑谁赢。原位改之后，设计器里看到的还是原来那条。
+     */
+    private static void edit(EntityMetadata em, String metaId, String hostKey, String ruleId, boolean apply)
+            throws Exception {
+        String condition = env("BIZ_CONDITION", "");
+        String formulaSpec = env("BIZ_FORMULA", "");
+        String enabled = env("BIZ_ENABLED", "");
+        if (condition.isEmpty() && formulaSpec.isEmpty() && enabled.isEmpty()) {
+            throw new IllegalArgumentException("BIZ_RULE 原位改至少给一项：BIZ_CONDITION、BIZ_FORMULA、BIZ_ENABLED");
+        }
+        if (!enabled.isEmpty() && !"0".equals(enabled) && !"1".equals(enabled)) {
+            throw new IllegalArgumentException("BIZ_ENABLED 只能是 0（停用）或 1（启用），收到 " + enabled);
+        }
+        Entity<?, ?> host = null;
+        BizRule rule = null;
+        for (Entity<?, ?> item : em.getEntitys()) {
+            if (!hostKey.isEmpty() && !hostKey.equals(item.getKey())) continue;
+            List<BizRule> list = item.getRules();
+            if (list == null) continue;
+            for (BizRule r : list) {
+                if (ruleId.equals(String.valueOf(r.getId()))) {
+                    host = item;
+                    rule = r;
+                }
+            }
+        }
+        if (rule == null) {
+            throw new IllegalArgumentException(em.getKey() + (hostKey.isEmpty() ? "" : " 的 " + hostKey)
+                    + " 上没有 id=" + ruleId + " 的业务规则；不带 BIZ_RULE 只读跑一次，看 RULE ... id=");
+        }
+        IsvGuard.assertOwnEntity(em.getKey(), em);
+        IsvGuard.assertOwnBizRule(ruleId, rule.getIsv());
+        String name = safe(rule.getDescription());
+        System.out.println("[PROBE] 原位改业务规则 id=" + ruleId + " name=" + name + " 宿主=" + host.getKey());
+
+        MainEntityType met = FormulaCheck.entityType(em.getKey());
+        List<String> bad = new ArrayList<String>();
+        List<String[]> changes = new ArrayList<String[]>();
+        if (!condition.isEmpty()) {
+            checkNew("BIZ_CONDITION", condition, met, em.getKey(), bad);
+            changes.add(new String[] { "条件", safe(rule.getPreCondition()), condition });
+            rule.setPreCondition(condition);
+            rule.setPreDescription(env("BIZ_CONDITION_DESC", condition));
+        }
+        for (String raw : formulaSpec.split(";;")) {
+            String body = raw.trim();
+            if (body.isEmpty()) continue;
+            int eq = body.indexOf('=');
+            if (eq <= 0) throw new IllegalArgumentException("BIZ_FORMULA 要写 目标字段 = 表达式：" + body);
+            String target = body.substring(0, eq).trim();
+            FormulaAction action = formulaFor(rule, target);
+            requireTarget(em, target);
+            checkNew("BIZ_FORMULA " + target, body.substring(eq + 1).trim(), met, em.getKey(), bad);
+            changes.add(new String[] { "计算公式 " + target, safe(action.getExpression()), body });
+            action.setExpression(body);
+        }
+        if (!enabled.isEmpty()) {
+            changes.add(new String[] { "启用", rule.isEnabled() ? "启用" : "停用", "1".equals(enabled) ? "启用" : "停用" });
+            rule.setEnabled("1".equals(enabled));
+        }
+        FormulaCheck.stopOnBad(bad);
+        try {
+            rule.buildEntityRule(host.getKey());
+        } catch (Throwable e) {
+            System.out.println("[PROBE] !! 改完规则运行态构建失败：" + e.getClass().getSimpleName() + ": " + safe(e.getMessage()));
+            return;
+        }
+        if (!rule.getErrorInfos().isEmpty()) {
+            System.out.println("[PROBE] !! 改完规则校验错误=" + rule.getErrorInfos());
+            return;
+        }
+        int same = 0;
+        for (String[] c : changes) {
+            boolean unchanged = c[1].equals(c[2]);
+            if (unchanged) same++;
+            System.out.println("[PROBE]   " + c[0] + "：" + (c[1].isEmpty() ? "(空)" : c[1]) + "  ->  " + c[2]
+                    + (unchanged ? "（已经是这样）" : ""));
+            ProbeJson.emit("biz-rule-change", "rule", ruleId, "name", name, "host", host.getKey(),
+                    "item", c[0], "before", c[1], "after", c[2]);
+        }
+        if (same == changes.size()) {
+            System.out.println("[PROBE] 要改的每一项都已经是这样，没有要写的");
+            return;
+        }
+
+        MetadataWriter writer = new MetadataWriter(em.getModelType());
+        boolean found = false;
+        for (AbstractDesignMeta design : writer.convertToDesignMeta(em)) {
+            String xml = design.getDataXml();
+            if (xml != null && xml.contains(ruleId)) found = true;
+        }
+        if (!found) {
+            System.out.println("[PROBE] !! 序列化结果里找不到这条规则 id，中止");
+            return;
+        }
+        if (!apply) {
+            //停用的规则试算不执行；启用的按 run rule 同一套算一遍，改坏了停在写入之前
+            List<String> failed = RuleSim.tryBiz(em.getKey(), em, java.util.Collections.singleton(ruleId));
+            for (String f : failed) System.out.println("[PROBE]   ✗ 候选试算：" + f);
+            FormulaCheck.stopOnBad(failed);
+            IsvGuard.reportTargets();
+            System.out.println("[PROBE] dry-run 结束，未写入。确认改前改后后加 APPLY=1");
+            return;
+        }
+        System.out.println("[PROBE] save -> " + writer.save(em));
+        MetadataDao.rebuildRuntimeMetaById(metaId);
+        System.out.println("[PROBE] rebuildRuntimeMetaById(" + metaId + ") 完成");
+        readBack(metaId, ruleId, changes);
+    }
+
+    /** 这条规则里给 target 赋值的计算公式；一个都没有、或不止一个都拒，并列出这条规则有哪些计算公式。 */
+    private static FormulaAction formulaFor(BizRule rule, String target) {
+        List<FormulaAction> hits = new ArrayList<FormulaAction>();
+        List<String> all = new ArrayList<String>();
+        for (int p = 0; p < 2; p++) {
+            List<BizRuleAction> actions = p == 0 ? rule.getTrueActions() : rule.getFalseActions();
+            if (actions == null) continue;
+            for (BizRuleAction a : actions) {
+                if (!(a instanceof FormulaAction)) continue;
+                String body = safe(((FormulaAction) a).getExpression());
+                int eq = body.indexOf('=');
+                String left = eq <= 0 ? "" : body.substring(0, eq).trim();
+                all.add((p == 0 ? "成立时 " : "不成立时 ") + body);
+                if (left.equalsIgnoreCase(target)) hits.add((FormulaAction) a);
+            }
+        }
+        if (hits.size() == 1) return hits.get(0);
+        throw new IllegalArgumentException("规则 " + rule.getId() + " 里给 " + target + " 赋值的计算公式有 " + hits.size()
+                + " 个，要正好一个；这条规则的计算公式：" + (all.isEmpty() ? "(没有)" : join(all, "；")));
+    }
+
+    /** 落库后从库里重新读这条规则，逐项和要写的对一遍。 */
+    private static void readBack(String metaId, String ruleId, List<String[]> changes) {
+        EntityMetadata em = (EntityMetadata) MetadataDao.readMeta(metaId, MetaCategory.Entity);
+        BizRule rule = null;
+        for (Entity<?, ?> item : em.getEntitys()) {
+            List<BizRule> list = item.getRules();
+            if (list == null) continue;
+            for (BizRule r : list) {
+                if (ruleId.equals(String.valueOf(r.getId()))) rule = r;
+            }
+        }
+        int bad = 0;
+        for (String[] c : changes) {
+            String now;
+            if (rule == null) {
+                now = "(规则不见了)";
+            } else if ("条件".equals(c[0])) {
+                now = safe(rule.getPreCondition());
+            } else if ("启用".equals(c[0])) {
+                now = rule.isEnabled() ? "启用" : "停用";
+            } else {
+                String target = c[0].substring("计算公式 ".length());
+                try {
+                    now = safe(formulaFor(rule, target).getExpression());
+                } catch (IllegalArgumentException e) {
+                    now = "(" + e.getMessage() + ")";
+                }
+            }
+            boolean ok = now.equals(c[2]);
+            if (!ok) bad++;
+            System.out.println("[PROBE] 回读 " + c[0] + "：" + now + (ok ? "  和要写的一致" : "  !! 和要写的不一致"));
+        }
+        System.out.println("[PROBE] 回读：一致 " + (changes.size() - bad) + " 项，不一致 " + bad + " 项");
     }
 
     /**

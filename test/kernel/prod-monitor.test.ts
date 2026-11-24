@@ -4,9 +4,13 @@ import { describeProdConfig, jdbcUrl, parseProdConfig } from "../../src/kernel/p
 import {
 	type HttpPort,
 	type HttpReply,
+	MONITOR_READ_PATHS,
+	type MonitorReadPath,
 	type MonitorSession,
 	monitorCaptcha,
 	monitorLogin,
+	monitorPing,
+	monitorPost,
 	monitorQuery,
 	queryForm,
 } from "../../src/kernel/prod/monitor.ts";
@@ -131,6 +135,36 @@ describe("monitor 查询", () => {
 		if (!got.ok) throw got.error;
 		expect(got.value.rows).toHaveLength(1);
 		expect(got.value.form.traceId).toBe("t1");
+	});
+});
+
+describe("monitor 只调只读名单里的接口", () => {
+	const session: MonitorSession = {
+		username: "viewer",
+		cookies: [["ierp-cluster-Auth_Token", "TOK"]],
+		csrf: "CSRF",
+		loggedInAt: 0,
+		keywordBase64: true,
+		datasource: "ds1",
+	};
+
+	it("登录、保活、查日志走完一遍，发出去的每个请求都在名单里", async () => {
+		const { http, calls } = fakeMonitor(true);
+		const captcha = await monitorCaptcha(http, MONITOR);
+		if (!captcha.ok) throw captcha.error;
+		await monitorLogin(http, MONITOR, captcha.value, "ab12");
+		await monitorPing(http, MONITOR, session);
+		await monitorQuery(http, MONITOR, session, { traceId: "t1" }, 0);
+		const sent = calls.map((c) => c.url.replace("https://demo.example/monitor", ""));
+		expect(new Set(sent)).toEqual(new Set(MONITOR_READ_PATHS));
+	});
+
+	it("名单外的路径（绕过类型拼出来的）不发，直接报错", async () => {
+		const { http, calls } = fakeMonitor(true);
+		await expect(monitorPost(http, MONITOR, "/eye/user/delete" as MonitorReadPath, {}, {})).rejects.toThrow(
+			"不在只读名单里",
+		);
+		expect(calls).toHaveLength(0);
 	});
 });
 

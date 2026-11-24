@@ -1,5 +1,5 @@
 /**
- * 桌面版选「生产排障」新建会话不经过任何命令：monitor 没登录时，cosmic_prod 第一次用、查日志前要自己弹验证码框，
+ * 开始查生产不经过任何命令：monitor 没登录时，cosmic_prod 第一次用、查日志前要自己弹验证码框，
  * 人不登就本会话不再问。
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -82,7 +82,7 @@ const live = new AbortController().signal;
 const noOpen = () => {};
 
 describe("cosmic_prod 前自动登录 monitor", () => {
-	it("会话里第一次用就弹验证码，人输了就登上；查库也弹（选排障会话就等于要用排障）", async () => {
+	it("会话里第一次用就弹验证码，人输了就登上；查库也弹（调 cosmic_prod 就是在查生产，日志多半也要看）", async () => {
 		const { kernel, calls } = fakeKernel();
 		const { ask, asked } = scriptedAsk([" ab12 "]);
 		const state = initialMonitorPromptState();
@@ -186,7 +186,7 @@ describe("monitor 登录", () => {
 });
 
 describe("cosmic_prod 工具接上了自动登录", () => {
-	it("排障会话第一次查库：先弹验证码、登上，再照常查", async () => {
+	it("会话里第一次查库：先弹验证码、登上，再照常查", async () => {
 		const { kernel, calls } = fakeKernel();
 		const order: string[] = [];
 		const full = {
@@ -207,7 +207,7 @@ describe("cosmic_prod 工具接上了自动登录", () => {
 			cwd: async () => "D:/demo",
 		};
 		const asked: string[] = [];
-		const tool = prodTool(new CosmicHost("prod", full), () => async (question) => {
+		const tool = prodTool(new CosmicHost(full), () => async (question) => {
 			asked.push(question);
 			order.push("ask");
 			return "ab12";

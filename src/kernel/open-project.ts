@@ -44,11 +44,14 @@ import { createContext, type KernelContext } from "./context.ts";
 import { KernelError } from "./errors.ts";
 import { kernelLayout } from "./layout.ts";
 import { nodePorts, type Ports } from "./ports.ts";
+import { sweepCosmicDir, sweepNote, touchSession } from "./project/cosmic-dirs.ts";
 import { upkeepProjectLayout } from "./project/layout-upkeep.ts";
 
 export interface OpenProjectInput {
 	/** Explicit project root; when absent the four-rule precedence from S2 applies. */
 	projectRoot?: string;
+	/** dsh 会话编号：过程文件进 `.cosmic-ai/sessions/<会话>/`。不给（命令行脚本）用 `_local`。 */
+	sessionId?: string;
 	cwd?: string;
 	entryFile?: string;
 	/** Directory holding the agent's config.json. Never a hardcoded skill path. */
@@ -81,9 +84,11 @@ export interface OpenedProject {
 }
 
 export async function openProject(input: OpenProjectInput): Promise<OpenedProject> {
-	const env = input.env ?? process.env;
+	const callerEnv = input.env ?? process.env;
 	const ports = input.ports ?? nodePorts;
+	const platform = input.platform ?? process.platform;
 	const notes: string[] = [];
+	let env = callerEnv;
 
 	const root = resolveProjectRoot(
 		{
@@ -98,6 +103,26 @@ export async function openProject(input: OpenProjectInput): Promise<OpenedProjec
 	const config = loadConfig({ root, agentConfigDir: input.agentConfigDir, env }, ports.fs);
 	const missing = requireRuntime(config);
 	if (missing !== null) throw missing;
+
+	// One JDK for everything. The version used to be read from JAVA_HOME while every
+	// java / javac / gradlew was found on PATH, so a machine whose PATH led to another
+	// JDK recorded one version in the RuntimeKey and ran a different one.
+	if (config.javaHome !== null) {
+		const home = config.javaHome.replace(/[\\/]+$/, "");
+		const origin = config.sources.javaHome;
+		// A wrong JAVA_HOME is reported by the version probe below, as before; a JDK the
+		// project or config.json names is checked here so the error can say which one.
+		const named = origin !== undefined && origin.source !== "环境变量";
+		if (named && !["java.exe", "java"].some((name) => ports.fs.exists(`${home}/bin/${name}`))) {
+			throw new KernelError("TOOLCHAIN_MISSING", `JDK 目录下没有 bin/java：${home}`, {
+				detail: { javaHome: home, from: origin === undefined ? null : `${origin.source} ${origin.via}`.trim() },
+				remedy:
+					"这个 JDK 取自 detail.from。装了别的 JDK 8 就用 cosmic_doctor action=config 设 javaHome 指向它；" +
+					"是工程 gradle.properties 的 org.gradle.java.home 写错了，就设 javaHome 盖过它。",
+			});
+		}
+		env = withJavaHome(callerEnv, home, platform);
+	}
 
 	// The Cosmic runtime belongs to the project. A disagreeing agent config is a
 	// hard error here (S2.2), not a note, because both halves of the mismatch
@@ -117,7 +142,7 @@ export async function openProject(input: OpenProjectInput): Promise<OpenedProjec
 		input.jdkMemory === undefined
 			? asked
 			: rememberingJdkProbe(asked, input.jdkMemory, input.javaStamp ?? javaExecutableStamp);
-	const javaHome = env.JAVA_HOME ?? "";
+	const javaHome = config.javaHome ?? "";
 	const jdk = await fingerprintJdk(javaHome, probe);
 	if (jdk === null) {
 		// java 在却没起来（内存不够最常见），照「去改 JAVA_HOME」查只会白查：把 java 自己的话带回去
@@ -132,7 +157,7 @@ export async function openProject(input: OpenProjectInput): Promise<OpenedProjec
 				detail: { javaHome: javaHome || null, ...(said === null ? {} : { java: said }) },
 				remedy: present
 					? "java 在，这次没起来；原因看 detail.java（内存不够时 JVM 起不来）。"
-					: "把 JAVA_HOME 指向 JDK 8，或确认 java 在 PATH 上。",
+					: "用 cosmic_doctor action=config 设 javaHome 指向本机的 JDK 8，或确认 java 在 PATH 上。",
 			},
 		);
 	}
@@ -171,17 +196,23 @@ export async function openProject(input: OpenProjectInput): Promise<OpenedProjec
 
 	const layout = kernelLayout({
 		root,
+		...(input.sessionId === undefined ? {} : { sessionId: input.sessionId }),
 		cacheRoot: cache.root,
 		runtimeKeyId: key.id,
 		resourcesDir: cache.resourcesDir,
 		codeModules: config.codeModules,
 		moduleDirs: config.auto.moduleDirs,
 		debugModule: config.debugModule,
+		gradleDirs: config.auto.gradleDirs,
 	});
 	// S19: whatever an older release left under build/ moves into .cosmic-ai/, and
 	// old RuntimeKey directories are reclaimed. Both are near-free when there is
 	// nothing to do, which is every open after the first.
 	notes.push(...upkeepProjectLayout(layout, ports.fs).notes);
+	// 照 .cosmic-ai 的目录表清一遍（一小时一次），再给本会话记一下还活着
+	const swept = sweepNote(sweepCosmicDir(layout, ports.fs, ports.clock.now()));
+	if (swept !== null) notes.push(swept);
+	touchSession(layout, ports.fs, ports.clock.now());
 	const reclaimed = await reclaimRuntimeCaches({
 		cacheRoot: input.cacheRoot,
 		currentKeyId: key.id,
@@ -212,6 +243,27 @@ export async function openProject(input: OpenProjectInput): Promise<OpenedProjec
 		release: { released: release.released.length, reused: release.reused.length, repaired: release.repaired.length },
 		notes,
 	};
+}
+
+/**
+ * The environment with `home` as the JDK: JAVA_HOME set to it and its bin directory first on
+ * PATH, so a bare `java` / `javac` and gradlew's own JDK lookup all land on it. Windows spells
+ * the variable `Path`; every spelling present is updated, and PATH is added when none is.
+ */
+export function withJavaHome(
+	env: Readonly<Record<string, string | undefined>>,
+	home: string,
+	platform: NodeJS.Platform,
+): Record<string, string | undefined> {
+	const separator = platform === "win32" ? ";" : ":";
+	const bin = platform === "win32" ? `${home.replace(/\//g, "\\")}\\bin` : `${home}/bin`;
+	const out: Record<string, string | undefined> = { ...env, JAVA_HOME: home };
+	const keys = Object.keys(env).filter((key) => key.toUpperCase() === "PATH");
+	for (const key of keys.length > 0 ? keys : ["PATH"]) {
+		const current = env[key] ?? "";
+		out[key] = current === "" ? bin : `${bin}${separator}${current}`;
+	}
+	return out;
 }
 
 /** Minimal env for the version probe; the full composition lives in context.ts. */

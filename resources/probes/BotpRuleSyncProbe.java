@@ -36,6 +36,7 @@ import kd.bos.entity.botp.CheckResult;
 import kd.bos.entity.botp.ConvertRuleElement;
 import kd.bos.entity.botp.FieldMapItem;
 import kd.bos.entity.botp.FieldMapPolicy;
+import kd.bos.entity.botp.FilterPolicy;
 import kd.bos.entity.botp.LinkEntityPolicy;
 import kd.bos.entity.botp.PlugInPolicy;
 import kd.bos.entity.botp.extcontrol.ExtControlElement;
@@ -87,9 +88,15 @@ import kd.bos.servicehelper.botp.ConvertMetaServiceHelper;
  *                                   预演逐条报改前改后、上下游关联记在哪、改后每条有取值的映射落在哪一层；
  *                                   实体不在、是关联子实体、改完不再记原来记的上下游关联、整条规则过不了
  *                                   平台校验（只算这次新增的问题），有一处就整批不写。APPLY 后重新读回核对
+ *   SYNC_FILTER=公式|clear          改源单过滤（哪些源单、哪些行能下推）：整个换成这一条公式（条件行清掉），
+ *                                   clear 是不再过滤。公式按源单字段写，例：billstatus = 'C' and (org.number = '0101' or org.number = '0301')
+ *   SYNC_RUN_CONDITION=公式|clear   改执行条件（源单满足才走这条规则），写法同上
+ *                                   两项预演都逐条打改前平台实际生效的那一条（条件行和公式拼好的），照着改；
+ *                                   规则用的是高级条件（多组）的不改，公式核不过、整条规则过不了平台校验（只算这次新增的）
+ *                                   都整批不写。APPLY 后重新读回核对
  *
  * 安全：
- *   SYNC_BACKUP=目录                APPLY 前把每条目标规则的 XML 原文存进去，APPLY=1 时必给
+ *   SYNC_BACKUP=目录                APPLY 前把每条目标规则的 XML 原文存进去；APPLY=1、SYNC_BACKUP_ONLY=1 时工具自动给（.cosmic-ai/evidence/backups/ 下），不用写
  *   SYNC_BACKUP_ONLY=1              只导不改：按同样的筛选条件把每条规则的 XML 存进 SYNC_BACKUP，
  *                                   一行库都不写（所以不需要 APPLY=1）
  *   SYNC_RESTORE=目录               回滚模式：把该目录下的 <id>.xml 写回 FDATA + 清缓存
@@ -113,11 +120,20 @@ public class BotpRuleSyncProbe {
         String srcId = env("SYNC_SRC", "");
         List<Mapping> fieldMap = parseFieldMap(env("SYNC_FIELDMAP", ""));
         Link link = Link.parse(env("SYNC_LINK", ""));
+        List<Cond> conds = new ArrayList<Cond>();
+        Cond filter = Cond.parse(Cond.FILTER, env("SYNC_FILTER", ""));
+        Cond runCond = Cond.parse(Cond.RUN, env("SYNC_RUN_CONDITION", ""));
+        if (filter != null) {
+            conds.add(filter);
+        }
+        if (runCond != null) {
+            conds.add(runCond);
+        }
         String onExist = env("SYNC_ON_EXIST", "skip");
         String backupDir = env("SYNC_BACKUP", "");
 
-        if (srcId.isEmpty() && fieldMap.isEmpty() && link == null) {
-            System.out.println("[PROBE] SYNC_SRC、SYNC_FIELDMAP、SYNC_LINK 都没给，无事可做");
+        if (srcId.isEmpty() && fieldMap.isEmpty() && link == null && conds.isEmpty()) {
+            System.out.println("[PROBE] SYNC_SRC、SYNC_FIELDMAP、SYNC_LINK、SYNC_FILTER、SYNC_RUN_CONDITION 都没给，无事可做");
             return;
         }
         if (apply && backupDir.isEmpty()) {
@@ -128,7 +144,9 @@ public class BotpRuleSyncProbe {
         System.out.println("[PROBE] 模式=" + (apply ? "APPLY 真写" : "dry-run 只演算")
                 + "  业务规则来源=" + (srcId.isEmpty() ? "(不复制)" : srcId)
                 + "  字段映射改动 " + fieldMap.size() + " 项"
-                + "  建行层级=" + (link == null ? "(不改)" : link.source + " -> " + link.target));
+                + "  建行层级=" + (link == null ? "(不改)" : link.source + " -> " + link.target)
+                + "  源单过滤=" + (filter == null ? "(不改)" : filter.label())
+                + "  执行条件=" + (runCond == null ? "(不改)" : runCond.label()));
 
         List<Head> targets = selectTargets(srcId);
         if (targets.isEmpty()) {
@@ -178,24 +196,32 @@ public class BotpRuleSyncProbe {
             List<String> notes = new ArrayList<String>();
             List<String> errors = new ArrayList<String>();
             List<String> linkErrors = new ArrayList<String>();
+            List<String> condErrors = new ArrayList<String>();
             //整条规则的平台校验在改之前先跑一遍：规则原本就有的问题不算这次的账，只拦新增的
-            List<String> checkedBefore = link == null ? null : platformCheck(el);
+            boolean wholeCheck = link != null || !conds.isEmpty();
+            List<String> checkedBefore = wholeCheck ? platformCheck(el) : null;
 
             if (!srcActions.isEmpty()) {
                 notes.addAll(applyBizRules(el, srcActions, onExist));
             }
             //源字段、公式按这条规则自己的源单解析；一批规则的源单可以不同
-            MainEntityType st = fieldMap.isEmpty() && link == null ? null : typeOf(types, h.source);
-            MainEntityType tt = fieldMap.isEmpty() && link == null ? null : typeOf(types, h.target);
+            boolean typed = !fieldMap.isEmpty() || wholeCheck;
+            MainEntityType st = typed ? typeOf(types, h.source) : null;
+            MainEntityType tt = typed ? typeOf(types, h.target) : null;
             for (Mapping m : fieldMap) {
                 notes.add(applyFieldMap(el, m, st, tt, errors));
             }
             //建行层级放在字段映射之后：落层报的是这次改完的映射
             if (link != null) {
                 notes.addAll(applyLink(h, el, link, st, tt, linkErrors));
+            }
+            for (Cond c : conds) {
+                notes.addAll(applyCondition(h, el, c, st, condErrors));
+            }
+            if (wholeCheck) {
                 for (String msg : platformCheck(el)) {
                     if (!checkedBefore.contains(msg)) {
-                        linkErrors.add("改完整条规则过不了平台校验：" + msg);
+                        (link != null ? linkErrors : condErrors).add("改完整条规则过不了平台校验：" + msg);
                     }
                 }
             }
@@ -210,7 +236,10 @@ public class BotpRuleSyncProbe {
             for (String e : linkErrors) {
                 System.out.println("[PROBE]      !! 建行层级：" + e);
             }
-            failed += errors.size() + linkErrors.size();
+            for (String e : condErrors) {
+                System.out.println("[PROBE]      !! 条件：" + e);
+            }
+            failed += errors.size() + linkErrors.size() + condErrors.size();
             ready.put(h, meta);
         }
 
@@ -220,7 +249,7 @@ public class BotpRuleSyncProbe {
         }
         if (!apply) {
             IsvGuard.reportTargets();
-            System.out.println("[PROBE] dry-run 结束，什么都没写。确认无误后加 APPLY=1 和 SYNC_BACKUP=<目录>");
+            System.out.println("[PROBE] dry-run 结束，什么都没写。确认无误后加 APPLY=1");
             return;
         }
 
@@ -245,7 +274,153 @@ public class BotpRuleSyncProbe {
         if (link != null) {
             readBackLink(changed, link);
         }
+        if (!conds.isEmpty()) {
+            readBackConditions(changed, conds);
+        }
         System.out.println("[PROBE] 已写入 " + changed.size() + " 条并清缓存；备份在 " + backupDir);
+    }
+
+    // ---------- 源单过滤、执行条件 ----------
+
+    /**
+     * SYNC_FILTER / SYNC_RUN_CONDITION：规则上的一处条件整个换成一条公式，或者清掉。
+     *
+     * 为什么是「整个换成公式」，不是改某一行条件：平台把一处条件存成两半——条件行（设计器里一行一行配的，
+     * 下推时转成查库的过滤）和公式（逐张源单算），两半用「并且」拼成生效的那一条（CRCondition.buildFullFormula；
+     * 下推编译 CRConditionCompiler 两半都认）。只追加公式只能收窄、放不宽；按行改又要逐个比较符各写一套。
+     * 换成一条公式，改前改后都是平台自己拼出来的那一条，确认单上一眼对得上。
+     */
+    static final class Cond {
+        static final String FILTER = "SYNC_FILTER";
+        static final String RUN = "SYNC_RUN_CONDITION";
+
+        final String key;
+        /** 空串是清掉。 */
+        final String expr;
+
+        Cond(String key, String expr) {
+            this.key = key;
+            this.expr = expr;
+        }
+
+        /** 空串是不改；clear（不分大小写）是清掉。 */
+        static Cond parse(String key, String raw) {
+            String s = raw.trim();
+            if (s.isEmpty()) {
+                return null;
+            }
+            return new Cond(key, "clear".equalsIgnoreCase(s) ? "" : s);
+        }
+
+        String part() {
+            return FILTER.equals(key) ? "源单过滤" : "执行条件";
+        }
+
+        String label() {
+            return expr.isEmpty() ? "清掉" : "改成 " + expr;
+        }
+    }
+
+    private static List<String> applyCondition(Head h, ConvertRuleElement el, Cond c, MainEntityType st,
+            List<String> errors) {
+        List<String> notes = new ArrayList<String>();
+        FilterPolicy fp = null;
+        CRCondition old;
+        if (Cond.FILTER.equals(c.key)) {
+            fp = el.getFilterPolicy();
+            //高级条件开着时下推按 getConditionList() 一组组走，不读 getCondition()（ConvertRuleCompiler.compileFilterPolicy）
+            if (fp != null && Boolean.TRUE.equals(fp.getAdvCondition())) {
+                errors.add("源单过滤用的是高级条件（多组条件，下推按组走、不读这一处），" + c.key + " 改不了它；要在设计器里改");
+                return notes;
+            }
+            old = fp == null ? null : fp.getCondition();
+        } else {
+            old = el.getRunCondition();
+        }
+        String before = fullFormula(old, st);
+        if (c.expr.isEmpty() && before.isEmpty()) {
+            notes.add(c.part() + "：原本就没有，不动");
+            return notes;
+        }
+        //公式按源单字段核：下推时这两处条件都在源单上算
+        if (!c.expr.isEmpty() && !FormulaCheck.report("botp", "规则 " + h.id + " 的" + c.part(), h.source,
+                FormulaCheck.rule(c.expr, st), true)) {
+            errors.add(c.part() + "的公式没过平台核对（见上面 ✗ 那几行）");
+        }
+        CRCondition now = new CRCondition();
+        now.setId(old == null || str(old.getId()).isEmpty() ? Uuid8.generateShortUuid() : old.getId());
+        now.setSeq(old == null ? 0 : old.getSeq());
+        now.setEnabled(true);
+        now.setIsv(old == null || str(old.getIsv()).isEmpty() ? IsvGuard.ISV : old.getIsv());
+        String after = "";
+        if (!c.expr.isEmpty()) {
+            now.setExpression(c.expr);
+            now.setExprTran(c.expr);
+            try {
+                after = str(now.buildFullFormula(st)).trim();
+            } catch (RuntimeException e) {
+                errors.add(c.part() + "改完平台拼不出生效的条件：" + e.getClass().getSimpleName() + ": " + e.getMessage());
+            }
+        }
+        if (Cond.FILTER.equals(c.key)) {
+            if (fp == null) {
+                fp = new FilterPolicy();
+                el.setFilterPolicy(fp);
+            }
+            fp.setCondition(now);
+        } else {
+            el.setRunCondition(now);
+        }
+        notes.add(c.part() + "：" + (before.isEmpty() ? "(原本没有)" : before) + "  ->  "
+                + (c.expr.isEmpty() ? "(清掉，不再限制)" : after) + (before.equals(after) ? "（已经是这样）" : ""));
+        if (old != null && !old.isEnabled()) {
+            notes.add(c.part() + "改前是停用的，改后启用");
+        }
+        ProbeJson.emit("botp-condition", "rule", h.id, "name", h.name, "part", c.part(),
+                "before", before, "after", after);
+        return notes;
+    }
+
+    /** 平台自己把条件行和公式拼成的那一条（下推时生效的就是它）；没有条件是空串。 */
+    private static String fullFormula(CRCondition c, MainEntityType st) {
+        if (c == null) {
+            return "";
+        }
+        try {
+            return str(c.buildFullFormula(st)).trim();
+        } catch (RuntimeException e) {
+            return "(平台拼不出：" + e.getClass().getSimpleName() + ": " + e.getMessage() + "；条件行原文 "
+                    + c.getFilterString() + "，公式 " + str(c.getExpression()) + ")";
+        }
+    }
+
+    /** 写完清缓存后从库里重新读每条规则改过的条件，和这次要写的对一遍：公式一样、条件行是空的才算一致。 */
+    private static void readBackConditions(List<String> ids, List<Cond> conds) throws Exception {
+        ConvertRuleReader reader = new ConvertRuleReader();
+        int bad = 0;
+        int all = 0;
+        for (String id : ids) {
+            ConvertRuleMetadata back = reader.loadMeta(id, false);
+            ConvertRuleElement el = back == null ? null : back.getRuleElement();
+            for (Cond c : conds) {
+                CRCondition cond = null;
+                if (el != null) {
+                    cond = Cond.FILTER.equals(c.key)
+                            ? (el.getFilterPolicy() == null ? null : el.getFilterPolicy().getCondition())
+                            : el.getRunCondition();
+                }
+                String expr = cond == null ? "" : str(cond.getExpression()).trim();
+                boolean noRows = cond == null || cond.getFilterCondition() == null
+                        || cond.getFilterCondition().getFilterRow() == null
+                        || cond.getFilterCondition().getFilterRow().isEmpty();
+                boolean ok = expr.equals(c.expr) && noRows;
+                all++;
+                bad += ok ? 0 : 1;
+                System.out.println("[PROBE] 回读 id=" + id + "  " + c.part() + " 公式=" + (expr.isEmpty() ? "(空)" : expr)
+                        + "  条件行=" + (noRows ? "无" : "还有") + (ok ? "  和要写的一致" : "  !! 和要写的不一致"));
+            }
+        }
+        System.out.println("[PROBE] 回读条件：一致 " + (all - bad) + " 处，不一致 " + bad + " 处");
     }
 
     // ---------- 建行层级 ----------

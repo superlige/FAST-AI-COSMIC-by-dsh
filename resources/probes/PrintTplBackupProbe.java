@@ -21,7 +21,7 @@ import kd.bos.print.service.BosPrintServiceHelper;
  * 只读数据库、写本地文件：用官方导出链完整备份一个本 ISV 的新打印模板。
  *
  * TPL_NUMBER=模板编码（必填）
- * BACKUP_DIR=目录（可选，默认 outputs/print-template-backups）
+ * BACKUP_DIR=名字（可选，工具放进 .cosmic-ai/evidence/backups/<时间>-<名字>/，一直留）
  */
 public class PrintTplBackupProbe {
     public static void run() throws Exception {

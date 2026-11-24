@@ -130,8 +130,8 @@ show creator.number as demo_creator_number after creator
 平台保存前校验、编译、环境执行故障仍按运行失败处理，不能靠换参数当作已修复。
 
 不带 `APPLY` 是 dry-run：整份清单在内存里改完，列出逐元素比出来的差异；有一处不对就一处都不改，问题一次列全。
-`APPLY=1` 要同时给 `LAYOUT_BACKUP=<目录>`：落库前把改前那份存进去，只存一次库，存完重新读一遍逐项核对。
-退回：把 `LAYOUT_EDIT` 换成 `LAYOUT_RESTORE=<那个备份目录>`，同样先 dry-run 看差异再执行。
+`APPLY=1` 落库前工具自动把改前那份存进 `.cosmic-ai/evidence/backups/`（返回里报路径），只存一次库，存完重新读一遍逐项核对。
+退回：把 `LAYOUT_EDIT` 换成 `LAYOUT_RESTORE=<那个备份路径>`，同样先 dry-run 看差异再执行。
 
 ```
 [PROBE]   布局 auditor  Lock：new,edit,submit,audit → new,edit

@@ -1,9 +1,9 @@
 /**
- * 诊断报告：排障模式的交付物。
+ * 诊断报告：查生产问题的交付物。
  *
  * 每条结论要么引用本次会话里真查到的证据（工具结果上标的 E 编号），要么就是推断——由这里按引用自动标，
  * 不由模型自己说「已证实」。引用了不存在的编号直接拒：那等于编造证据。
- * 报告落在 `.cosmic-ai/evidence/diagnosis/`，切回开发模式修代码时作为依据。
+ * 报告落在 `.cosmic-ai/evidence/diagnosis/`，接着修代码时作为依据。
  */
 import { join } from "node:path";
 import type { KernelContext } from "../context.ts";

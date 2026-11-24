@@ -6,7 +6,6 @@
  */
 
 import { readFileSync, statSync } from "node:fs";
-import type { CosmicMode } from "../agent/state/prod-state.ts";
 import type { CosmicToolName } from "../agent/tools/names.ts";
 import { budgetOutput, outlineText, pickableRemedy, pickFromRun } from "../agent/tools/output-budget.ts";
 import { FACTS_RECORD_TYPES, INDEX_RECORD_TYPES } from "../agent/tools/record-budget.ts";
@@ -24,6 +23,7 @@ import {
 } from "../knowledge/capsule.ts";
 import { referenceSourceResolver } from "../knowledge/reference.ts";
 import { type CosmicKernel, cosmicKernel, type ProjectHandle } from "./kernel.ts";
+import type { AskProdConsent } from "./prod-setup.ts";
 import { type AgentFailure, CosmicToolFailure, refused } from "./result.ts";
 import { type CosmicSession, type OpenedProject, type RememberedOutput, SessionStore } from "./session.ts";
 import { type Ask, configureInCall } from "./setup.ts";
@@ -157,16 +157,16 @@ export class CosmicHost {
 	/** 加载 reference 技能时释放出来的文档目录，知识卡片的出处换成能 read 的路径时用。 */
 	referenceDocsDir: string | undefined;
 
-	readonly mode: CosmicMode;
-
 	/**
 	 * 工具执行中问人（配置向导用），`header` 是确认单的标题；宿主没有提问服务（无头运行）时给 undefined。
 	 * 插件入口装上；不装就不弹向导，配置不全照实报错。
 	 */
 	askInCall: ((call: CallContext, header: string) => Ask | undefined) | undefined;
 
-	constructor(mode: CosmicMode, kernel?: CosmicKernel) {
-		this.mode = mode;
+	/** 工具执行中问人「这个会话能不能查生产」；插件入口装上，没装就不问（见 prod-setup.ts 的 `ensureProdConsent`）。 */
+	askProdConsent: ((call: CallContext) => AskProdConsent) | undefined;
+
+	constructor(kernel?: CosmicKernel) {
 		this.kernel = kernel ?? cosmicKernel();
 	}
 
@@ -236,7 +236,8 @@ export class CosmicHost {
 		const session = call.session;
 		const known = session.project;
 		const root = known?.root ?? (await call.cwd());
-		let result = await this.kernel.open(root, { rescanRuntime: known === undefined });
+		const sessionId = session.id === undefined ? {} : { sessionId: session.id };
+		let result = await this.kernel.open(root, { rescanRuntime: known === undefined, ...sessionId });
 		if (!result.ok && result.error.code === "CONFIG_INCOMPLETE")
 			result = await this.configureThenOpen(call, root, result);
 		const opened = this.unwrap(call, result, input);
@@ -267,8 +268,10 @@ export class CosmicHost {
 	}
 
 	/**
-	 * 配置不全：在这次调用里弹工程配置向导，填好了接着打开。人不填了（或本会话早先不填过），
-	 * 照实返回配置不全，补救改成请用户敲 /cosmic-env——这几项（尤其用户 id）要人来答，模型猜不出来。
+	 * 配置不全：缺的是工程文件里认得出来的项（启动类、模块……），原样把内核的报错交给模型——
+	 * 补救里写着让它读工程文件、用 cosmic_doctor action=config 补，不来问人。
+	 * 只缺账套、用户时，在这次调用里弹工程配置向导让人选，选好了接着打开。人不填了（或本会话早先不填过），
+	 * 照实返回配置不全，补救改成请用户敲 /cosmic-env——这两项模型猜不出来。
 	 * 没有提问服务（无头运行）时原样返回内核的报错。
 	 */
 	private async configureThenOpen(
@@ -276,10 +279,16 @@ export class CosmicHost {
 		root: string,
 		failed: Extract<Awaited<ReturnType<CosmicKernel["open"]>>, { ok: false }>,
 	): Promise<Awaited<ReturnType<CosmicKernel["open"]>>> {
+		const fromProject = (failed.error.detail as { fromProject?: unknown } | undefined)?.fromProject;
+		if (Array.isArray(fromProject) && fromProject.length > 0) return failed;
 		const ask = this.askInCall?.(call, "工程配置");
 		if (ask === undefined) return failed;
 		const setup = await configureInCall(this.kernel, call.session.setupPrompt, ask, root, call.signal);
-		if (setup?.kind === "ready") return this.kernel.open(root, { rescanRuntime: true });
+		if (setup?.kind === "ready")
+			return this.kernel.open(root, {
+				rescanRuntime: true,
+				...(call.session.id === undefined ? {} : { sessionId: call.session.id }),
+			});
 		return {
 			ok: false,
 			error: new KernelError(
@@ -287,7 +296,7 @@ export class CosmicHost {
 				setup === null ? failed.error.message : `${failed.error.message}；${setup.text}`,
 				{
 					detail: failed.error.detail,
-					remedy: "这几项要用户来填：请用户在会话里输入 /cosmic-env，按弹出的提示补齐后再继续。",
+					remedy: "账套、用户只能由用户来选：请用户在会话里输入 /cosmic-env，按弹出的提示选好后再继续。",
 				},
 			),
 		};

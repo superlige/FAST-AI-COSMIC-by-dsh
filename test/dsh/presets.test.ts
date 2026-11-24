@@ -1,5 +1,5 @@
 /**
- * 组合包两个预设里挂的 dsh 插件，配置要和 dsh-base 顶层同名行一致（无界面配置跑的就是顶层那一套）。
+ * 组合包预设里挂的 dsh 插件，配置要和 dsh-base 顶层同名行一致（无界面配置跑的就是顶层那一套）。
  *
  * 预设里的插件不继承顶层的配置，必填项漏写，界面新建会话直接失败
  * （"agent-preset/invalid: tool-fs-search: $.sampleOverCapGlobResults missing required value"）。
@@ -55,7 +55,12 @@ function presetPlugins(id: string): Row[] {
 	return rows(plugins).filter((row) => row.group !== true);
 }
 
-describe.each(["preset-cosmic", "preset-cosmic-prod"])("预设 %s", (preset) => {
+it("只有一个苍穹预设：开发和查生产在同一个会话里", () => {
+	const presets = ours.filter((row) => row.name === "@deepseek-ai/dsh-agent-preset").map((row) => row.id);
+	expect(presets).toEqual(["preset-cosmic"]);
+});
+
+describe.each(["preset-cosmic"])("预设 %s", (preset) => {
 	const plugins = presetPlugins(preset);
 
 	it("挂了 dsh 插件，且大部分在 dsh-base 顶层有同名行可对", () => {

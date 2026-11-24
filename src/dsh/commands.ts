@@ -3,10 +3,10 @@
  *   /cosmic-env           识别会话工作目录里的工程（config.json 缺必填项时走配置向导）、刷新代码关系表，报一遍环境
  *                         （工具第一次要打开工程时配置不全也会自动弹同一个向导，见 setup.ts）；
  *   /cosmic-prod-setup    填生产排障配置（生产库只读账号、monitor 账号），试连后确认才写；配齐了的可以重填
- *                         （排障会话第一次用 cosmic_prod 时没配也会自动弹，见 prod-setup.ts）；
+ *                         （第一次用 cosmic_prod 时没配也会自动弹，见 prod-setup.ts）；
  *   /cosmic-jvm           本机 cosmic 开着的常驻 JVM 和调试节点，能停其中一个；
  *   /cosmic-login         登录 ChatGPT（codex OAuth），和设置 → 模型页上 codex 卡片的「登录 ChatGPT」按钮是同一条登录（codex-login.ts）；
- *   /cosmic-monitor-login 排障会话里登录生产 monitor，验证码只由人照图输入（排障工具第一次用、查日志前没登录也会自动弹，
+ *   /cosmic-monitor-login 登录生产 monitor，验证码只由人照图输入（cosmic_prod 第一次用、查日志前没登录也会自动弹，
  *                         见 monitor-login.ts；这条命令留给人点了「不填了」之后又想登的时候）。
  */
 
@@ -184,6 +184,8 @@ export function cosmicCommands(deps: CommandDeps): CommandDefinition[] {
 	const jvm: CommandDefinition = {
 		name: "cosmic-jvm",
 		description: "看本机 cosmic 开着的苍穹进程（几个、占多少内存、哪个在用）；/cosmic-jvm stop <pid> 停掉一个",
+		// 声明收参数：不声明的话界面不认命令名后面的字，整行「/cosmic-jvm stop 1234」会当成一句话发给模型
+		input: { hint: "留空列出进程；stop <pid> 停掉一个" },
 		async handler(invocation) {
 			const kernel = host.kernel;
 			if (kernel.localJvms === undefined || kernel.stopLocalJvm === undefined) return fail("这个宿主看不了本机进程");
@@ -255,7 +257,6 @@ export function cosmicCommands(deps: CommandDeps): CommandDefinition[] {
 		name: "cosmic-monitor-login",
 		description: "登录生产 monitor（查生产日志用）；验证码照图输入",
 		async handler(invocation) {
-			if (host.mode !== "prod") return fail("monitor 只在生产排障会话里用：新开一个生产排障会话再登录");
 			const outcome = await loginMonitor(host.kernel, (question, detail) =>
 				askText(deps.questions(), invocation.agent, invocation.signal, question, detail),
 			);
@@ -313,5 +314,5 @@ export function cosmicCommands(deps: CommandDeps): CommandDefinition[] {
 		},
 	};
 
-	return host.mode === "prod" ? [env, jvm, login, prodSetup, monitor] : [env, jvm, login, prodSetup];
+	return [env, jvm, login, prodSetup, monitor];
 }

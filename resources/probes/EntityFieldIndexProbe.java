@@ -26,6 +26,10 @@ import kd.bos.db.ResultSetHandler;
  * 一个）。设计态 XML 就在 t_meta_entitydesign 的 FDATA 里，纯 indexOf 扫标签流，
  * 实测 635KB 的大单 8ms 扫完。
  *
+ * 每条还带设计里的中文名（`name`，字段块下的 `<Name>` 叶子）和字段类型（`type`，就是块名，
+ * 如 `BasedataField`；分录容器不带）：输入框里 `@` 引用按中文名找字段用。扩展设计里只改名、
+ * 没写 Key 的块认不出是哪个字段，名字按原设计里的报。
+ *
  * XML 形状（实测 zlgd_sys_test_bill）：
  *   BillEntity      表头容器，Key=实体标识，无 ParentId
  *   EntryEntity     分录，无 ParentId
@@ -69,6 +73,10 @@ public class EntityFieldIndexProbe {
         String key;
         String id;
         String parentId;
+        /** 设计里的中文名（`<Name>` 叶子）；多语言写成子元素时拿不到，就是 null */
+        String caption;
+        /** 扩展设计里改原单元素的块，标签上的 oid 属性就是原元素的 Id */
+        String oid;
 
         Block(String n) {
             name = n;
@@ -352,6 +360,10 @@ public class EntityFieldIndexProbe {
             if (b.id != null) {
                 byId.put(b.id, b);
             }
+            //扩展设计里改动原单元素的块写成 <EntryEntity action="edit" oid="原 Id">，没有 Id、Key 子元素
+            if (b.oid != null && !byId.containsKey(b.oid)) {
+                byId.put(b.oid, b);
+            }
         }
         for (Block b : blocks) {
             boolean isField = b.name.endsWith("Field");
@@ -374,11 +386,17 @@ public class EntityFieldIndexProbe {
                 entry = b.key;
                 Block owner = b.parentId == null ? null : byId.get(b.parentId);
                 parentEntry = owner == null ? "" : nz(owner.key);
-                emit(entity, b.key, level, entry, parentEntry, "container", owners, stat, onlyOn, emitted);
+                emit(entity, b.key, level, entry, parentEntry, "container", b, owners, stat, onlyOn, emitted);
                 continue;
             }
             Block p = b.parentId == null || b.parentId.isEmpty() ? null : byId.get(b.parentId);
-            if (p != null && "SubEntryEntity".equals(p.name)) {
+            boolean box = p != null && ("EntryEntity".equals(p.name) || "SubEntryEntity".equals(p.name));
+            if ((p == null && b.parentId != null && !b.parentId.isEmpty()) || (box && p.key == null)) {
+                //上级不在这份设计里，或只是扩展设计里改原单分录的块（有 oid、没 Key，说不出是哪条分录）：
+                //扩展设计往原单的分录上加字段时，那条分录只在原单设计里有。别当成表头
+                //（真机 sm_salorder 的扩展字段 zlgd_ljjdjsc 在分录 billentry 上，曾被报成表头），如实标 unknown
+                level = "unknown";
+            } else if (p != null && "SubEntryEntity".equals(p.name)) {
                 level = "subentry";
                 entry = nz(p.key);
                 //子分录再往上那一层分录也报出来：查「谁碰了这条分录」时用得上
@@ -392,12 +410,12 @@ public class EntityFieldIndexProbe {
                 level = "unknown";
                 entry = nz(p.key);
             }
-            emit(entity, b.key, level, entry, parentEntry, "field", owners, stat, onlyOn, emitted);
+            emit(entity, b.key, level, entry, parentEntry, "field", b, owners, stat, onlyOn, emitted);
         }
     }
 
     private static void emit(String entity, String key, String level, String entry,
-                             String parentEntry, String kind, Map<String, Set<String>> owners,
+                             String parentEntry, String kind, Block b, Map<String, Set<String>> owners,
                              long[] stat, Set<String> onlyOn, Set<String> emitted) {
         //先记全库归属（判重名用），再决定这一条要不要报出去
         Set<String> s = owners.get(key);
@@ -410,7 +428,8 @@ public class EntityFieldIndexProbe {
             return;
         }
         ProbeJson.emit("field", "entity", entity, "key", key, "level", level,
-                "entry", entry, "parentEntry", parentEntry, "kind", kind);
+                "entry", entry, "parentEntry", parentEntry, "kind", kind,
+                "name", nz(b.caption), "type", "container".equals(kind) ? "" : b.name);
         stat[2]++;
         emitted.add(key);
     }
@@ -442,7 +461,8 @@ public class EntityFieldIndexProbe {
             if (tag.startsWith("/")) {
                 if (!stack.isEmpty()) {
                     Block b = stack.remove(stack.size() - 1);
-                    if (b.key != null) {
+                    //带 Key 的是要报的；只带 oid 的（扩展设计改原单的块）留着认上级用
+                    if (b.key != null || b.oid != null) {
                         out.add(b);
                     }
                 }
@@ -462,18 +482,37 @@ public class EntityFieldIndexProbe {
                         p.id = v;
                     } else if ("ParentId".equals(name)) {
                         p.parentId = v;
+                    } else if ("Name".equals(name)) {
+                        p.caption = unescape(v);
                     }
                 }
                 i = close + name.length() + 3;
                 continue;
             }
-            stack.add(new Block(name));
+            Block opened = new Block(name);
+            int oid = tag.indexOf(" oid=\"");
+            if (oid >= 0) {
+                int end = tag.indexOf('"', oid + 6);
+                if (end > oid + 6) {
+                    opened.oid = tag.substring(oid + 6, end);
+                }
+            }
+            stack.add(opened);
         }
         return out;
     }
 
     private static String nz(String s) {
         return s == null ? "" : s;
+    }
+
+    /** 叶子文本里的五个 XML 转义；`&amp;` 放最后，免得把 `&amp;lt;` 解成 `<` */
+    private static String unescape(String v) {
+        if (v.indexOf('&') < 0) {
+            return v;
+        }
+        return v.replace("&lt;", "<").replace("&gt;", ">").replace("&quot;", "\"").replace("&apos;", "'")
+                .replace("&amp;", "&");
     }
 
     /** SQL 字面量：形状已经卡死过，这里只是别让单引号拼错 */

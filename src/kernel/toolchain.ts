@@ -11,6 +11,7 @@
 import { delimiter, join, relative } from "node:path";
 import { classpathFromArgfile } from "../runtime/jdk-probe.ts";
 import { staleSourcesIn } from "./commands/sources.ts";
+import { type GradleModuleDirs, readGradleModuleDirs } from "./config/detect.ts";
 import { baseChildEnv, type KernelContext, withUtf8ToolOptions } from "./context.ts";
 import { err, KernelError, type KernelResult, ok } from "./errors.ts";
 import type { ProcessResult } from "./ports.ts";
@@ -193,7 +194,8 @@ function gradleBuildFailure(run: ToolRun, stage: BuildStage, modules?: readonly 
 			remedy: outOfMemory
 				? "增大 gradle.properties 的 org.gradle.jvmargs（建议至少 -Xmx2048m -XX:MaxMetaspaceSize=512m），释放系统内存后执行 gradlew --stop，再重试。"
 				: stage === "module-build"
-					? "查看 detail.outputTail 中的 Gradle 原文；离线构建缺依赖时先联网运行一次对应的 gradlew build。"
+					? "查看 detail.outputTail 中的 Gradle 原文。离线缺依赖（默认带 --offline）时先联网跑一次 gradlew build，" +
+						'或用 cosmic_doctor action=config 设 gradleArgs（整体替换默认的 ["--offline"]，例如 [] 或 ["-x", "test"]）。'
 					: "查看 detail.outputTail 中的 Gradle 原文，并确认 cosmic-run.gradle 已释放且 debugModule 名字正确。",
 		},
 	);
@@ -214,7 +216,7 @@ export async function buildArtifacts(
 	const started = ctx.ports.clock.now();
 	const chunks: string[] = [];
 
-	const moduleBuild = await runGradlew(ctx, [...modules.map((m) => `:${m}:build`), "--offline"], signal);
+	const moduleBuild = await runGradlew(ctx, [...modules.map((m) => `:${m}:build`), ...ctx.config.gradleArgs], signal);
 	chunks.push(moduleBuild.out);
 	if (moduleBuild.status !== 0) {
 		return err(gradleBuildFailure(moduleBuild, "module-build", modules));
@@ -236,7 +238,7 @@ export async function buildArtifacts(
 			...gradleConfigProps(ctx),
 			`:${ctx.config.debugModule}:cosmicPathingJar`,
 			`:${ctx.config.debugModule}:cosmicJavacArgs`,
-			"--offline",
+			...ctx.config.gradleArgs,
 		],
 		signal,
 	);
@@ -277,13 +279,22 @@ const classpathKey = (path: string, platform: NodeJS.Platform): string => {
  * same `cp()` closure in cosmic-run.gradle, and the pathing jar is a zip whose
  * manifest is not worth unpacking to learn the same thing.
  */
-export function artifactState(ctx: KernelContext): ArtifactState {
+export function artifactState(
+	ctx: KernelContext,
+	gradleDirs: Readonly<Record<string, GradleModuleDirs>> | null = null,
+): ArtifactState {
 	const { fs } = ctx.ports;
 	if (!fs.exists(ctx.layout.pathingJar) || !fs.exists(ctx.layout.javacArgs)) return { state: "missing" };
 	const listed = new Set(
 		classpathFromArgfile(fs.read(ctx.layout.javacArgs)).map((entry) => classpathKey(entry, ctx.platform)),
 	);
-	const absent = ctx.layout.moduleDirs.filter((module) => !listed.has(classpathKey(module.out, ctx.platform)));
+	// After a regeneration the module directories are the ones Gradle just reported, not the
+	// ones this context was opened with: a project that moved its output is consistent again.
+	const modules = ctx.layout.moduleDirs.map((module) => {
+		const out = gradleDirs?.[module.name]?.out;
+		return out === undefined ? module : { ...module, out: join(out) };
+	});
+	const absent = modules.filter((module) => !listed.has(classpathKey(module.out, ctx.platform)));
 	if (absent.length === 0) return { state: "ok" };
 	return {
 		state: "stale",
@@ -375,7 +386,7 @@ export async function refreshLaunchClasses(ctx: KernelContext): Promise<KernelRe
 
 /** After a stale classpath was regenerated: it must now list every module, and the resident JVM must not keep the old one. */
 export function checkRegenerated(ctx: KernelContext, built: BuildOutcome, reason: string): KernelResult<BuildOutcome> {
-	const after = artifactState(ctx);
+	const after = artifactState(ctx, readGradleModuleDirs(ctx.projectRoot, ctx.ports.fs));
 	if (after.state !== "ok") {
 		return err(
 			new KernelError("BUILD_FAILED", "重新生成类路径清单之后，里面还是没有代码模块的 class 目录", {
@@ -385,8 +396,9 @@ export function checkRegenerated(ctx: KernelContext, built: BuildOutcome, reason
 					after: after.state === "stale" ? after.reason : after.state,
 				},
 				remedy:
-					"cosmic 把代码编译到 <模块>/build/classes/java/main；这个工程的 Gradle 把模块输出放在别处" +
-					"（改过 buildDir 或 sourceSets 的输出目录）。把输出目录改回默认，或者告诉维护 cosmic 的人。",
+					"类路径清单和模块目录清单（build/cosmic-modules.json）是同一次 Gradle 运行写的，按理一致。" +
+					"看 detail.after 里缺的是哪个模块：多半是 codeModules / extraCodeModules 里写了调试模块并不依赖的模块，" +
+					"用 cosmic_doctor action=config 改掉它，或者在调试模块的构建脚本里加上对它的依赖。",
 			}),
 		);
 	}

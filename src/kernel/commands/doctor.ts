@@ -34,7 +34,7 @@
 import type { KnowledgeSourceStatus } from "../../knowledge/source.ts";
 import { describeKnowledgeSource } from "../../knowledge/source.ts";
 import type { ConfigSource, KernelConfig } from "../config/load-config.ts";
-import { missingRequired, sourceOf } from "../config/load-config.ts";
+import { missingRequired, sourceOf, USER_ANSWERED_FIELDS } from "../config/load-config.ts";
 import { type KnowledgeSourceLine, sourceLine } from "./knowledge.ts";
 
 export interface DoctorRow {
@@ -98,6 +98,9 @@ const FIELDS = [
 	"appClass",
 	"appMethod",
 	"cosmicHome",
+	"javaHome",
+	"jvmArgs",
+	"gradleArgs",
 	"knowledgeRoot",
 	"debugPort",
 	"probeServerPort",
@@ -107,6 +110,7 @@ const FIELDS = [
 
 function fieldValue(config: KernelConfig, field: (typeof FIELDS)[number]): string | null {
 	if (field === "codeModules") return config.codeModules.length > 0 ? config.codeModules.join(", ") : null;
+	if (field === "jvmArgs" || field === "gradleArgs") return config[field].length > 0 ? config[field].join(" ") : null;
 	const value = config[field];
 	if (value === null || value === undefined || value === "") return null;
 	return String(value);
@@ -130,18 +134,25 @@ export function doctor(input: DoctorInput): DoctorReport {
 	if (config.parseError !== null) {
 		nextActions.push(`修好 ${config.parseErrorFile ?? config.configFile} 的 JSON 语法后重跑 doctor。`);
 	}
-	if (missing.length > 0) {
-		// The project file, not the machine-wide one: account / user / isv belong to
-		// ONE project, and a machine that holds several would otherwise get project
-		// A's account silently applied to project B.
+	// Both go to the project file, not the machine-wide one: these values belong to
+	// ONE project, and a machine that holds several would otherwise get project A's
+	// account silently applied to project B.
+	const fromProject = missing.filter((item) => !USER_ANSWERED_FIELDS.includes(item.field)).map((item) => item.field);
+	const askUser = missing.filter((item) => USER_ANSWERED_FIELDS.includes(item.field)).map((item) => item.field);
+	if (fromProject.length > 0) {
 		nextActions.push(
-			`补齐 ${missing.map((item) => item.field).join("、")}，写在 ${config.projectConfigFile}` +
-				`（工程级，只对这个工程生效）；跨工程通用的才写全局 ${config.configFile}。`,
+			`${fromProject.join("、")} 没从工程文件里认出来：读 settings.gradle、调试模块的构建脚本和启动类源码，` +
+				"用 cosmic_doctor action=config 写进工程配置。",
+		);
+	}
+	if (askUser.length > 0) {
+		nextActions.push(
+			`${askUser.join("、")} 由用户来选：其余各项齐了以后，打开工程时会弹框；弹不了就请用户输入 /cosmic-env。`,
 		);
 	}
 	if (config.auto.unresolvedDeps.length > 0) {
 		nextActions.push(
-			`有 ${config.auto.unresolvedDeps.length} 处工程依赖认不出模块名，用 extraCodeModules 在 config.json 里补上。`,
+			`有 ${config.auto.unresolvedDeps.length} 处工程依赖认不出模块名，用 cosmic_doctor action=config 设 extraCodeModules 补上。`,
 		);
 	}
 	if (config.cosmicHomeResolution.conflict !== null) {

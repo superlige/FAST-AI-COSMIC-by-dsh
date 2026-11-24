@@ -148,7 +148,9 @@ export function probeTool(host: CosmicHost, confirm: Confirm): CosmicToolSpec<Pr
 		if (released && releasedLane(target.cls, overlay) === "business")
 			await host.requireFresh(call, project.handle, args);
 		const metaWriter = released && isMetadataWriter(target.cls);
-		const dataWrite = released && isDataWriter(target.cls);
+		// 只有真落库才按写数据来验。PREVIEW=1 的回滚预演（内核已把 APPLY 去掉）不打落库行，
+		// 当成写数据验就被判成「自己中止了」，跑通的预演也报 ok:false。预演按普通探针看退出码。
+		const dataWrite = applying && released && isDataWriter(target.cls);
 		if (applying && !metaWriter && !dataWrite) {
 			throw host.fail(
 				call,
@@ -176,7 +178,6 @@ export function probeTool(host: CosmicHost, confirm: Confirm): CosmicToolSpec<Pr
 					probe: target.cls,
 					env,
 					label: writePlanCall(target.cls, env),
-					backupHint: "env 里加 <备份目录入参>=<目录>",
 					async preview() {
 						// 预演是这次写调用的一部分，不算「同一个问题又问一遍」：见 write.ts 第 2 步。
 						const result = await host.kernel.probe(project.handle, target.cls, {

@@ -221,9 +221,7 @@ describe("JVM 状态板", () => {
 			const view = await board.view("s1");
 			expect(view.boot?.phase).toBe(phase);
 			if (phase === "no-project")
-				expect(view.boot?.detail).toBe(
-					"这个目录不是苍穹工程（没有 gradle.properties 和 settings.gradle）：D:/somewhere",
-				);
+				expect(view.boot?.detail).toBe("这个目录不是 Gradle 工程（往上都没有 settings.gradle）：D:/somewhere");
 			// 没起成：后面几步是没走到，不是用不着做
 			expect(view.boot?.steps.slice(1).every((step) => step.state === "wait")).toBe(true);
 			expect(view.project).toBeNull();
@@ -293,7 +291,7 @@ describe("JVM 状态板", () => {
 		expect((await board.view("s1")).live?.kind).toBe("ready");
 	});
 
-	it("没登记的会话（排障会话）不管：tracked=false，动作也拒", async () => {
+	it("没登记的会话（别的预设的会话）不管：tracked=false，动作也拒", async () => {
 		const fake = fakeKernel();
 		const board = new JvmBoard(fake.kernel, fake.now);
 		expect(await board.view("prod-1")).toMatchObject({ tracked: false, boot: null, live: null });

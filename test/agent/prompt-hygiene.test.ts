@@ -13,7 +13,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { allFixedTextPieces, mountedToolSpecs } from "../../src/dsh/fixed-text.ts";
+import { fixedTextPieces, mountedToolSpecs } from "../../src/dsh/fixed-text.ts";
 import { probeUsage } from "../../src/kernel/commands/probe.ts";
 import { openKnowledgePack } from "../../src/knowledge/pack.ts";
 import { REFERENCE_FAMILIES } from "../../src/knowledge/reference.ts";
@@ -41,6 +41,10 @@ const FORBIDDEN: { pattern: RegExp; why: string }[] = [
 	{ pattern: /Harness/, why: "内部术语" },
 	{ pattern: /候选用例|自动转正/, why: "已删除的机制" },
 	{ pattern: /未随产物分发/, why: "内部术语" },
+	{
+		pattern: /排障会话|开发会话|排障模式|开发模式|新开[一个]*会话/,
+		why: "开发和查生产在同一个会话里，没有模式之分，也不用换会话",
+	},
 ];
 
 /**
@@ -53,7 +57,7 @@ const RETIRED: { pattern: RegExp; why: string }[] = [
 		why: "已取消的工具：写元数据在写调用里确认，事实用 cosmic_facts",
 	},
 	{ pattern: /事实账|交付回执|交付戳|preflight 预检|编译后的预检/, why: "已取消的机制：完成情况由模型照模板写" },
-	{ pattern: /\/cosmic-(?:prod|dev)\b|--prod\b/, why: "模式在新建会话时选，没有切模式的命令" },
+	{ pattern: /\/cosmic-(?:prod|dev)\b|--prod\b/, why: "没有模式之分，也没有切模式的命令" },
 ];
 
 /**
@@ -121,7 +125,7 @@ function modelFacingSources(): string[] {
 		.filter((file) => !NOT_MODEL_FACING.has(file.split(/[\\/]/).pop() ?? ""));
 }
 
-const pieces = allFixedTextPieces();
+const pieces = fixedTextPieces();
 
 function skillDocs(): { path: string; text: string }[] {
 	const pack = openKnowledgePack(readFileSync(join(ROOT, "knowledge/reference.pack")));
@@ -129,7 +133,7 @@ function skillDocs(): { path: string; text: string }[] {
 }
 
 describe("发给模型的文字不带历史沿革", () => {
-	it("两个模式的系统提示、每轮状态、工具说明和参数", () => {
+	it("系统提示、每轮状态、工具说明和参数", () => {
 		expect(pieces.length).toBeGreaterThan(20);
 		const found = pieces.flatMap((piece) => [
 			...violations(piece.where, piece.text),
@@ -168,6 +172,7 @@ describe("发给模型的文字不带历史沿革", () => {
 		expect(violations("旧", "S27 起不再预演")).toHaveLength(1);
 		expect(violations("旧", "落库前先调 cosmic_authorize", RETIRED)).toHaveLength(1);
 		expect(violations("旧", "用 /cosmic-prod 切到排障", RETIRED)).toHaveLength(1);
+		expect(violations("旧", "要修请用户新开一个开发会话，带上报告路径")).toHaveLength(1);
 		expect(violations("新", "写元数据时附 report，工具预演后弹确认单", RETIRED)).toEqual([]);
 	});
 });
@@ -197,7 +202,7 @@ describe("说「去看文档」的地方都带着能直接走的路", () => {
 			cosmic_meta: "argv 给 []",
 			cosmic_probe: "cosmic_knowledge action=probes",
 		};
-		const specs = mountedToolSpecs("dev");
+		const specs = mountedToolSpecs();
 		for (const [name, route] of Object.entries(routes)) {
 			const spec = specs.find((one) => one.name === name);
 			expect(spec?.description, name).toContain(route);

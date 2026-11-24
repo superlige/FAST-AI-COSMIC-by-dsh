@@ -53,6 +53,7 @@ public class CosmicProbe {
         String accountId = resolveAccount(want);
         if (accountId == null) {
             System.err.println("[PROBE-ERR] 找不到账套：" + want);
+            printAccountChoices();
             System.exit(3);
         }
 
@@ -295,9 +296,9 @@ public class CosmicProbe {
             return;
         }
         throw new IllegalStateException("探针缺配置：" + miss
-                + "\n这些值由 driver.mjs 从 config.mjs 传入。两种可能："
-                + "\n  ① 没走 driver（别手工 java -cp … CosmicProbe，用 driver.mjs probe）；"
-                + "\n  ② skill 的 config.json 没配全 —— 跑 driver.mjs doctor 看缺哪一项。");
+                + "\n这些值由 cosmic 按工程配置传入。两种可能："
+                + "\n  ① 没经 cosmic 起这个进程（别手工 java -cp … CosmicProbe，用 cosmic_probe）；"
+                + "\n  ② 工程配置没配全 —— cosmic_doctor 看缺哪一项。");
     }
 
     private static boolean blank(String s) {
@@ -316,6 +317,47 @@ public class CosmicProbe {
             }
         }
         return null;
+    }
+
+    /**
+     * 账套对不上时把这个环境里能选的账套（数据中心）逐个列出来：给人看的一行，加一条 {"t":"account"} 记录。
+     * 配置向导靠这几条让人从列表里选，而不是凭记忆敲编码。列表只要配置中心连得上就拿得到，不需要先有账套。
+     */
+    static void printAccountChoices() {
+        List<Account> accounts;
+        try {
+            accounts = AccountUtils.getAllAccountsOfCurrentEnv();
+        } catch (Throwable failed) {
+            System.out.println("[PROBE] 账套列表取不到：" + failed);
+            return;
+        }
+        if (accounts == null || accounts.isEmpty()) {
+            System.out.println("[PROBE] 这个环境一个账套都没列出来（配置中心连不上，或租户不对）");
+            return;
+        }
+        System.out.println("[PROBE] 这个环境可选的账套 " + accounts.size() + " 个：");
+        for (Account a : accounts) {
+            System.out.println("[PROBE]   " + a.getAccountNumber() + "  id=" + a.getAccountId() + "  " + a.getAccountName());
+            System.out.println("[PROBE-JSON] {\"t\":\"account\",\"number\":" + jsonText(a.getAccountNumber())
+                    + ",\"id\":" + jsonText(a.getAccountId()) + ",\"name\":" + jsonText(a.getAccountName()) + "}");
+        }
+    }
+
+    private static String jsonText(String s) {
+        if (s == null) {
+            return "\"\"";
+        }
+        StringBuilder out = new StringBuilder("\"");
+        for (char c : s.toCharArray()) {
+            if (c == '"' || c == '\\') {
+                out.append('\\').append(c);
+            } else if (c < 0x20) {
+                out.append(String.format("\\u%04x", (int) c));
+            } else {
+                out.append(c);
+            }
+        }
+        return out.append('"').toString();
     }
 
     /** 苍穹禁止 main 线程访问数据库，必须借 ThreadPools 的线程 */

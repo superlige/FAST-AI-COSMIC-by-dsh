@@ -1,6 +1,6 @@
 /**
  * 生产排障配置向导：缺什么问什么、写之前试连、连不上能重填或照样写、不确认不写；
- * 排障会话里 cosmic_prod 第一次用时没配就自己弹，人不填就本会话不再弹；并行的调用只弹一个。
+ * cosmic_prod 第一次用时没配就自己弹，人不填就本会话不再弹；并行的调用只弹一个。
  */
 import { describe, expect, it } from "vitest";
 import type { CallContext } from "../../src/dsh/host.ts";
@@ -222,7 +222,7 @@ describe("cosmic_prod 第一次用时自己弹生产排障配置向导", () => {
 			},
 			prodReport: () => ({ ok: false }),
 		} as unknown as CosmicKernel;
-		const host = new CosmicHost("prod", kernel);
+		const host = new CosmicHost(kernel);
 		const { ask } = scripted([...DB_ANSWERS], ["opengauss", "先不配"]);
 		host.askInCall = () => ask;
 		const call: CallContext = {

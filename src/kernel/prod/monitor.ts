@@ -104,6 +104,33 @@ function base(config: ProdMonitorConfig): string {
 	return config.url.replace(/\/eye\/?$/, "");
 }
 
+/**
+ * monitor 上只许调这几个接口：取验证码、取公钥、登录、取日志源、问「我是谁」、查日志，没有一个改 monitor 上的东西。
+ * 所有请求都经 `monitorPost` 发，名单外的路径不发、直接报错。要加接口，先在真机核对它只读，再加进这里。
+ */
+export const MONITOR_READ_PATHS = [
+	"/eye/verifyCode",
+	"/eye/getPublicKey",
+	"/eye/login",
+	"/eye/queryLogDatasource",
+	"/eye/user/info",
+	"/eye/logQuery/query",
+] as const;
+export type MonitorReadPath = (typeof MONITOR_READ_PATHS)[number];
+
+export function monitorPost(
+	http: HttpPort,
+	config: ProdMonitorConfig,
+	path: MonitorReadPath,
+	body: unknown,
+	headers: Record<string, string>,
+): Promise<HttpReply> {
+	// 类型拦住写错的字面量；这里再拦一次绕过类型（as、拼出来的字符串）的
+	if (!(MONITOR_READ_PATHS as readonly string[]).includes(path))
+		return Promise.reject(new Error(`monitor 接口 ${path} 不在只读名单里，没有发`));
+	return http.post(`${base(config)}${path}`, body, headers);
+}
+
 function monitorFailure(message: string, remedy = "请用户确认 VPN 已连上、monitor 网页能打开。"): KernelError {
 	return new KernelError("PROD_MONITOR_FAILED", message, { remedy });
 }
@@ -159,7 +186,7 @@ export function saveMonitorSession(fs: FsPort, file: string, session: MonitorSes
 export async function monitorCaptcha(http: HttpPort, config: ProdMonitorConfig): Promise<KernelResult<MonitorCaptcha>> {
 	let reply: HttpReply;
 	try {
-		reply = await http.post(`${base(config)}/eye/verifyCode`, { key: randomBytes(8).toString("hex") }, {});
+		reply = await monitorPost(http, config, "/eye/verifyCode", { key: randomBytes(8).toString("hex") }, {});
 	} catch (error) {
 		return err(monitorFailure(`monitor 连不上：${(error as Error).message}`));
 	}
@@ -184,7 +211,7 @@ export async function monitorLogin(
 ): Promise<KernelResult<MonitorSession>> {
 	const cookies: [string, string][] = [];
 	try {
-		const pk = await http.post(`${base(config)}/eye/getPublicKey`, { userName: config.username }, {});
+		const pk = await monitorPost(http, config, "/eye/getPublicKey", { userName: config.username }, {});
 		const publicKey = ((parse(pk)?.data ?? {}) as { publicKey?: string }).publicKey;
 		if (!publicKey) return err(monitorFailure(`monitor 取公钥失败：${pk.text.slice(0, 200)}`));
 		const pem = `-----BEGIN PUBLIC KEY-----\n${publicKey}\n-----END PUBLIC KEY-----`;
@@ -193,8 +220,10 @@ export async function monitorLogin(
 			Buffer.from(config.password, "utf8"),
 		).toString("base64");
 		if (captcha.required) cookies.push(["verifyCode", encodeURIComponent(code.trim())]);
-		const login = await http.post(
-			`${base(config)}/eye/login`,
+		const login = await monitorPost(
+			http,
+			config,
+			"/eye/login",
 			{ username: config.username, password, verifycode: code.trim(), key: "", loginId: captcha.loginId },
 			cookies.length > 0 ? { Cookie: cookieHeader(cookies) } : {},
 		);
@@ -216,7 +245,7 @@ export async function monitorLogin(
 			keywordBase64: null,
 			datasource: "",
 		};
-		const ds = await http.post(`${base(config)}/eye/queryLogDatasource`, {}, headersOf(session));
+		const ds = await monitorPost(http, config, "/eye/queryLogDatasource", {}, headersOf(session));
 		const dsData = (parse(ds)?.data ?? {}) as { default?: string; logKeywordEncryptEnable?: boolean };
 		session.keywordBase64 = dsData.logKeywordEncryptEnable === true;
 		session.datasource = dsData.default ?? "";
@@ -266,7 +295,7 @@ export function queryForm(filter: MonitorFilter, session: MonitorSession, nowMs:
 }
 
 /**
- * 保活：排障模式开着时隔一段时间问一次「我是谁」。monitor 闲置约半小时登录就过期（真机 2026-11-11：
+ * 保活：查生产期间隔一段时间问一次「我是谁」。monitor 闲置约半小时登录就过期（真机 2026-11-11：
  * 登录后 34 分钟再查已经过期），而每次过期都要人重输验证码。返回 false 表示已经过期，停止保活。
  */
 export async function monitorPing(
@@ -275,7 +304,7 @@ export async function monitorPing(
 	session: MonitorSession,
 ): Promise<boolean> {
 	try {
-		const reply = await http.post(`${base(config)}/eye/user/info`, {}, headersOf(session));
+		const reply = await monitorPost(http, config, "/eye/user/info", {}, headersOf(session));
 		const body = parse(reply);
 		return body !== null && body.code === 0;
 	} catch {
@@ -296,11 +325,11 @@ export async function monitorQuery(
 	const started = Date.now();
 	let reply: HttpReply;
 	try {
-		reply = await http.post(`${base(config)}/eye/logQuery/query`, form, headersOf(session));
+		reply = await monitorPost(http, config, "/eye/logQuery/query", form, headersOf(session));
 	} catch {
 		// 真机上偶尔一次请求断掉（fetch failed），立刻重发一次基本都能回来；再断才算连不上
 		try {
-			reply = await http.post(`${base(config)}/eye/logQuery/query`, form, headersOf(session));
+			reply = await monitorPost(http, config, "/eye/logQuery/query", form, headersOf(session));
 		} catch (again) {
 			return err(monitorFailure(`monitor 连不上：${(again as Error).message}`));
 		}

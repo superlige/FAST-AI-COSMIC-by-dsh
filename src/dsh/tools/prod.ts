@@ -1,5 +1,5 @@
 /**
- * cosmic_prod：生产只读排障，只挂在排障会话里。
+ * cosmic_prod：生产只读排障，每个会话都挂。本会话第一次连生产前问人一次（`ensureProdConsent`）。
  * 每个成功的 sql / meta / log 结果开头标一个证据编号；report 只认这些编号。
  */
 
@@ -9,7 +9,7 @@ import { PROD_ACTIONS, type ProdRequest } from "../../kernel/commands/prod.ts";
 import type { CosmicToolSpec } from "../define.ts";
 import { type CallContext, type CosmicHost, now } from "../host.ts";
 import { type AskCode, ensureMonitorLogin } from "../monitor-login.ts";
-import { ensureProdConfig } from "../prod-setup.ts";
+import { ensureProdConfig, ensureProdConsent } from "../prod-setup.ts";
 import { renderSuccess } from "../result.ts";
 
 interface ProdArgs {
@@ -129,6 +129,17 @@ export function prodTool(host: CosmicHost, askInCall?: AskInCall): CosmicToolSpe
 						written.text,
 				});
 			}
+			if (!(await ensureProdConsent(session.prodConsent, host.askProdConsent?.(call))))
+				throw host.fail(
+					call,
+					{
+						code: "PROD_NOT_ALLOWED",
+						message: "用户没同意这个会话查生产，这次没查",
+						detail: {},
+						remedy: "照实告诉用户；用户要查时再调，会再问一次。",
+					},
+					args,
+				);
 			const setupAsk = host.askInCall?.(call, "生产排障配置");
 			if (setupAsk !== undefined) {
 				const prodCheck = kernel.prodSetupCheck;

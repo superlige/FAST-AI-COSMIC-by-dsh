@@ -36,7 +36,14 @@ import type { FsPort } from "../ports.ts";
  * one exception -- a directory of assets meant for Git -- and retiring the case
  * set removed it; nothing here is meant to be committed any more.
  */
-export const COSMIC_IGNORE_LINES = ["/config.json", "/evidence/", "/work/", "/probes/"] as const;
+export const COSMIC_IGNORE_LINES = [
+	"/config.json",
+	"/evidence/",
+	"/work/",
+	"/probes/",
+	"/sessions/",
+	"/scratch/",
+] as const;
 
 export interface LayoutUpkeep {
 	/** Old paths moved to the new layout (files, root-relative with forward slashes). */

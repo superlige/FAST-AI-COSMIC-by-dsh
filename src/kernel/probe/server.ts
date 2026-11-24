@@ -17,7 +17,15 @@
  */
 
 import { join } from "node:path";
-import { baseChildEnv, jvmProps, KEEP_EXCEPTION_STACKS, type KernelContext, poolProps } from "../context.ts";
+import {
+	baseChildEnv,
+	jvmProps,
+	KEEP_EXCEPTION_STACKS,
+	type KernelContext,
+	poolProps,
+	productJvmOptions,
+	userJvmArgs,
+} from "../context.ts";
 import { err, KernelError, type KernelResult, ok } from "../errors.ts";
 import { classpathOf, ensureBuilt, findToolsJar, runJavac } from "../toolchain.ts";
 import { jvmDeps, localCacheRoots, retireOldProbeServers, verifyRecordedPid, waitExit } from "./local-jvms.ts";
@@ -370,13 +378,13 @@ export function resolveHotSwap(ctx: KernelContext): HotSwapPlan {
  */
 export function residentServerArgs(ctx: KernelContext, hotSwap: HotSwapPlan, tools: string): string[] {
 	return [
-		"-Xmx2g",
-		"-XX:MaxMetaspaceSize=512m",
+		...productJvmOptions(ctx.config, ["-Xmx2g", "-XX:MaxMetaspaceSize=512m"]),
 		KEEP_EXCEPTION_STACKS,
 		"-Dfile.encoding=UTF-8",
 		...hotSwap.args,
 		...jvmProps(ctx.config),
 		...poolProps(ctx.config),
+		...userJvmArgs(ctx.config),
 		"-cp",
 		classpathOf(ctx.layout.probeClasses, ctx.layout.pathingJar, tools),
 		"CosmicProbeServer",

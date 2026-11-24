@@ -189,7 +189,7 @@ async function sql(ctx: KernelContext, config: ProdConfig, text: string): Promis
 		return err(await withRealColumns(ctx, config, text, checked.tables, got.error));
 	}
 	const r = got.value;
-	const file = join(ctx.layout.workDir, "prod", "sql", `${stamp(ctx)}.tsv`);
+	const file = join(ctx.layout.prodWorkDir, "sql", `${stamp(ctx)}.tsv`);
 	ctx.ports.fs.write(
 		file,
 		`-- ${text.replace(/\s+/g, " ")}\n${[r.columns.join("\t"), ...r.rows.map((row) => row.map((c) => (c ?? "").replace(/[\t\r\n]/g, " ")).join("\t"))].join("\n")}\n`,
@@ -255,7 +255,7 @@ async function withRealColumns(
 	const near = (name: string): boolean =>
 		wrong !== undefined && wrong.length >= 3 && (name.includes(wrong) || (name.length >= 3 && wrong.includes(name)));
 	const picked = wrong ? `语句里写到的和名字像「${wrong}」的` : "语句里写到的";
-	const file = join(ctx.layout.workDir, "prod", "sql", `${stamp(ctx)}-columns.tsv`);
+	const file = join(ctx.layout.prodWorkDir, "sql", `${stamp(ctx)}-columns.tsv`);
 	const tsv = ["table\tschema\tcolumn\ttype"];
 	const lines: string[] = [];
 	for (const table of looked.value.tables) {
@@ -417,7 +417,7 @@ async function log(
 	}
 	const baseline = await codeBaseline(ctx);
 	const view = buildLogView(got.value.rows, sourceLookup(ctx, baseline), deps.isv);
-	const file = join(ctx.layout.workDir, "prod", "logs", `${stamp(ctx)}.txt`);
+	const file = join(ctx.layout.prodWorkDir, "logs", `${stamp(ctx)}.txt`);
 	ctx.ports.fs.write(file, `条件 ${filterText(filter)}\n${renderLogView(view, true)}\n`);
 	const size = Math.min(Math.max(1, filter.size ?? 200), MONITOR_SIZE_CEILING);
 	const lines = [
@@ -626,7 +626,7 @@ async function trail(
 
 	const baseline = await codeBaseline(ctx);
 	const view = buildLogView(pickedRows, sourceLookup(ctx, baseline), deps.isv);
-	const file = join(ctx.layout.workDir, "prod", "logs", `${stamp(ctx)}-${billno.replace(/[^\w-]/g, "_")}.txt`);
+	const file = join(ctx.layout.prodWorkDir, "logs", `${stamp(ctx)}-${billno.replace(/[^\w-]/g, "_")}.txt`);
 	ctx.ports.fs.write(file, `${full.join("\n")}\n\n${renderLogView(view, true)}\n`);
 	lines.push(
 		"",

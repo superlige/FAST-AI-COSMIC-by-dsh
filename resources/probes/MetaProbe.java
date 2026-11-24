@@ -21,7 +21,10 @@ import kd.bos.entity.property.TimeProp;
  *   META_FILTER=关键字     只打印标识或名称含该关键字的字段（字段动辄几百个）；几个关键字用逗号隔开，含任一个就打印
  *
  * 每个打印出来的字段另走 JSON 旁路一行（t=field：key、level=header/entry/subentry、entry、parentEntry、
- * textFormat=打印认的字段类型），
+ * textFormat=打印认的字段类型、name=中文名、type=运行态属性类、base=基础资料指向），
+ * 不带 META_FILTER 时每条分录、子分录也走一行（t=entry：key、name、level、parentEntry）；
+ * 开头另有一行 t=entity（key=换算后的实体标识、name、table）；
+ * 输入框里 `@` 引用往一张单里钻时读这两种行。
  * 给 meta ptpl edit 核「这张单上有没有这个字段、在哪一层」用：运行态类型带着继承来的原厂字段
  * （billno、creator、auditor……），代码关系表只收设计里的、代码点过名的，查不到不能当「没有」。
  */
@@ -36,6 +39,7 @@ public class MetaProbe {
         entity = t.getName();
         System.out.println("[PROBE] 实体 " + entity + "  名称=" + t.getDisplayName()
                 + "  表=" + t.getAlias() + "  类=" + t.getClass().getSimpleName());
+        ProbeJson.emit("entity", "key", entity, "name", nameOf(t.getDisplayName()), "table", t.getAlias());
         if (!filter.isEmpty()) {
             System.out.println("[PROBE] 过滤关键字: " + filter);
         }
@@ -96,6 +100,9 @@ public class MetaProbe {
                 if (indent != null) {
                     System.out.println("[PROBE]" + indent + "【分录】" + p.getName()
                             + "  " + p.getDisplayName() + "  表=" + item.getAlias());
+                    if (filter.trim().isEmpty()) {
+                        emitEntry(p.getName(), entries, p);
+                    }
                 }
                 List<String> inner = new ArrayList<String>(entries);
                 inner.add(p.getName());
@@ -123,7 +130,34 @@ public class MetaProbe {
                 "level", depth == 0 ? "header" : depth == 1 ? "entry" : "subentry",
                 "entry", depth == 0 ? "" : entries.get(depth - 1),
                 "parentEntry", depth >= 2 ? entries.get(depth - 2) : "",
-                "textFormat", printFormat(p));
+                "textFormat", printFormat(p),
+                "name", nameOf(p.getDisplayName()),
+                "type", p.getClass().getSimpleName(),
+                "base", baseOf(p));
+    }
+
+    /** 分录、子分录本身：标识、中文名、挂在哪条分录下（表头下的分录为空）。 */
+    private static void emitEntry(String key, List<String> entries, IDataEntityProperty p) {
+        int depth = entries.size();
+        ProbeJson.emit("entry", "key", key, "name", nameOf(p.getDisplayName()),
+                "level", depth == 0 ? "entry" : "subentry",
+                "parentEntry", depth == 0 ? "" : entries.get(depth - 1));
+    }
+
+    /** 中文名；内部属性（id、外键列）没有名字，报空，不报字面的 "null"。 */
+    private static String nameOf(Object displayName) {
+        return displayName == null ? "" : String.valueOf(displayName);
+    }
+
+    /** 基础资料字段指向的基础资料编号；不是基础资料字段、或不指向固定基础资料（辅助属性）为空。 */
+    private static String baseOf(IDataEntityProperty p) {
+        if (p instanceof BasedataProp) {
+            return nameOf(((BasedataProp) p).getBaseEntityId());
+        }
+        if (p instanceof MulBasedataProp) {
+            return nameOf(((MulBasedataProp) p).getBaseEntityId());
+        }
+        return "";
     }
 
     /**

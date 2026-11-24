@@ -6,7 +6,7 @@
  *
  * 大部分只在内存里：进程重启后从空的开始，工程会在下一次要它的工具调用时重新打开。
  * 完成情况要用的那几样（会话开始时的原文、真跑业务、编译、写元数据、造改数）另落一份到
- * `<工程>/.cosmic-ai/evidence/sessions/<会话编号>.json`：完成情况的比对起点是「本会话开始时」，
+ * `<工程>/.cosmic-ai/sessions/<会话编号>/journal.json`：完成情况的比对起点是「本会话开始时」，
  * 用户隔天在同一个会话里接着改，起点不能因为桌面版重开过就挪到重开那一刻。
  */
 
@@ -21,9 +21,15 @@ import { createReminderLedger, forgetAllReminders, type ReminderLedger } from ".
 import { createSentLedger, forgetAllSent, type SentLedger } from "../agent/tools/sent-ledger.ts";
 import { createStyleLedger, type StyleLedger } from "../agent/tools/style-check.ts";
 import type { FreshnessSnapshot } from "../kernel/freshness.ts";
-import { COSMIC_DIR, isAdHocProbeFile } from "../kernel/layout.ts";
+import { isAdHocProbeFile } from "../kernel/layout.ts";
+import { sessionDirOf } from "../kernel/project/cosmic-dirs.ts";
 import { initialMonitorPromptState, type MonitorPromptState } from "./monitor-login.ts";
-import { initialProdSetupPromptState, type ProdSetupPromptState } from "./prod-setup.ts";
+import {
+	initialProdConsentState,
+	initialProdSetupPromptState,
+	type ProdConsentState,
+	type ProdSetupPromptState,
+} from "./prod-setup.ts";
 import { initialSetupPromptState, type SetupPromptState } from "./setup.ts";
 import type { FailureStreak } from "./streak.ts";
 
@@ -109,6 +115,7 @@ export interface OpenedProject<Handle> {
 interface SessionJournal {
 	startedAt: string;
 	lastEditAt: string | null;
+	lastEditFile?: string | null;
 	files: string[];
 	/** [比较用的文件名, 磁盘上的文件, 会话开始时的原文（null 是本会话新建的）] */
 	originals: [string, string, string | null][];
@@ -118,9 +125,9 @@ interface SessionJournal {
 	dataWrites: DataWriteFact[];
 }
 
-/** 会话编号进文件名：只留字母数字和 `-_`。 */
+/** 底账在本会话目录里，跟会话一起清（见 kernel/project/cosmic-dirs.ts）。 */
 export function journalFile(root: string, id: string): string {
-	return join(root, COSMIC_DIR, "evidence", "sessions", `${id.replace(/[^A-Za-z0-9_-]/g, "_")}.json`);
+	return join(sessionDirOf(root, id), "journal.json");
 }
 
 export class CosmicSession<Handle = unknown> {
@@ -128,8 +135,10 @@ export class CosmicSession<Handle = unknown> {
 	readonly id: string | undefined;
 	/** 本会话开始的时刻：完成情况的比对起点。重开会话时从落盘的那份接回来。 */
 	startedAt = new Date().toISOString();
-	/** 最后一次改业务文件（临时探针不算）的时刻：比它早的真跑业务和编译，对的不是现在的代码。 */
+	/** 最后一次改业务 Java（临时探针不算）的时刻：比它早的真跑业务和编译，对的不是现在的代码。 */
 	lastEditAt: string | null = null;
+	/** 最后改的那个业务 Java：报「还没编译过」时说清是哪个文件。 */
+	lastEditFile: string | null = null;
 	/** 最后一次知道的工程目录：落盘用。 */
 	root: string | undefined;
 	/** 已经从哪个工程目录接回过落盘的那份；一个会话只接一次。 */
@@ -163,13 +172,15 @@ export class CosmicSession<Handle = unknown> {
 	readonly metaWrites: MetaWriteFact[] = [];
 	readonly dataWrites: DataWriteFact[] = [];
 	prod: ProdState = initialProdState();
-	/** 排障会话里 monitor 登录问过没有、人还要不要被问。 */
+	/** monitor 登录问过没有、人还要不要被问。 */
 	readonly monitorPrompt: MonitorPromptState = initialMonitorPromptState();
 	/** 工具要打开工程时配置不全，自动弹工程配置向导；人不填了，本会话不再弹。 */
 	readonly setupPrompt: SetupPromptState = initialSetupPromptState();
-	/** 排障会话里生产排障配置不全，自动弹配置向导；人不填了，本会话不再弹。 */
+	/** 生产排障配置不全，自动弹配置向导；人不填了，本会话不再弹。 */
 	readonly prodSetupPrompt: ProdSetupPromptState = initialProdSetupPromptState();
-	/** 开发会话里用户带过来的诊断报告路径。 */
+	/** 本会话第一次查生产前问人，人允许了就不再问。 */
+	readonly prodConsent: ProdConsentState = initialProdConsentState();
+	/** 用户带过来的诊断报告路径。 */
 	lastReport: string | undefined;
 
 	constructor(id?: string) {
@@ -189,12 +200,19 @@ export class CosmicSession<Handle = unknown> {
 		this.apiExplained.clear();
 	}
 
-	/** 本会话改过一个文件：源码版本前进，编译新鲜度作废。 */
+	/**
+	 * 本会话改过一个文件：事实版本前进。只有业务 Java 才让编译新鲜度作废、推后「最后一次改代码」：
+	 * 编译指纹只算模块源码目录下的 .java（`kernel/freshness.ts`），写个 Markdown 清单、配置说明，
+	 * 编出来的 class 一个字节不变。以前任何文件都算，真机上只新增了验收清单，刚通过的断言就被标成
+	 * 「验的不是现在的代码」，下一次真跑业务还被拦着要求重新编译。临时探针也不算。
+	 */
 	noteEdited(file: string): void {
 		this.files.add(file);
 		this.factsRevision += 1;
+		if (!file.toLowerCase().endsWith(".java") || isAdHocProbeFile(file)) return;
 		this.freshness = undefined;
-		if (!isAdHocProbeFile(file)) this.lastEditAt = new Date().toISOString();
+		this.lastEditAt = new Date().toISOString();
+		this.lastEditFile = file;
 	}
 
 	/**
@@ -217,7 +235,10 @@ export class CosmicSession<Handle = unknown> {
 			return;
 		}
 		this.startedAt = saved.startedAt < this.startedAt ? saved.startedAt : this.startedAt;
-		if (this.lastEditAt === null) this.lastEditAt = saved.lastEditAt;
+		if (this.lastEditAt === null) {
+			this.lastEditAt = saved.lastEditAt;
+			this.lastEditFile = saved.lastEditFile ?? null;
+		}
 		for (const path of saved.files ?? []) this.files.add(path);
 		for (const [key, path, original] of saved.originals ?? []) {
 			this.style.files.set(key, path);
@@ -236,6 +257,7 @@ export class CosmicSession<Handle = unknown> {
 		const journal: SessionJournal = {
 			startedAt: this.startedAt,
 			lastEditAt: this.lastEditAt,
+			lastEditFile: this.lastEditFile,
 			files: [...this.files],
 			originals: [...this.style.originals].map(([key, original]) => [
 				key,

@@ -83,7 +83,7 @@ META_ENTITY=<实体标识> META_FILTER=<字段标识片段> node .claude/skills/
 ## 加字段、照搬字段、删字段 —— FormLayoutWriteProbe
 
 加删字段写在单据的改动清单里，和挪控件、改属性、加按钮是同一份清单、同一次 dry-run、同一次落库。
-清单的通用写法、`APPLY=1` 要带的 `LAYOUT_BACKUP`、用 `LAYOUT_RESTORE` 退回，见
+清单的通用写法、落库前自动存的备份、用 `LAYOUT_RESTORE` 退回，见
 [metadata-form.md](metadata-form.md#改控件字段操作和插件--formlayoutwriteprobe)。
 
 ```bash

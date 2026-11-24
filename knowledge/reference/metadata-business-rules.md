@@ -15,6 +15,7 @@ note: 新增或修改先读写入总则
 - [算一遍（不是读，是求值）](#算一遍不是读是求值)
 - [读取业务规则](#读取业务规则)
 - [新增和回滚](#新增和回滚)
+- [改已有规则](#改已有规则)
 - [五类官方动作](#五类官方动作)
 - [元数据位置与执行结构](#元数据位置与执行结构)
 - [验证与坑](#验证与坑)
@@ -142,6 +143,38 @@ BIZ_ENTITY=demo_bill BIZ_HOST=demo_entry BIZ_TAG='客户等级-' ROLLBACK=1 \
 | `RULE_SHOW` | 预演试算时另外要看的字段，逗号隔开 | 只看改动规则写的 |
 
 `RET` 是平台事件位，不清楚时保留默认；迁移既有规则时先用读模式抄真实值。
+
+## 改已有规则
+
+设计器里配的规则，描述没有 `BIZ_TAG` 前缀，按前缀摘不掉；为了改它再新增一条，就成了两条规则给同一个字段
+赋值，谁后执行谁说了算。改已有规则用 `BIZ_RULE=<规则id>` 原位改：规则 id、动作 id、顺序和其余动作都不动，
+设计器里看到的还是原来那条。id 取读模式输出的 `RULE seq=… id=…`。
+
+```bash
+# 条件里加一个组织
+BIZ_ENTITY=demo_bill BIZ_RULE=5DEMO/RULE1= \
+BIZ_CONDITION="org.number = '0101' or org.number = '0102' or org.number = '0301'" \
+RULE_SET='org=0301' \
+  node .claude/skills/long-cosmic-dev/driver.mjs probe BizRuleProbe
+# [PROBE]   条件：org.number = '0101' or org.number = '0102'  ->  org.number = '0101' or … or org.number = '0301'
+# [PROBE]   seq=3 组织限定 条件 -> 是  [… = true]
+
+# 换掉给某个字段赋值的那个计算公式；多个用 ;; 隔开
+BIZ_ENTITY=demo_bill BIZ_RULE=5DEMORULE002 BIZ_FORMULA='demo_jgfs = "4"' \
+  node .claude/skills/long-cosmic-dev/driver.mjs probe BizRuleProbe
+```
+
+| 参数 | 含义 |
+|---|---|
+| `BIZ_RULE` | 要改的规则 id；`BIZ_HOST` 可不给，给了只在这个宿主里找 |
+| `BIZ_CONDITION` | 新条件，整条替换；`BIZ_CONDITION_DESC` 是设计器里给人看的说明，不给等于新条件 |
+| `BIZ_FORMULA` | `目标字段 = 新表达式`：换掉这条规则里给这个字段赋值的计算公式（成立、不成立两支一起找，要正好一个） |
+| `BIZ_ENABLED` | `0` 停用、`1` 启用 |
+
+三项至少给一项。预演逐项打「改前 -> 改后」，同样核表达式、跑候选试算；每一项都已经是要的样子时不出确认单。
+只改本 ISV 自己的规则：实体是本 ISV 的、规则自己记的 isv 也得是，模板或标准产品带来的规则拒绝。
+换动作类型（例如公式改成携带）不在原位改的范围里：不带 `BIZ_RULE`，按 `BIZ_TAG` 新增一条，并把旧规则 `BIZ_ENABLED=0` 停用。
+`APPLY=1` 落库后探针从库里重新读这条规则，逐项报和要写的一不一致；撤回就用同一个 `BIZ_RULE` 把确认单上「改前」那一列写回去。
 
 ## 五类官方动作
 

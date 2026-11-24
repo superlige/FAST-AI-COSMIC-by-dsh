@@ -1,9 +1,8 @@
 #!/usr/bin/env node
 /**
- * 建（或重建）三个 dsh 配置：无界面的 `cosmic`（开发）、`cosmic-prod`（生产只读排障），
- * 和带网页界面的 `cosmic-web`（`dsh --profile cosmic-web` 起网页服务）。
- * 网页界面新建会话时选「苍穹开发 / 生产排障」：两个预设写在组合包的 cordis.patch.yml 里，各挂各的工具，
- * 所以网页只要一个配置；终端、改文件工具挂在预设里面，顶层关不到，也不用关。
+ * 建（或重建）两个 dsh 配置：无界面的 `cosmic`，和带网页界面的 `cosmic-web`（`dsh --profile cosmic-web` 起网页服务）。
+ * 开发和查生产在同一个会话里，不分配置。网页界面的预设「苍穹」写在组合包的 cordis.patch.yml 里，
+ * 终端、改文件工具挂在预设里面，顶层关不到，也不用关。
  *
  * 用法：node scripts/setup-dsh-profiles.mjs [--model <模型>] [--provider <供应商>]
  *   默认 provider=openai-codex、model=gpt-6.1-sol，登录用 dsh web 里存的 codex 凭据（或会话里 /cosmic-login）。
@@ -78,39 +77,21 @@ function common() {
 }
 
 /**
- * 无界面没有预设（新建会话时选的模式），产品工具直接插在顶层，模式写在这一行上；
- * 组合包里的两个预设行在这里没有注册表可登记，关掉。带界面的配置不插：两个预设各自挂一份。
+ * 无界面没有预设（新建会话时选的那一项），产品工具直接插在顶层；
+ * 组合包里的预设行在这里没有注册表可登记，关掉。带界面的配置不插：预设里挂了一份。
  */
-const toolsRow = (mode) => [
+const toolsRow = () => [
 	"- id: preset-cosmic",
-	"  disabled: true",
-	"- id: preset-cosmic-prod",
 	"  disabled: true",
 	"- insert:",
 	"    - id: cosmic-tools",
 	"      name: fast-ai-cosmic/tools",
-	"      config:",
-	`        mode: ${mode}`,
-];
-
-const prodPatch = () => [
-	...common(),
-	...toolsRow("prod"),
-	// 排障会话不给终端：生产只读靠的是工具层，终端能绕过去
-	"- id: tool-bash",
-	"  disabled: true",
-	"- id: tool-pwsh",
-	"  disabled: true",
-	"- id: tool-fs",
-	"  config:",
-	"    applyPatch: false",
 ];
 
 const HEADLESS = "@deepseek-ai/dsh-headless";
 const WEB = "@deepseek-ai/dsh-web-app";
 const PROFILES = {
-	cosmic: { app: HEADLESS, patch: [...common(), ...toolsRow("dev")] },
-	"cosmic-prod": { app: HEADLESS, patch: prodPatch() },
+	cosmic: { app: HEADLESS, patch: [...common(), ...toolsRow()] },
 	"cosmic-web": { app: WEB, patch: common() },
 };
 

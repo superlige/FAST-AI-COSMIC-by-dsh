@@ -69,7 +69,7 @@ import kd.bos.print.service.BosPrintServiceHelper;
  *   TPL_FILE=<设计数据 json>             整份提交；文件就是 `meta ptpl dump` 出来的 *.meta.json
  *   TPL_LOCALE=<多语言 json>             整份提交时可选；不给就沿用库里那份多语言旁路
  *   TPL_RESTORE=<备份目录>               整份恢复：目录里的 <编码>.meta.json + <编码>.locale.json
- *   TPL_BACKUP=目录                      APPLY=1 时必给：落库前把改前的 meta/locale JSON 存进去
+ *   TPL_BACKUP=目录                      落库前把改前的 meta/locale JSON 存进去；APPLY=1 时工具自动给（.cosmic-ai/evidence/backups/ 下），不用写
  *   TPL_FORMULA_TRY=0                    关掉公式试算（默认开）。只在试算自己判错时用，并说明理由
  *   APPLY=1                              真落库（默认复用常驻进程，显式 cold 才强制冷进程）
  */
@@ -184,7 +184,7 @@ public class PrintTplWriteProbe {
             tryOnBill(number, toSave, lang, valueChanged);
             IsvGuard.reportTargets();
             System.out.println("[PROBE] dry-run 结束，数据库未修改。"
-                    + "确认无误后加 APPLY=1 和 TPL_BACKUP=<目录>");
+                    + "确认无误后加 APPLY=1");
             return;
         }
 

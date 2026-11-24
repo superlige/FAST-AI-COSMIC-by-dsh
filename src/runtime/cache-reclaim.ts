@@ -88,11 +88,13 @@ export async function reclaimRuntimeCaches(input: {
 	fs: FsPort;
 	proc: Pick<ProcessPort, "isAlive" | "listJava">;
 	now: number;
+	/** 不看六小时一次的间隔（界面上人点「按规则清理」）；留几个、跑着的不删照旧 */
+	force?: boolean;
 }): Promise<CacheReclaim> {
 	const { cacheRoot, fs, proc, now } = input;
 	const stamp = join(cacheRoot, RECLAIM_STAMP);
 	const last = jsonOf(fs, stamp)?.at;
-	if (typeof last === "number" && now - last >= 0 && now - last < RECLAIM_INTERVAL_MS) {
+	if (input.force !== true && typeof last === "number" && now - last >= 0 && now - last < RECLAIM_INTERVAL_MS) {
 		return { removed: [], skipped: true };
 	}
 

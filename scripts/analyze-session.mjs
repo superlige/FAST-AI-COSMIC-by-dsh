@@ -632,7 +632,7 @@ try {
 						"--experimental-strip-types",
 						"--input-type=module",
 						"-e",
-						`import { fixedTextBytes } from ${JSON.stringify(new URL("../src/dsh/fixed-text.ts", import.meta.url).href)}; console.log(JSON.stringify({ dev: fixedTextBytes("dev"), prod: fixedTextBytes("prod") }));`,
+						`import { fixedTextBytes } from ${JSON.stringify(new URL("../src/dsh/fixed-text.ts", import.meta.url).href)}; console.log(JSON.stringify(fixedTextBytes()));`,
 					],
 					{ encoding: "utf8", maxBuffer: 4 * 1024 * 1024 },
 				),

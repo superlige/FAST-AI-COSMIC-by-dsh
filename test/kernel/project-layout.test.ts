@@ -18,22 +18,28 @@ describe("S19 where a project's cosmic files live", () => {
 		expect(underBuild).toEqual(["javacArgs", "pathingJar"]);
 	});
 
-	it("puts receipts and verification records beside the raw logs they cite", () => {
+	it("puts what only this session reads back into the session directory", () => {
 		const { ctx } = makeContext();
-		const evidence = `${norm(ctx.layout.evidenceDir)}/`;
-		for (const path of [ctx.layout.verifyDir, ctx.layout.assertionEvidence]) {
-			expect(norm(path).startsWith(evidence)).toBe(true);
+		const session = `${norm(ctx.layout.sessionDir)}/`;
+		for (const path of [
+			ctx.layout.assertionEvidence,
+			ctx.layout.outputDir,
+			ctx.layout.prodWorkDir,
+			ctx.layout.exportsDir,
+		]) {
+			expect(norm(path).startsWith(session)).toBe(true);
 		}
+		// backups are kept, outside any session
+		expect(norm(ctx.layout.backupsDir).startsWith(`${norm(ctx.layout.evidenceDir)}/`)).toBe(true);
 	});
 
-	it("keeps everything rebuildable under work/", () => {
+	it("keeps the rebuildable caches under work/", () => {
 		const { ctx } = makeContext();
 		const work = `${norm(ctx.layout.workDir)}/`;
 		for (const path of [
 			ctx.layout.impactIndex,
 			ctx.layout.impactWork,
 			ctx.layout.knowledgeCapsules,
-			ctx.layout.outputDir,
 			ctx.layout.projectWriteLock,
 		]) {
 			expect(norm(path).startsWith(work)).toBe(true);
@@ -106,7 +112,9 @@ describe("S19 .cosmic-ai/.gitignore", () => {
 		const fs = new MemoryFs();
 		fs.put("D:/p/.cosmic-ai/.gitignore", "# mine\n/config.json");
 		expect(ensureCosmicIgnore("D:/p/.cosmic-ai", fs).changed).toBe(true);
-		expect(fs.read("D:/p/.cosmic-ai/.gitignore")).toBe("# mine\n/config.json\n/evidence/\n/work/\n/probes/\n");
+		expect(fs.read("D:/p/.cosmic-ai/.gitignore")).toBe(
+			"# mine\n/config.json\n/evidence/\n/work/\n/probes/\n/sessions/\n/scratch/\n",
+		);
 		expect(ensureCosmicIgnore("D:/p/.cosmic-ai", fs).changed).toBe(false);
 		expect(fs.read("D:/p/.cosmic-ai/.gitignore")).not.toContain("cases");
 	});

@@ -4,12 +4,19 @@
  * must not silently serve someone else's snapshot, and drift must be findable by
  * doctor even though the startup path deliberately does not look for it.
  */
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { openKnowledgePack, packKnowledge } from "../../src/knowledge/pack.ts";
-import { knowledgeLayout, releaseKnowledge, verifyKnowledgeRelease } from "../../src/knowledge/release.ts";
+import {
+	knowledgeLayout,
+	reclaimSnapshots,
+	releaseKnowledge,
+	SNAPSHOT_IDLE_MS,
+	SNAPSHOT_KEEP,
+	verifyKnowledgeRelease,
+} from "../../src/knowledge/release.ts";
 
 const docs = [
 	{ path: "platform/standards.md", content: "# 规范\n" },
@@ -89,5 +96,38 @@ describe("S7.0 知识快照释放", () => {
 
 	it("names the layout deterministically so a cache directory can be identified", () => {
 		expect(knowledgeLayout("C:/cache", "abc").docsDir).toBe(join("C:/cache", "knowledge", "abc", "cosmic"));
+	});
+});
+
+describe("旧快照：很久没用的清掉", () => {
+	async function fakeSnapshot(namespace: string, id: string, writtenAt: string): Promise<void> {
+		const dir = join(namespace, id);
+		await mkdir(dir, { recursive: true });
+		const stamp = {
+			schema: "cosmic.knowledge-release/1",
+			snapshotId: id,
+			bundleVersion: "x",
+			docCount: 0,
+			writtenAt,
+		};
+		await writeFile(join(dir, "snapshot.json"), JSON.stringify(stamp));
+	}
+
+	it("本次这份和最近用过的几份留着，其余 30 天没用过的删掉；人放的目录碰不到", async () => {
+		const root = await cacheRoot();
+		const namespace = join(root, "knowledge");
+		const now = Date.parse("2026-11-23T00:00:00Z");
+		const old = new Date(now - SNAPSHOT_IDLE_MS - 86_400_000).toISOString();
+		for (let i = 0; i < SNAPSHOT_KEEP + 3; i++) await fakeSnapshot(namespace, `old${String(i)}`, old);
+		await fakeSnapshot(namespace, "recent", new Date(now - 86_400_000).toISOString());
+		await mkdir(join(namespace, "人放的"), { recursive: true });
+		const removed = await reclaimSnapshots(namespace, "current", now);
+		// 最近用过的 KEEP 份里有 recent，剩下的旧快照里留 KEEP-1 份
+		expect(removed).toHaveLength(SNAPSHOT_KEEP + 3 - (SNAPSHOT_KEEP - 1));
+		expect(removed).not.toContain("recent");
+		expect((await readdir(namespace)).sort()).toEqual(expect.arrayContaining(["recent", "人放的"]));
+		// 六小时内不再扫
+		await fakeSnapshot(namespace, "late", old);
+		expect(await reclaimSnapshots(namespace, "current", now + 1000)).toEqual([]);
 	});
 });

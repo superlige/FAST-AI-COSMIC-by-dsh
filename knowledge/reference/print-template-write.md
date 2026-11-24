@@ -247,12 +247,11 @@ LayoutCell 数量 = DataRow 数量 × DataColumn 数量
 **改标量属性走 `meta ptpl apply`**（`PrintTplWriteProbe`），它把下面五步做齐了：
 
 ```bash
-meta ptpl apply <编码> --set <控件>.<属性路径>=<值>                            # dry-run，不用给 --backup
-APPLY=1 meta ptpl apply <编码> --set <同上> --backup .cosmic-ai/evidence/ptpl-before  # 真落库（cosmic_meta 里是 apply=true）
+meta ptpl apply <编码> --set <控件>.<属性路径>=<值>          # dry-run
+APPLY=1 meta ptpl apply <编码> --set <同上>                    # 真落库（cosmic_meta 里是 apply=true）
 ```
 
-落库时才加的 `--backup`（直接调探针是 `TPL_BACKUP`）不算改参数，照样对得上确认清单里那一项；
-忘了给会在进 JVM 之前被拒，清单那一项不会用掉。写入范围 `tpl:<编码>` 由工具按 dry-run 算出，不用抄；
+落库前工具自动把改前那份存进 `.cosmic-ai/evidence/backups/`，返回里报路径。写入范围 `tpl:<编码>` 由工具按 dry-run 算出，不用抄；
 确认单里「控件 | 属性 | 原值 | 新值」那张表是探针每改一处报的记录排出来的。落库成功以探针打出「已落库。」为准：
 「基线已变，中止」「平台校验不通过，中止」退出码也是 0，按没写成算，整份授权作废。
 
@@ -266,7 +265,7 @@ APPLY=1 meta ptpl apply <编码> --set <同上> --backup .cosmic-ai/evidence/ptp
 1. **校验归属**：经目录解析真实模板 ID，确认编码以 `<isv>_` 开头、`DesignMetadata.getIsv()` 是
    本 ISV、目录唯一且启用且 `type=B`、`modifyVersion` 和 `data` 哈希仍等于基线
    （防止覆盖别人刚保存的版本）。
-2. **备份**：`meta ptpl backup`（官方导出链的 ZIP）；`meta ptpl apply --backup <目录>` 另存一份
+2. **备份**：`meta ptpl backup`（官方导出链的 ZIP）；`meta ptpl apply` 落库前自动另存一份
    改前的 meta/locale JSON，文件名和 `meta ptpl dump` 一致，可以直接当 `meta ptpl diff` 的 A 侧。
 3. **dry-run**：内存中修改 + 递归比较结构差异 + 公式试算 + 自己的拓扑审计 + `beforeSave`；
    给了 `--pk` 再用候选在那张单上出一次预览。到此结束。

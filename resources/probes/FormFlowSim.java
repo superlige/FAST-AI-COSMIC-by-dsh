@@ -4,7 +4,6 @@ import java.util.UUID;
 import kd.bos.context.RequestContext;
 import kd.bos.form.CloseCallBack;
 import kd.bos.form.FormShowParameter;
-import kd.bos.bill.OperationStatus;
 import kd.bos.mvc.SessionManager;
 import kd.bos.mvc.form.FormView;
 
@@ -60,7 +59,7 @@ public class FormFlowSim {
         System.out.println("[PROBE] 子页参数必须由父插件 showForm 产生；不接受手工 callback 兜底");
         try {
             parent = FormSim.openView(parentForm, parentPk, edit, skip);
-            FormCallbackSim.start(parent, edit);
+            FormCallbackSim.start(parent);
             FormCallbackSim.ensureEntry(parent.getModel(), parentEntry);
             FormCallbackSim.apply(parent.getModel(), env("FLOW_PARENT_SET", ""));
             FormSim.persistReal(parent, "父操作前");
@@ -94,7 +93,7 @@ public class FormFlowSim {
             FormSim.persistReal(parent, "父操作后");
 
             child = FormCallbackSim.openChild(childParameter);
-            FormCallbackSim.start(child, OperationStatus.EDIT.equals(childParameter.getStatus()));
+            FormCallbackSim.start(child);
             FormCallbackSim.apply(child.getModel(), env("FLOW_CHILD_SET", ""));
             FormSim.persistReal(child, "子操作前");
 

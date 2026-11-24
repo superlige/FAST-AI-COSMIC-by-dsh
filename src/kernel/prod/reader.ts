@@ -269,7 +269,7 @@ export async function prodInfo(ctx: KernelContext, config: ProdConfig): Promise<
 	const value = got.value as unknown as ProdInfoReply;
 	// 没有这份名单就没法判「同名的自定义函数」：当成读取程序不对，不放行查询
 	if (!Array.isArray(value.userFunctions))
-		return err(failure("生产读取程序没报自定义函数名单", "关掉排障模式再打开（读取进程会重起）后再试。"));
+		return err(failure("生产读取程序没报自定义函数名单", "重开会话（读取进程会重起）后再试。"));
 	return ok(value);
 }
 

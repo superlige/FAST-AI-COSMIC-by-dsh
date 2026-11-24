@@ -147,6 +147,7 @@ public class CosmicProbeServer {
         accountId = CosmicProbe.resolveAccount(accountWant);
         if (accountId == null) {
             log("!! 找不到账套：" + accountWant);
+            CosmicProbe.printAccountChoices();
             System.exit(3);
         }
         userWant = CosmicProbe.env("COSMIC_USER", CosmicProbe.DEFAULT_USER);

@@ -705,7 +705,7 @@ run wf ReplyRejectionMessageWorkFlow --billno GDDDEPTPLAN202609030190 --ctx mess
 | 块 | 说明 |
 |---|---|
 | 插件清单 | 元数据里配了几个、装了几个、摘了几个 |
-| 每一步的耗时和事件增量 | `activate` / `registerListener` / `createNewData` / `setValue` 各自触发了几个插件事件 |
+| 每一步的耗时和事件增量 | `activate` / `registerListener` / `loadData` / `setValue` 各自触发了几个插件事件 |
 | 插件事件 | 默认按种类计数，`propertyChanged` 额外列出字段名；`--events` 出明细 |
 | 界面状态 | 跑完和元数据里本来不一样的显示、可编辑、必录，按「谁定的」归组：插件的哪个方法、界面规则第几条、平台、所在的面板或分录连带；分录写到行。`--show` / `--expect` 点名的控件另列，带上结论的由来 |
 | 弹给用户的话 | `showMessage` / `showFieldTips` / 确认框，连参数一起记；`--expect message=` 断的就是它 |

@@ -2112,7 +2112,13 @@ export async function run(
 	// 「平台的问题还是我的插件的问题」, which a stack alone does not answer.
 	const ownPrefixes = projectPackagePrefixes(ctx);
 	// call uses the same list the other way round: a class outside it is refused before it is loaded.
-	const ownPackages = plan.kind === "op" || plan.kind === "call" || plan.kind === "push" ? ownPrefixes.join(",") : "";
+	// form needs it too: RunFacts filters the plugins FormSim actually loaded down to this project's
+	// with it, and without it emits no own-plugins record -- cosmic_facts then reports every form
+	// plugin as never reached, although the log shows it loaded and firing its callbacks.
+	const ownPackages =
+		plan.kind === "op" || plan.kind === "call" || plan.kind === "push" || plan.kind === "form"
+			? ownPrefixes.join(",")
+			: "";
 	// Before the run, never after: the whole value of this check is that it
 	// happens while the run is still free to be fixed.
 	const mustInput = await noteMustInput(ctx, plan);

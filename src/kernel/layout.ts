@@ -10,13 +10,15 @@
  *     deletes the whole tree, and it used to take the impact index, filed verify
  *     results and the project write lock with it.
  *
- *   cosmicDir    -- <root>/.cosmic-ai, everything cosmic keeps per project, in
- *     two kinds a reader can tell apart by directory:
- *       evidence/  loses something when deleted: verification records, the raw
- *                  logs they cite, and delivery receipts
- *       work/      rebuildable: impact index, capsule delivery, spilled output,
- *                  the write lock
- *     plus config.json, project.yaml and the ad-hoc probes/.
+ *   cosmicDir    -- <root>/.cosmic-ai, everything cosmic keeps per project. What
+ *     each entry is for and how long it stays is one table, `project/cosmic-dirs.ts`:
+ *       sessions/<会话>/  process files only that session reads back (spilled
+ *                  output, production query results, verification records,
+ *                  exports, the completion journal); removed with the session
+ *       scratch/, probes/  the model's drafts and ad-hoc probes, removed when old
+ *       evidence/  kept: metadata backups, diagnosis reports, the production audit
+ *       work/      rebuildable caches: impact index, per-runtime ledgers, the write lock
+ *     plus config.json and project.yaml.
  *
  *     `cases/` was the third kind until S22 retired the regression case set. It
  *     was the only part meant for Git, and that is exactly what stopped working:
@@ -37,13 +39,15 @@
  */
 
 import { join } from "node:path";
+import type { GradleModuleDirs } from "./config/detect.ts";
 import { type ModuleDirMap, moduleRoot } from "./config/gradle.ts";
+import { sessionDirOf } from "./project/cosmic-dirs.ts";
 
 export interface ModuleDirs {
 	name: string;
-	/** <root>/<moduleDir>/src/main/java */
+	/** The module's main Java source directory as Gradle reports it; <root>/<moduleDir>/src/main/java before the first build. */
 	src: string;
-	/** <root>/<moduleDir>/build/classes/java/main */
+	/** Where Gradle compiles that source to; <root>/<moduleDir>/build/classes/java/main before the first build. */
 	out: string;
 }
 
@@ -57,8 +61,21 @@ export interface KernelLayout {
 	projectWriteLock: string;
 	/** S15.2: compact proof of Capsules actually placed in model-visible context. */
 	knowledgeCapsules: string;
-	/** Full text of tool output that was truncated before reaching the model (D14.2). */
+	/** Full text of tool output that was truncated before reaching the model (D14.2). In the session directory. */
 	outputDir: string;
+	/** dsh 会话编号；没有会话（命令行脚本）时 undefined，目录名用 `_local`。 */
+	sessionId: string | undefined;
+	/**
+	 * `.cosmic-ai/sessions/<会话>/`：只有当次会话用得上的过程文件都在这里，会话停了几天整个删掉
+	 * （见 `project/cosmic-dirs.ts`）。
+	 */
+	sessionDir: string;
+	/** 本会话查生产的结果：SQL 结果、日志、元数据比对。 */
+	prodWorkDir: string;
+	/** 本会话的导出和候选（打印模板 dump、候选、工作流 dump、打印测量的图）。 */
+	exportsDir: string;
+	/** `.cosmic-ai/evidence/backups/`：写元数据前的改前原文、导出的备份，一直留。 */
+	backupsDir: string;
 	/** `.cosmic-ai/evidence`: deleting anything here loses something. */
 	evidenceDir: string;
 	/** `.cosmic-ai/work`: everything here can be rebuilt. */
@@ -68,10 +85,9 @@ export interface KernelLayout {
 	/**
 	 * 验证记录：一次带 `--expect` 的运行留下的事实（S22.1.2）。
 	 *
-	 * One file per run, named by its digest, never overwritten. Under `evidence/`
-	 * because deleting one loses something: after S22 these are the *only* thing
-	 * `finish` will accept as proof that the change was verified, and each one
-	 * cites a raw log that must stay findable next to it.
+	 * One file per run, named by its digest, never overwritten. In the session
+	 * directory: the session holds each record's digest and only that session's
+	 * completion check reads them back, so they live and die with the session.
 	 *
 	 * Deliberately not RuntimeKey-scoped as a directory: the RuntimeKey is one of
 	 * the facts recorded **inside** each file and checked on read, so scoping the
@@ -177,6 +193,8 @@ export interface KernelLayout {
 
 export interface LayoutInput {
 	root: string;
+	/** dsh 会话编号：会话目录按它分。 */
+	sessionId?: string;
 	/** RuntimeKey-scoped cache root. */
 	cacheRoot: string;
 	/** RuntimeKey id, for the project-side artefacts that must not be shared across runtimes. */
@@ -188,6 +206,8 @@ export interface LayoutInput {
 	moduleDirs?: ModuleDirMap;
 	/** The debug module holding the launch class; absent or null means none. */
 	debugModule?: string | null;
+	/** Gradle's own directories per module (build/cosmic-modules.json); a module not listed gets the convention. */
+	gradleDirs?: Readonly<Record<string, GradleModuleDirs>> | null;
 }
 
 export const COSMIC_DIR = ".cosmic-ai";
@@ -220,7 +240,15 @@ export function isAdHocProbeFile(file: string): boolean {
 	return file.replace(/\\/g, "/").toLowerCase().includes("/.cosmic-ai/probes/");
 }
 
-function moduleDirsOf(root: string, name: string, dirs: ModuleDirMap | undefined): ModuleDirs {
+function moduleDirsOf(
+	root: string,
+	name: string,
+	dirs: ModuleDirMap | undefined,
+	gradle: Readonly<Record<string, GradleModuleDirs>> | null | undefined,
+): ModuleDirs {
+	const reported = gradle?.[name];
+	// join() only normalises the separators: Gradle writes them forward, every other path here is native.
+	if (reported !== undefined) return { name, src: join(reported.src[0] as string), out: join(reported.out) };
 	return {
 		name,
 		src: join(moduleRoot(root, name, dirs), "src", "main", "java"),
@@ -235,6 +263,7 @@ export function kernelLayout(input: LayoutInput): KernelLayout {
 	const evidenceDir = join(cosmicDir, "evidence");
 	const workDir = workDirOf(root);
 	const verifyDir = join(evidenceDir, "verify");
+	const sessionDir = sessionDirOf(root, input.sessionId);
 	const probesDir = join(resourcesDir, "probes");
 	const runtimeDir = join(resourcesDir, "runtime");
 	return {
@@ -244,11 +273,16 @@ export function kernelLayout(input: LayoutInput): KernelLayout {
 		javacArgs: join(projectBuild, "cosmic-javac.args"),
 		projectWriteLock: join(workDir, "write.lock"),
 		knowledgeCapsules: knowledgeCapsulesFile(root, input.runtimeKeyId),
-		outputDir: join(workDir, "out"),
+		outputDir: join(sessionDir, "out"),
+		sessionId: input.sessionId,
+		sessionDir,
+		prodWorkDir: join(sessionDir, "prod"),
+		exportsDir: join(sessionDir, "exports"),
+		backupsDir: join(cosmicDir, "evidence", "backups"),
 		evidenceDir,
 		workDir,
 		verifyDir,
-		assertionEvidence: join(evidenceDir, "assertions"),
+		assertionEvidence: join(sessionDir, "assertions"),
 		cosmicDir,
 		impactIndex: join(workDir, "impact.json"),
 		impactWork: join(workDir, "impact"),
@@ -291,7 +325,9 @@ export function kernelLayout(input: LayoutInput): KernelLayout {
 		debugLog: join(cacheRoot, "cosmic-debug.log"),
 
 		// moduleDir handles nested modules (`apps:order` is apps/order) and `projectDir` relocations.
-		moduleDirs: input.codeModules.map((name) => moduleDirsOf(root, name, input.moduleDirs)),
-		launchModule: input.debugModule ? moduleDirsOf(root, input.debugModule, input.moduleDirs) : null,
+		moduleDirs: input.codeModules.map((name) => moduleDirsOf(root, name, input.moduleDirs, input.gradleDirs)),
+		launchModule: input.debugModule
+			? moduleDirsOf(root, input.debugModule, input.moduleDirs, input.gradleDirs)
+			: null,
 	};
 }

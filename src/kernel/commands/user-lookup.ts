@@ -96,3 +96,41 @@ export async function lookupUsers(
 		outputFile: outcome.value.outputFile,
 	});
 }
+
+export interface AccountCandidate {
+	id: string;
+	/** 账套编码：写进配置的就是它，人认得的也是它。 */
+	number: string;
+	name: string;
+}
+
+export interface AccountLookupReport {
+	candidates: AccountCandidate[];
+	/** 探针完整输出落盘处，一个都没列出来时看它（多半是配置中心连不上，或租户不对）。 */
+	outputFile: string;
+}
+
+/**
+ * 这个环境里有哪些账套（数据中心）。
+ *
+ * 探针宿主在账套对不上时会把可选的逐个列成 `{"t":"account"}` 记录再退出（CosmicProbe.printAccountChoices），
+ * 所以这里故意拿一个谁都不是的账套起一次冷进程：配置中心连得上就拿得到列表，不需要先知道任何一个账套。
+ * 调用方要给 ctx 一个占位账套和占位用户（见 kernel-adapter 的 lookupAccounts），它们不落盘、不当答案。
+ */
+export async function lookupAccounts(ctx: KernelContext): Promise<KernelResult<AccountLookupReport>> {
+	const outcome = await probe(ctx, PROBE_NAME, {
+		kernelEnv: true,
+		cold: true,
+		env: { USER_KEY: "" },
+		invocation: "启动向导 · 列出可选的账套",
+		countRepeats: false,
+	});
+	if (!outcome.ok) return err(outcome.error);
+	const candidates: AccountCandidate[] = [];
+	for (const record of outcome.value.json.records) {
+		if (record.t !== "account") continue;
+		const id = text(record, "id");
+		if (id !== "") candidates.push({ id, number: text(record, "number"), name: text(record, "name") });
+	}
+	return ok({ candidates, outputFile: outcome.value.outputFile });
+}

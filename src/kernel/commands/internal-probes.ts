@@ -18,9 +18,13 @@ export const META_CHANGE_PROBE = "MetaChangeProbe";
 /** 生产排障比对元数据时取测试环境这一侧的原文（`prod/meta.ts`）。 */
 export const META_ROWS_PROBE = "MetaRowsProbe";
 
+/** 输入框 `@` 引用的表单目录：全库表单设计的编号、中文名、模型类型（`mention.ts`）。 */
+export const FORM_CATALOG_PROBE = "FormCatalogProbe";
+
 export const COMMAND_ONLY_PROBES: readonly string[] = [
 	MUST_INPUT_PROBE,
 	FIELD_INDEX_PROBE,
 	META_CHANGE_PROBE,
 	META_ROWS_PROBE,
+	FORM_CATALOG_PROBE,
 ];

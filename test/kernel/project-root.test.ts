@@ -14,10 +14,16 @@ const OTHER = resolve("D:/other");
 const markers = (root: string): string[] => [`${root}/gradle.properties`, `${root}/settings.gradle`];
 
 describe("S2.1 project root discovery", () => {
-	it("requires both markers", () => {
-		const exists = fakeFs([`${PROJECT}/gradle.properties`]);
-		expect(hasProjectMarkers(PROJECT, exists)).toBe(false);
+	it("a settings script marks the root; gradle.properties alone does not, and either DSL counts", () => {
+		expect(hasProjectMarkers(PROJECT, fakeFs([`${PROJECT}/gradle.properties`]))).toBe(false);
 		expect(hasProjectMarkers(PROJECT, fakeFs(markers(PROJECT)))).toBe(true);
+		expect(hasProjectMarkers(PROJECT, fakeFs([`${PROJECT}/settings.gradle`]))).toBe(true);
+		expect(hasProjectMarkers(PROJECT, fakeFs([`${PROJECT}/settings.gradle.kts`]))).toBe(true);
+	});
+
+	it("walks past buildSrc, which has a settings script of its own", () => {
+		const exists = fakeFs([...markers(PROJECT), `${PROJECT}/buildSrc/settings.gradle`]);
+		expect(findProjectRoot(`${PROJECT}/buildSrc/src/main`, exists)).toBe(PROJECT);
 	});
 
 	it("walks up from a nested directory", () => {
@@ -65,7 +71,7 @@ describe("S2.1 project root discovery", () => {
 		}
 		expect(caught).toBeInstanceOf(KernelError);
 		expect((caught as KernelError).code).toBe("PROJECT_ROOT_NOT_FOUND");
-		expect((caught as KernelError).remedy).toContain("COSMIC_PROJECT_ROOT");
+		expect((caught as KernelError).remedy).toContain("projectRoot");
 	});
 
 	it("does not silently default cwd to the agent process directory", () => {

@@ -5,14 +5,13 @@
 fast-ai-cosmic 是帮人开发金蝶苍穹插件的 AI 助手。它拿 deepseek-harness（下称 dsh，一个通用 AI 编程助手，有网页和桌面界面）当底座，
 本仓库做成 dsh 的一个仓库外组合包（不改 dsh 本体的插件包）：给模型加一组 `cosmic_*` 工具，让它能在用户自己的苍穹环境里编译代码、跑"探针"
 （一小段 Java，进苍穹进程里查元数据、跑业务、断言结果）、改元数据。
-另有生产只读排障：只读地查生产库、生产元数据、monitor 日志，把报错堆栈对到本地源码，出一份每条结论都标了证据编号的诊断报告。
+同一个会话里还能只读查生产：查生产库、生产元数据、monitor 日志，把报错堆栈对到本地源码，出一份每条结论都标了证据编号的诊断报告，接着在测试环境修好、验证。
 
 本仓库两层：**内核**（真正干活的命令、探针、知识库、运行时）和**接 dsh 的那层**（`src/dsh/`：注册 12 个产品工具、执行前门槛、
-返回整理、系统提示段、技能、命令、写元数据前的确认单）。一个插件两种模式，会话开始时定、会话里不切：
-开发（`dev`，改代码、编译、真跑业务、写元数据）和生产只读排障（`prod`，不挂编译和真跑业务的工具、没有终端、只能写 `.cosmic-ai/`）。
-桌面和网页里，模式是组合包声明的两个预设（新建会话时选「苍穹开发 / 生产排障」），各挂一份产品工具；
-无界面没有预设，用两个配置 `cosmic` / `cosmic-prod` 把产品工具插在顶层。开发调试的网页用配置 `cosmic-web`。
-三个配置都由 `node scripts/setup-dsh-profiles.mjs` 建；给用户的是一个 Windows 安装包（`npm run build`）。
+返回整理、系统提示段、技能、命令、写元数据前的确认单）。不分模式：每个会话都挂全部 12 个产品工具，开发和查生产接着做。
+生产只读靠 `cosmic_prod` 自己的闸，其余工具和终端连的都是测试环境。
+桌面和网页里是组合包声明的一个预设「苍穹」；无界面没有预设，配置 `cosmic` 把产品工具插在顶层。开发调试的网页用配置 `cosmic-web`。
+两个配置都由 `node scripts/setup-dsh-profiles.mjs` 建；给用户的是一个 Windows 安装包（`npm run build`）。
 
 这份文件只写**现在是什么样**。写法规矩见 `AGENTS.md` 第二节。
 
@@ -24,7 +23,7 @@ fast-ai-cosmic 是帮人开发金蝶苍穹插件的 AI 助手。它拿 deepseek-
 
 ```
 dsh 的工具流水线
-  ├─ src/dsh/hooks.ts                执行前门槛（模式、重复失败、排障会话写文件）；写文件、读文件之后附知识卡片和写法问题
+  ├─ src/dsh/hooks.ts                执行前门槛（重复失败）；写文件、读文件之后附知识卡片和写法问题
   └─ src/dsh/index.ts → tools/*.ts   每个工具：参数先按完整 schema 校验，再调内核，返回整理成几块文字
       └─ src/kernel/commands/*.ts    真正干活的命令（编译、跑探针、run、impact、meta、prod……）
       ├─ src/kernel/policy/          安全闸：写 API 黑名单、工程写锁、共享写入准入、外部动作识别
@@ -44,10 +43,10 @@ dsh 的工具流水线
 | 目录 / 文件 | 里面是什么 |
 |---|---|
 | `src/brand.ts` | 产品名。对外叫 `fast-ai-cosmic`；`cosmic_*` 工具名、`COSMIC_*` 环境变量是内部稳定名字，不随品牌改 |
-| `src/dsh/` | 接 dsh 的那层：插件入口 `index.ts`（按模式挂工具、挂钩子、系统提示段、技能、命令）、`tools/` 每个工具一个文件、`hooks.ts` 门槛、`write.ts` 写元数据一次调用写完、`host.ts` 工具共用的打开工程 / 编译新鲜度 / 输出预算 / 失败计数、`define.ts` 参数换成 dsh 认的 JSON Schema、`session.ts` 每会话状态、`commands.ts` 给人敲的命令、`setup.ts` 工程配置向导、`jvm.ts` 本机进程列表、`jvm-board.ts` JVM 状态板、`present.ts` 界面卡片标题、`brand.ts` 品牌行的宿主半边（挂界面调的请求路径）、`codex-login.ts` 设置页登录 ChatGPT 的宿主半边、`fixed-text.ts` 每个模式发给模型的固定文字（系统提示、工具说明、参数说明）一处拼出、`probes.ts` 产品内置的已发布探针清单 |
-| `src/agent/` | 接 dsh 那层用的纯函数：`prompt/system-prompt.ts` 系统提示和完成情况模板、`state/write-report.ts` 确认单、`state/prod-state.ts` 按模式挂哪些工具和拒什么、`tools/` 输出预算、知识卡片、读写账、写法检查、工具名清单 |
-| `cordis.patch.yml` | 组合包：两个预设（各挂一份产品工具，`mode` 不同）、关掉 dsh 自带的四个预设、官方品牌行和三处往外发数据的行、插品牌行 |
-| `client/brand.js` | 界面：pi 版首页的样子、登录 ChatGPT、JVM 小标签、写入确认卡片；不经编译 |
+| `src/dsh/` | 接 dsh 的那层：插件入口 `index.ts`（挂工具、钩子、系统提示段、技能、命令）、`tools/` 每个工具一个文件、`hooks.ts` 门槛、`write.ts` 写元数据一次调用写完、`host.ts` 工具共用的打开工程 / 编译新鲜度 / 输出预算 / 失败计数、`define.ts` 参数换成 dsh 认的 JSON Schema、`session.ts` 每会话状态、`commands.ts` 给人敲的命令、`setup.ts` 工程配置向导、`jvm.ts` 本机进程列表、`jvm-board.ts` JVM 状态板、`present.ts` 界面卡片标题、`brand.ts` 品牌行的宿主半边、`codex-login.ts` 设置页登录 ChatGPT 的宿主半边、`fixed-text.ts` 发给模型的固定文字一处拼出、`probes.ts` 产品内置的已发布探针清单 |
+| `src/agent/` | 接 dsh 那层用的纯函数：`prompt/system-prompt.ts` 系统提示和完成情况模板、`state/write-report.ts` 确认单、`state/prod-state.ts` 生产查询的证据编号、`tools/` 输出预算、知识卡片、读写账、写法检查、工具名清单 |
+| `cordis.patch.yml` | 组合包：一个预设「苍穹」（挂产品工具）、关掉 dsh 自带的四个预设、官方品牌行和三处往外发数据的行、插品牌行 |
+| `client/brand.js` | 界面：iOS 27 风格和动效、登录 ChatGPT、JVM 小标签、写入确认卡片、输入框 `@` 引用；不经编译 |
 | `packaging/presets/production.env` | 桌面打包配置：应用 ID、关自动更新、强制更新地址填一个连不上的 |
 | `src/kernel/commands/` | 每个命令一个文件：`fast` 编译、`lint` 前检、`probe` 跑探针、`run` 免界面跑业务、`impact` 反查、`meta` 改元数据、`knowledge` 查知识、`doctor` 体检、`build` 重建编译参数、`deploy` 部署、`node` 调试节点、`probe-server` 常驻进程启停、`prod` 生产只读排障、`sources` 认源码、`user-lookup` 查用户 |
 | `src/kernel/config/` | 认工程根、读 `config.json`、解析 gradle、首次配置向导 |
@@ -70,20 +69,19 @@ dsh 的工具流水线
 | `resources/tools/` | 反射查平台类签名（`ApiTool.java`）、源码索引（`SrcIndexTool.java`）、生产只读读取进程（`ProdReader.java`，只装 JDBC 驱动，不加载苍穹平台） |
 | `knowledge/reference/*.md` | **技能文档**：发给模型按需读的参考（31 篇） |
 | `knowledge/reference.pack`、`knowledge/cosmic-kb.pack` | 自动生成：技能文档包、官方知识库包。不要手改 |
-| `scripts/` | 编组合包（`build-bundle.mjs`）、出安装包（`package-desktop.mjs`，dsh 上的补丁逐条在里面）、不打包起桌面窗口（`dev-desktop.mjs`）、建 dsh 配置（`setup-dsh-profiles.mjs`）、导出（`export-*.mjs`）、真机验证（`verify-*.ts`）、测量（`measure-*`；读会话的那几把 pi 和 dsh 的会话都认，读法在 `session-reader.mjs`）、清单（`checklists/`）。每个脚本文件头写着用法 |
+| `scripts/` | 编组合包（`build-bundle.mjs`）、出安装包（`package-desktop.mjs`，dsh 上的补丁逐条在里面）、不打包起桌面窗口（`dev-desktop.mjs`）、建 dsh 配置（`setup-dsh-profiles.mjs`）、导出（`export-*.mjs`）、真机验证（`verify-*.ts`）、测量（`measure-*`；读会话的 pi、dsh 都认，读法在 `session-reader.mjs`）、清单（`checklists/`）。每个脚本文件头写着用法 |
 | `test/` | 按 `src/` 同名分目录；`test/security/prod-readonly.test.ts` 是生产只读闸绕不绕得过去的回归；`test/manifest/` 管文档体量和不依赖 pi |
 
 ### 1.3 程序跑起来后文件放在哪
 
+`.cosmic-ai/` 下各项的寿命见 `kernel/project/cosmic-dirs.ts` 的目录表；索引和磁盘缓存另列在 `cache-inventory.ts`（「缓存」面板照它画）。下面只列人配的和不自动删的：
+
 | 位置 | 放什么 | 能不能删 |
 |---|---|---|
 | `<工程>/.cosmic-ai/config.json` | 工程级配置（账套、用户、ISV 等），压过全局那份 | 不能，用户配的 |
-| `<工程>/.cosmic-ai/probes/` | 模型写的临时探针 | 可以 |
-| `<工程>/.cosmic-ai/evidence/` | 运行记录 `assertions/`、它们引用的运行日志；生产查询流水账 `prod-audit.jsonl`；诊断报告 `diagnosis/` | 删了就丢证据 |
-| `<工程>/.cosmic-ai/work/` | 代码关系表 `impact.json`、落盘的长输出、写锁；生产排障拉回的元数据原文和摘要 `prod/meta/`、查询结果 `prod/sql/`、日志全文 `prod/logs/` | 能重建 |
-| `<工程>/build/cosmic-pathing.jar`、`cosmic-javac.args` | 工程自己 gradle 产出的编译参数 | 能重建（`build` 命令） |
+| `.cosmic-ai/evidence/` | 备份 `backups/`（落库前自动存）、诊断报告、生产查询流水账 `prod-audit.jsonl` | 不自动删 |
+| `<工程>/build/cosmic-pathing.jar`、`cosmic-javac.args`、`cosmic-modules.json` | 工程 gradle 产出的编译参数、模块目录 | 能重建 |
 | `~/.fast-ai-cosmic/config.json` | 全局配置 | — |
-| `~/.fast-ai-cosmic/cache/<RuntimeKey>/` | 编好的探针 class、常驻 JVM 的进程号和日志 `probe-server.log`、上一次探针输出 `last-probe.out`、每次运行的日志 `probe-runs/`；生产读取进程的状态和日志 `prod/` | 能重建 |
 | `~/.fast-ai-cosmic/prod/prod.json` | 生产只读排障配置：生产库只读账号、monitor 账号、每条查询限时限行 | 不能，用户配的；含凭据，不进工程目录 |
 | `~/.fast-ai-cosmic/prod/prod.monitor-session.json` | monitor 登录后的会话（闲置约半小时过期） | 可以，删了重新登录 |
 
@@ -95,15 +93,15 @@ dsh 的工具流水线
 
 | 命令 | 做什么 | 代码 | 技能文档 |
 |---|---|---|---|
-| 认工程 | 认工程、JDK、苍穹 JAR，算出 RuntimeKey，释放内嵌资源 | `kernel/open-project.ts`、`kernel/config/` | `runtime.md` |
+| 认工程 | 认工程、JDK、苍穹 JAR，算出 RuntimeKey，释放内嵌资源；工程文件里有的都自动读 | `kernel/open-project.ts`、`kernel/config/` | `runtime.md` |
 | `lint` | 用用户的苍穹 JAR 编译检查、不留 class，返回结构化报错 | `kernel/commands/lint.ts`、`kernel/diag/javac.ts` | `lint.md` |
 | `fast` | 编译改过的业务类；插件类先过知识门禁；常驻 JVM 下次用前热替换（结构变了才重启） | `kernel/commands/fast.ts`、`knowledge/plugin-gate.ts` | `lint.md`、`plugin-dev.md` |
 | `probe` | 跑已发布探针，或跑模型写的只读临时探针（编译前查签名、扫写 API） | `kernel/commands/probe.ts`、`kernel/policy/{probe-scan,write-apis,api-precheck}.ts` | `probes.md`、`sdk.md` |
 | `run` | 免界面真跑业务（测试环境真提交）：`op` 操作、`form` 表单、`list` 列表、`callback`/`flow` 父子页面、`rule` 规则、`print` 打印、`call` 直调方法、`push` 转换下推、`wf` 工作流；带 `--expect` 断言，每次落一份运行记录 | `kernel/commands/run.ts`、`knowledge/run-adapter.ts`、`kernel/verify/`、`resources/probes/*Sim.java` | `run.md`、`run-parent-child.md`、`plugin-print-runtime.md`、`workflow.md` |
 | `impact` | 代码关系表反查：字段的读写处、类 / 单据 / 布局挂了哪些插件和规则 | `kernel/commands/impact.ts`、`kernel/impact/` | `impact.md` |
-| `meta` | 读写非实体元数据：表单布局、字段、规则、BOTP 转换（写走 `BotpRuleSyncProbe`：复制业务规则，字段映射改成取源字段 / 公式 / 基础资料常量 / 清掉，改建行层级；写前过平台映射校验、整条规则校验和上下游关联检查，写后回读建行层级）、打印模板、工作流、公式函数查询；写入先预演 | `kernel/commands/meta.ts`、`kernel/meta/`、`kernel/policy/{write-plan,shared-write}.ts` | `meta-cmd.md`、`metadata-*.md`、`print-template*.md` |
+| `meta` | 读写非实体元数据：表单布局、字段、规则、BOTP 转换（写走 `BotpRuleSyncProbe`：复制业务规则，改字段映射、建行层级、源单过滤和执行条件；写前过平台校验，写后回读）、打印模板、工作流、公式函数查询；写入先预演 | `kernel/commands/meta.ts`、`kernel/meta/`、`kernel/policy/{write-plan,shared-write}.ts` | `meta-cmd.md`、`metadata-*.md`、`print-template*.md` |
 | `probe-server`、`node`、`deploy` | 常驻探针 JVM 和本地调试节点的启停、状态、日志；把代码 jar 部到运行时 | `kernel/commands/{probe-server,node,deploy}.ts`、`kernel/probe/server.ts` | `runtime.md` |
-| `doctor`、`build` | 工程体检（每项配置值和出处）；重建编译参数、代码关系表、查和回收写锁 | `kernel/commands/{doctor,build}.ts` | `runtime.md` |
+| `doctor`、`build` | 工程体检（每项配置值和出处）；改工程配置（核对后才写，账套、用户不收）；重建编译参数、代码关系表、查和回收写锁 | `kernel/commands/{doctor,build}.ts`、`kernel/config/set-config.ts` | `runtime.md` |
 | `knowledge` | 查官方知识库、场景表、平台类签名、已发布探针清单、插件开发流程 | `kernel/commands/knowledge.ts`、`knowledge/`、`kernel/api-tool.ts` | `official-knowledge.md`、`plugin-*.md` |
 | `prod` | 生产只读排障：`status`、`sql` 一条只读查询、`meta` 生产元数据摘要和比对、`log` monitor 日志分组并对源码、`report` 诊断报告 | `kernel/commands/prod.ts`、`kernel/prod/`、`resources/tools/ProdReader.java` | `runtime-traces.md` |
 
@@ -112,22 +110,24 @@ dsh 的工具流水线
 | 机制 | 做什么 | 代码 |
 |---|---|---|
 | 临时探针只读 | 写 API 黑名单 + 源码扫描；没查过签名的平台调用先拦下 | `kernel/policy/{write-apis,probe-scan,api-precheck}.ts` |
-| 写元数据 | 一次调用写完：写调用附 `report` → 预演 → 按预演排确认单 → 弹给用户（`userQuestions`，界面画成逐处对比的卡片）→ 确认后带确认号落库 → 回读；弹不了确认就不写。落库范围就是预演报出的写入目标清单，JVM 里的 IsvGuard 逐个比对。布局写探针回读分三层报数（设计态、运行态、业务表的列），设计态已存而后面一步没成时报「写了一半」并以失败结束；派生布局上不加删字段、分录；布局和表单规则落库后，继承它的派生布局运行态逐张重建、逐张报数（`RuntimeMeta.java`）；有派生布局时看得见的新字段、分录、控件必须写 `layouts=`：全部显示，或只在列出的布局显示（主单据布局上设成隐藏元素，落库后在列出的派生布局上改回显示，逐张回读）；只在部分布局显示的字段不许单纯必录；同一份清单里能配字段的必录条件、加删操作上的合法性校验（表达式先核语法、函数、字段）；加字段、分录、控件必须写明可见性（按单据状态）、锁定性，看得见的必须指到具体控件旁边，预演逐个报落点；单据头和分录能加删拆分表、字段能指到拆分表，预演报新建哪张表、已有字段换表时旧表这一列有值的行数，落库后核对拆分表和列 | `dsh/write.ts`、`agent/state/write-report.ts`、`kernel/policy/{write-plan,shared-write,write-form}.ts`、`client/brand.js` |
+| 写元数据 | 一次调用写完：写调用附 `report` → 预演 → 按预演排确认单 → 弹给用户（界面画成逐处对比的卡片）→ 确认后带确认号落库 → 回读；弹不了确认就不写。落库范围就是预演报出的写入目标清单，JVM 里的 IsvGuard 逐个比对。布局写入的规矩（回读分三层报数、「写了一半」、派生布局逐张重建、`layouts=`、可见性和锁定、拆分表、必录条件和校验）见 `FormLayoutWriteProbe.java` 文件头和技能文档 `metadata-entity-write.md`；业务规则按 id 原位改条件、计算公式、启用（目标 `实体.规则id`） | `dsh/write.ts`、`agent/state/write-report.ts`、`kernel/policy/{write-plan,shared-write,write-form}.ts`、`client/brand.js` |
 | 模型配置和登录 | 组合包配好 codex（pi-ai 自带 9 个加手工补的 gpt-6.2-sol）和 Command Code GOAT 网关（密钥由用户在设置页填，引用名 `COMMANDCODE_GOAT_API_KEY`），DeepSeek 用自带卡片填密钥、不用账号登录（左下角是设置）；codex 卡片上有「登录 ChatGPT」「退出登录」，浏览器登完自动回来，没回来可贴地址栏地址 | `cordis.patch.yml`、`dsh/codex-login.ts`、`dsh/brand.ts`、`client/brand.js` |
-| JVM 小标签 | 开发会话输入框旁：进会话就后台起 JVM，写起到哪步；点开看进程、每步用时、原因，能启停本会话和本机别的 JVM。同工程共用；没构建不起；排障会话不画 | `dsh/jvm-board.ts`、`client/brand.js` |
-| 界面卡片 | 每次产品工具调用在界面上显示一行看得懂的标题（「真跑业务：op demo_bill save」「写元数据：…」），写入和只读用不同图标；只给界面看，不发给模型 | `dsh/present.ts` |
+| JVM 小标签 | 输入框旁：进会话就后台起 JVM，写起到哪步；点开看进程、每步用时、原因，能启停本会话和本机别的 JVM。同工程共用；没构建不起；别的预设的会话不画 | `dsh/jvm-board.ts`、`client/brand.js` |
+| 输入框 `@` 引用 | 敲 `@` 加编号或中文名找单据、表单、布局、分录、字段（`单据.分录.词` 逐层钻）；发送时换成一段 `<cosmic-ref>`，写明它在元数据里的准确位置。数据来源、写什么见 `kernel/impact/mention.ts` 文件头 | `kernel/impact/mention.ts`、`kernel/commands/mention.ts`、`dsh/mention.ts`、`client/brand.js` |
+| 界面卡片 | 每次产品工具调用在界面上显示一行看得懂的标题（「真跑业务：op demo_bill save」），写入和只读用不同图标；只给界面看，不发给模型 | `dsh/present.ts` |
 | 组合包产物 | 产品插件连同 typebox 合成一个 `tools.js`（装进桌面版后在 node_modules 下，Node 不给那里的 .ts 去类型），带知识包、品牌、预设；编完检查没有对 dsh 包的运行时引用、能被 Node 直接加载、过产物审计 | `scripts/build-bundle.mjs` |
 | 安装包 | dsh 检出目录复制一份，套补丁（预装组合包、壳和安装程序换名换图、界面字典里插件改不了的几处、跳过 DeepSeek 欢迎页、图标、和另装的 dsh 隔离），调 dsh 自己的不签名打包；补丁逐条核对原文次数，套完扫一遍 | `scripts/package-desktop.mjs` |
-| 模式 | `dev` / `prod` 由预设（桌面、网页）或配置（无界面）定；`prod` 不挂 `cosmic_fast`、`cosmic_run`，执行前拒部署、写元数据、造改数据、任何 APPLY 和写工程文件（`.cosmic-ai/` 下放行） | `agent/state/prod-state.ts`、`dsh/hooks.ts` |
+| 查生产 | 每个会话都能用 `cosmic_prod` 只读查生产，查明后接着在测试环境改、验。本会话第一次连生产前弹框问一次，允许了不再问，不允许这次不查、下次再问；弹不了框（无界面）、出诊断报告不问 | `dsh/prod-setup.ts`（`ensureProdConsent`）、`dsh/tools/prod.ts` |
+| `.cosmic-ai` 整理 | 打开工程时照目录表清，表外的不删只报；探针、`meta` 输出位置由工具定 | `kernel/project/{cosmic-dirs,output-paths}.ts` |
+| 缓存面板 | 输入框旁「缓存」小标签：索引和磁盘缓存的占用、状态、下次自动更新时间；可手动重建、清空、清理 | `kernel/project/cache-inventory.ts`、`dsh/cache-board.ts` |
 | 重复失败 | 同一调用同样失败两次，第三次在执行前拒；问用法、按行取回不算 | `dsh/streak.ts` |
-| 给人敲的命令 | `/cosmic-env` 认工程、刷新代码关系表，配置缺项走工程配置向导（用户按手机号查出来选）；`/cosmic-prod-setup` 生产排障配置向导（写前试连，配齐的能重填）；`/cosmic-jvm` 列本机常驻 JVM 和调试节点，`stop <pid>` 停一个；`/cosmic-login` 登录 ChatGPT（同设置页按钮）；排障会话 `/cosmic-monitor-login` 照图输验证码登 monitor | `dsh/commands.ts` |
-| 工具里自动问人 | 在工具调用里弹框，问完接着执行：打开工程时配置不全弹工程配置向导；排障会话调 `cosmic_prod` 前生产库没配弹生产排障配置向导，monitor 没登录或过期（第一次调、每次 `log` 前）弹验证码框。并行调用只弹一个；人不填、弹不了，本会话不再问，之后靠对应命令 | `dsh/{setup,prod-setup,monitor-login,host}.ts`、`dsh/tools/prod.ts`、`kernel/prod/setup.ts` |
-| 本会话事实 | `cosmic_facts` 列现在和本会话开始时的净差别：业务 Java 逐处改前改后（改回原样的不算）、写进测试环境的元数据按对象归拢带确认单和撤销办法、断言运行逐条标之后改没改代码、跑没跑本会话建的单、现在的代码编译过没有、改过的插件类各被哪次运行跑到、留下的造改数（含 run 新建的单及来历）、写法提醒；每项报数、0 也报。不报编译运行次数。起点和事实落盘到 `<工程>/.cosmic-ai/evidence/sessions/<会话编号>.json`，桌面版重开接得上。系统提示里的完成情况模板照它写 | `dsh/tools/facts.ts`、`dsh/tools/run.ts`、`dsh/session.ts`、`agent/prompt/system-prompt.ts`、探针侧 `RunFacts.java` |
+| 给人敲的命令 | `/cosmic-env` 认工程、刷新代码关系表，缺账套、用户走配置向导（账套从名单里选）；`/cosmic-prod-setup` 生产排障配置向导（写前试连，可重填）；`/cosmic-jvm` 列本机常驻 JVM 和调试节点，`stop <pid>` 停一个；`/cosmic-login` 登 ChatGPT；`/cosmic-monitor-login` 照图输验证码登 monitor；首页敲的结果画在输入框上方 | `dsh/commands.ts`、`client/brand.js` |
+| 工具里自动问人 | 在工具调用里弹框，问完接着执行：打开工程时只缺账套、用户才弹配置向导；调 `cosmic_prod` 前生产库没配弹生产排障配置向导，monitor 没登录或过期（第一次调、每次 `log` 前）弹验证码框。并行调用只弹一个；人不填、弹不了，本会话不再问，之后靠对应命令 | `dsh/{setup,prod-setup,monitor-login,host}.ts`、`dsh/tools/prod.ts`、`kernel/prod/setup.ts` |
+| 本会话事实 | `cosmic_facts` 列现在和本会话开始时的净差别：业务 Java 逐处改前改后（改回原样的不算）、写进测试环境的元数据按对象归拢带确认单和撤销办法、断言运行逐条标之后改没改代码、跑没跑本会话建的单、现在的代码编译过没有、改过的插件类各被哪次运行跑到、留下的造改数（含 run 新建的单及来历）、写法提醒；每项报数、0 也报。不报编译运行次数。起点和事实落在会话目录的 `journal.json`，桌面版重开接得上。系统提示里的完成情况模板照它写 | `dsh/tools/facts.ts`、`dsh/tools/run.ts`、`dsh/session.ts`、`agent/prompt/system-prompt.ts`、探针侧 `RunFacts.java` |
 | 造数改数 | 新建、照现成复制、从上游下推、改值报原值新值；整批一个事务，回读才算写成 | `resources/probes/Data{Seed,Update}Probe.java` |
 | 工程写锁 | 编译和写环境跨进程排队；崩溃残留要点名回收 | `kernel/policy/{project-write-lock,write-lock-recovery}.ts` |
-| 生产只读通道 | 三道闸：语句闸（只放行单条 select/with，拒写、拒改会话、拒加锁，函数只放行白名单）、会话只读、每条查询在只读事务里跑完回滚；读取进程不加载苍穹平台；每次调用记流水账 | `kernel/prod/{sql-guard,reader}.ts`、`resources/tools/ProdReader.java` |
+| 生产只读通道 | 三道闸：语句闸（只放行单条 select/with，拒写、拒改会话、拒加锁，函数限白名单）、会话只读、每条查询在只读事务里跑完回滚；记流水账；monitor 只发名单内接口；终端、文件工具读不到生产凭据 | `kernel/prod/{sql-guard,reader,monitor}.ts`、`ProdReader.java`、`dsh/prod-secrets.ts` |
 | 常驻 JVM | 按 RuntimeKey 一个；认不出是自己的就降级冷进程，从不按端口杀；停进程要等它真退，等不到核对后强制结束 | `kernel/probe/{server,protocol,health,local-jvms}.ts`、`resources/runtime/CosmicProbeServer.java` |
-| 编译参数重写 | Windows 上重写 pathing jar 前先停自己的常驻 JVM（它锁着这个文件） | `kernel/toolchain.ts` |
 | 探针输出 | 结构化记录走 `[PROBE-JSON]` 行，给人看的走文字；长输出全文落盘可取回 | `kernel/probe/{output,stash}.ts` |
 | 运行记录 | 每次带断言的 `run` 落一份：参数、断言结果、当时的源码指纹和 RuntimeKey、写了哪些表；带摘要，改过的记录认得出 | `kernel/verify/{evidence,grade}.ts` |
 | 表单按请求仿真 | `run form` 用真实 Redis 页面/模型缓存，打开、每条 `--set`、动作各一次请求：请求之间提交缓存、换 SessionManager、按 pageId 从缓存重建页面再 `registerListener`；改值前照浏览器入口先判这格能不能改；发往浏览器的锁定、选中行按页面跨请求留着；终值从最后一次重建的页面读；任一步插件抛异常都归到插件和行号上、这次标「没跑完整」 | `resources/probes/FormSim.java`（`nextRequest`、`editCheck`） |
@@ -146,13 +146,15 @@ dsh 的工具流水线
 |---|---|---|
 | 改某个命令的行为 | `src/kernel/commands/<命令>.ts` | 对应技能文档、`test/kernel/` 加用例 |
 | 改工具说明、参数、返回 | `src/dsh/tools/<工具>.ts` | 技能文档；`node --experimental-strip-types scripts/measure-dsh-prompt.ts` 量前后，照实更新 `test/dsh/fixed-text-record.json` |
-| 改执行前门槛 | `src/dsh/hooks.ts`、`src/agent/state/prod-state.ts` | `test/dsh/gates.test.ts` |
+| 改执行前门槛 | `src/dsh/hooks.ts` | `test/dsh/gates.test.ts` |
 | 改系统提示 | `src/agent/prompt/system-prompt.ts` | `test/dsh/prompt-budget.test.ts` 管上限 10 KB；同样更新 `fixed-text-record.json` |
-| 改桌面、网页的两个预设（挂哪些 dsh 插件） | `cordis.patch.yml` | 和 `scripts/setup-dsh-profiles.mjs` 里无界面那套对齐；预设里的插件不继承 dsh-base 顶层配置，同名行配置要抄全（`test/dsh/presets.test.ts`）；`npm run dev` 起窗口新建会话看 |
+| 改桌面、网页的预设（挂哪些 dsh 插件） | `cordis.patch.yml` | 和 `scripts/setup-dsh-profiles.mjs` 里无界面那套对齐；预设里的插件不继承 dsh-base 顶层配置，同名行配置要抄全（`test/dsh/presets.test.ts`）；`npm run dev` 起窗口新建会话看 |
 | 改命令行配置（模型、无界面挂哪些插件） | `scripts/setup-dsh-profiles.mjs`，改完重跑它 | `dsh --profile cosmic --dump-config` 看结果 |
 | 改模型清单、加服务商 | `cordis.patch.yml` 的 `llm-pi-ai` 那一段（桌面、网页、无界面共用；无界面配置脚本不另写这一行，写了会整段替换） | `test/dsh/model-config.test.ts`（pi-ai 自带清单变了会提示回来改）、`dsh --profile cosmic --dump-config` |
 | 改设置页登录 ChatGPT | 宿主半边 `src/dsh/codex-login.ts`，按钮 `client/brand.js` 的 `CodexLoginCard` | `test/dsh/codex-login.test.ts`；`npm run dev` 起窗口看 |
 | 改 JVM 小标签 | `src/dsh/jvm-board.ts`，`client/brand.js` 的 `JvmChip` | `test/dsh/jvm-board.test.ts`；`npm run dev` 看 |
+| 加缓存、改它的规则 | 规则在原处，`cache-inventory.ts` 同步列上 | `test/{kernel/cache-inventory,dsh/cache-board}.test.ts`；真机 `verify-real-env.ts … caches` |
+| 改 `@` 引用 | `src/kernel/impact/mention.ts` | `test/{kernel,dsh}/mention.test.ts`；真机 `verify-real-env.ts <工程> mention <词>` |
 | 改界面品牌 | 名字和标语 `src/brand.ts`，界面 `client/brand.js`，插件够不着的文字和图标在 `scripts/package-desktop.mjs` 的补丁里 | `test/dsh/{brand,client-theme}.test.ts` |
 | 升 dsh 版本 | `scripts/package-desktop.mjs` 的 `DSH_VERSION`，重跑它，对不上的补丁逐条改 | `npm run check`、无头跑一条需求、装上安装包冒烟 |
 | 给 `run` 加子命令或参数 | `src/kernel/commands/run.ts`（`planRun` 是纯函数：参数 → 探针名 + 环境变量）、`src/knowledge/run-adapter.ts`、对应 `resources/probes/*Sim.java` | `run.md`；`run help` 的用法文字 |
@@ -161,7 +163,7 @@ dsh 的工具流水线
 | 临时探针新增一类禁用写 API | `src/kernel/policy/write-apis.ts` | `test/kernel/` 加用例 |
 | 写元数据新增一类 | `src/kernel/policy/write-plan.ts` 声明、`write-form.ts` 确认单表单、对应写探针 | `metadata-write.md` |
 | 代码关系表扫什么 | `resources/probes/PluginIndexProbe.java`、`src/kernel/impact/model.ts` | `impact.md` 里"扫了哪些表"那段 |
-| 配置项 / 环境变量 | `src/kernel/config/load-config.ts`、`src/kernel/context.ts`（`FORWARDED_ENV_KEYS`） | — |
+| 配置项 / 环境变量 | `src/kernel/config/load-config.ts`、`src/kernel/context.ts`（`FORWARDED_ENV_KEYS`） | 模型能改的项登记在 `set-config.ts`；`runtime.md` 配置表 |
 | 生产排障：放行 / 拒绝哪些语句 | `src/kernel/prod/sql-guard.ts`（读取进程 `ProdReader.looksLikeQuery` 还有一道开头检查） | `test/kernel/prod-sql-guard.test.ts`、`test/security/prod-readonly.test.ts` |
 | 生产排障：元数据摘要、比对、日志分组和对源码 | `src/kernel/prod/{meta,meta-xml,log-view,baseline}.ts` | `runtime-traces.md`（平台知识部分） |
 | 生产排障：monitor 切时间段、保留期；单据足迹 | `src/kernel/prod/monitor-search.ts`、`src/kernel/prod/bill-trail.ts`、`kernel/commands/prod.ts` 的 `trail` | `test/kernel/prod-monitor-search.test.ts` |
@@ -179,10 +181,12 @@ dsh 的工具流水线
 | 常驻 JVM 起不来、卡住、多起了一个 | JVM 小标签；`cache/<RuntimeKey>/probe-server.log` | `scripts/verify-jvm-board.ts`、`measure-resident-start-race.ts`、`measure-resident-start.ts` |
 | 某一步特别慢 | — | 时间花在哪：`measure-probe-call.ts`；JVM 里在忙什么：`measure-jvm-stacks.mjs`；数据库连接：`measure-sql-stalls.mjs`、`measure-idle-stall.ts`；新起进程：`measure-resident-start.ts` |
 | 改了元数据，进程读到的还是旧的 | 是不是在苍穹设计器手工改的（那种要手动重起常驻） | `probe-server` 重启常驻 |
-| 运行记录写库表不对 | `<工程>/.cosmic-ai/evidence/assertions/` 下那条记录 | `measure-run-writes.ts` |
+| 运行记录写库表不对 | `<工程>/.cosmic-ai/sessions/<会话>/assertions/` 下那条记录 | `measure-run-writes.ts` |
 | 生产查询报错、读取进程起不来 | `prod status` 的返回；`cache/<RuntimeKey>/prod/prod-reader.log` | 连不上先确认 VPN；配置在 `~/.fast-ai-cosmic/prod/prod.json` |
 | 生产排障查了什么、查了几行、多久 | `<工程>/.cosmic-ai/evidence/prod-audit.jsonl`（被拒的语句也在） | — |
-| 插件没加载、工具没出现 | `dsh --profile cosmic --dump-config` 里有没有 `cosmic-tools` 一行、`mode` 对不对 | `scripts/run-headless.ps1` 无头跑一句看事件流（`-Out` 文件，`.err` 是标准错误） |
+| `@` 引用找不到、缺东西 | `work/impact/forms.json`、`runtime-fields/` | `verify-real-env.ts … mention <词>` |
+| `.cosmic-ai` 堆起来、找不到备份 | `cosmic_doctor` 的 `cosmicDir`：逐项报数、表外的、上次清了什么 | — |
+| 插件没加载、工具没出现 | `dsh --profile cosmic --dump-config` 里有没有 `cosmic-tools` 一行 | `scripts/run-headless.ps1` 无头跑一句看事件流（`-Out` 文件，`.err` 是标准错误） |
 | 每次请求带的字太多 | — | `scripts/measure-dsh-prompt.ts`：常驻系统提示最坏情况和每个工具的说明、参数字节；`dump-prompt-text.ts` 导出全文逐句看；`prompt-duplicates.ts` 找同一句写两处 |
 | 一次会话慢、轮数多、绕路 | 会话：dsh `~/.fast-ai-cosmic/dsh/sessions/<工程标识>/<会话 id>/`（无界面 `~/.dsh`），pi `~/.pi/agent/sessions/<工程标识>/` | `analyze-session.mjs` 上下文被谁占了、绕路账；`measure-round-purpose.mjs` 每轮在干什么；`measure-prompt-cache.mjs` 缓存接没接上；`measure-delivery.mjs` 交付要点做到几条 |
 
@@ -193,14 +197,12 @@ dsh 的工具流水线
 经模型：`pwsh scripts/run-headless.ps1 -Profile cosmic -Out <文件> -Task "<需求>"`（默认在真机工程里跑）。不经模型、直接调内核：
 
 ```bash
-export PATH="/d/nodejs24:$PATH"
-cd D:/kingdee/zlgd_ygpt2.0
 node --experimental-strip-types D:/claudecode/deepseekharness/deepseek-harness/cosmic/scripts/verify-real-env.ts D:/kingdee/zlgd_ygpt2.0 open
 #   … fast <文件> | probe MetaProbe META_ENTITY=bos_user | run op <单据> <操作> --pk <内码> --expect success=true | stop
 ```
 
 能做什么、要先问什么，见 `AGENTS.md` 第三节。单项机制有现成的真机验证脚本 `scripts/verify-*.ts`，按文件名找。
-不经模型、走和插件同一道门槛调产品工具（`scripts/direct-tools.ts`）：开发模式每个工具在真机上只读调一遍用 `verify-tools-smoke.ts <工程>`；
+不经模型、走和插件同一道门槛调产品工具（`scripts/direct-tools.ts`）：每个工具在真机上只读调一遍用 `verify-tools-smoke.ts <工程>`；
 某次 `cosmic_run` 要复测（改完 cosmic 再跑同一组参数，看输出和留没留运行记录）用 `replay-run.ts <工程> <AE-xxx.json>`。
 
 ---
@@ -215,7 +217,7 @@ node --experimental-strip-types D:/claudecode/deepseekharness/deepseek-harness/c
 | `npm run verify:eval` | 改了技能文档、知识库、技能族目录：知识库评测语料逐条过 |
 | `npm run verify:rounds` | 改了门槛、写入确认、工具返回：回合基线和八条安全边界的测试 |
 | `npm run build:bundle` | 只编组合包到 `dist/fast-ai-cosmic/`（几百毫秒）：改了打包相关的代码、想确认编出来能加载 |
-| `npm run dev` | 不打包起桌面窗口：重编组合包换进打过补丁的 dsh 副本再起窗口（约一分钟；第一次或 `-- --fresh` 要先备副本）。改了界面能看到的东西用它看 |
+| `npm run dev` | 不打包起桌面窗口（约一分钟；第一次或 `-- --fresh` 要先备打过补丁的 dsh 副本）。改了界面能看到的东西用它看 |
 | `npm run build` | 出 Windows 安装包到 `dist/`（十几到几十分钟） |
 
 ---
@@ -234,4 +236,5 @@ node --experimental-strip-types D:/claudecode/deepseekharness/deepseek-harness/c
 | 生产排障：按字段查数据 | 还要先 `meta` 看表名列名再写 `sql`；按「单据.字段 = 值」直接查没做 |
 | 生产排障：数据库种类 | 读取进程只认 PostgreSQL 一族；MySQL、Oracle、SQL Server、达梦没做 |
 | 生产排障：monitor 保活 | 没有定时保活：闲置约半小时过期后，下次查日志会再弹验证码框 |
+| `@` 引用的人工验收 | 只有假的测试和真机脚本；界面里敲 `@`、Tab 钻、发送、历史画回，等人在 `npm run dev` 窗口里点 |
 | 迁移进度 | 计划和进度在 pi 版仓库 `D:\claudecode\pi\cosmic\MIGRATION-DSH.md` |

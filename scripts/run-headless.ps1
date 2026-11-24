@@ -1,4 +1,4 @@
-# 在真机工程里无头跑一次 dsh（命令行配置 cosmic / cosmic-prod），量用时。
+# 在真机工程里无头跑一次 dsh（命令行配置 cosmic），量用时。
 # 用法：pwsh scripts/run-headless.ps1 -Profile cosmic -Out <输出.jsonl> -Task "<需求>" [-Cwd D:\kingdee\zlgd_ygpt2.0]
 # 输出：-Out 是 dsh 的 --json 事件流，-Out.err 是标准错误；最后一行打印退出码和秒数。
 # 配置先用 node scripts/setup-dsh-profiles.mjs 建好。dsh 用的是本仓库上一级的 deepseek-harness 检出。

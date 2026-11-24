@@ -1,6 +1,6 @@
 ---
 class: B
-when: BOTP 批量同步、改字段映射和建行层级、备份与恢复
+when: BOTP 批量同步、改字段映射、建行层级、源单过滤和执行条件，备份与恢复
 note: 先读写入总则
 ---
 
@@ -16,6 +16,7 @@ note: 先读写入总则
 
 - [BotpRuleSyncProbe](#botprulesyncprobe)
 - [建行层级](#建行层级)
+- [源单过滤和执行条件](#源单过滤和执行条件)
 - [业务规则字段](#造业务规则时要抄全的字段)
 - [目标单上下文](#表达式跑在目标单上下文不是源单)
 - [灾备恢复边界](#灾备恢复边界)
@@ -34,11 +35,11 @@ SYNC_NAME_LIKE=西南铝 SYNC_ENABLED=1 \
 SYNC_FIELDMAP="demo_org=src:org;demo_djlx=const:DJLX01;demo_hjlb=demo_combofield7;demo_bz=clear" \
   node .claude/skills/long-cosmic-dev/driver.mjs probe BotpRuleSyncProbe
 
-# 2. 真写（APPLY=1 时 SYNC_BACKUP 是强制的，没给会在进 JVM 前被拒；它不算改参数，照样对得上确认清单）
-APPLY=1 SYNC_BACKUP=<scratchpad>/botp-backup  ...同上...
+# 2. 真写（落库前工具自动把改前 XML 存进 .cosmic-ai/evidence/backups/，返回里报路径）
+APPLY=1  ...同上...
 
-# 3. 回滚
-APPLY=1 SYNC_RESTORE=<scratchpad>/botp-backup \
+# 3. 回滚（SYNC_RESTORE 填第 2 步返回的备份路径）
+APPLY=1 SYNC_RESTORE=<备份路径> \
   node .claude/skills/long-cosmic-dev/driver.mjs probe BotpRuleSyncProbe
 ```
 
@@ -49,8 +50,9 @@ APPLY=1 SYNC_RESTORE=<scratchpad>/botp-backup \
 | `SYNC_SOURCE_ENTITY` / `SYNC_TARGET_ENTITY` / `SYNC_NAME_LIKE` / `SYNC_ENABLED` | 按源单 / 目标单 / 名称 like / 启用状态筛 |
 | `SYNC_FIELDMAP` | `目标字段=取值;…`，映射不存在会新建。取值：`src:源字段`（基础资料属性写 `字段.属性`）、`const:id或编码`（单选基础资料常量）、`clear`（清掉映射）、不带前缀是公式 |
 | `SYNC_LINK` | `源单实体->目标单实体`，改建行层级；表头写单据标识，分录、子分录写它的标识。见[建行层级](#建行层级) |
+| `SYNC_FILTER` / `SYNC_RUN_CONDITION` | 改源单过滤 / 执行条件：整个换成一条公式，`clear` 是清掉。见[源单过滤和执行条件](#源单过滤和执行条件) |
 | `SYNC_ON_EXIST` | 目标规则已有业务规则时 `skip`（默认）还是 `replace` |
-| `SYNC_BACKUP` / `SYNC_RESTORE` | 备份目录 / 回滚目录（一条规则的 XML 约 360KB） |
+| `SYNC_BACKUP` / `SYNC_RESTORE` | 备份名字（位置由工具定，不给也会自动备份）/ 回滚用的备份路径（一条规则的 XML 约 360KB） |
 
 改映射时每条都过平台自己的映射校验：目标字段、源字段在不在，公式能不能解析，必录的目标字段不能清空。
 一处不过，整批规则都不写，预演里逐条列出原因。
@@ -88,6 +90,37 @@ SYNC_FIELDMAP="demo_ypbh=src:demo_code;demo_sylx=src:demo_sylx" \
 - 转换插件照常执行：插件在转换事件里对目标分录的增删改，作用在平台按新层级建好的行上。
 
 APPLY 后清缓存、从库里重新读每条规则的建行层级，报「一致 N 条，不一致 M 条」。
+
+## 源单过滤和执行条件
+
+一条规则上有两处条件，都按**源单**字段算：
+
+| 设计器里 | 管什么 | 入参 |
+|---|---|---|
+| 源单过滤（数据范围） | 哪些源单、哪些行能被这条规则下推、选单 | `SYNC_FILTER` |
+| 执行条件 | 源单满足才走这条规则（同一对单据多条规则时靠它分流） | `SYNC_RUN_CONDITION` |
+
+平台把每一处存成两半：设计器里一行行配的**条件行**（下推时转成查库的过滤），和一条**公式**（逐张源单算），
+两半用「并且」拼成实际生效的那一条。只往公式里加只能收窄、放不宽，所以这两个入参把一处条件**整个换成一条公式**，
+原来的条件行清空；`clear` 是清掉、不再限制。
+
+```bash
+# 执行条件里加一个组织
+SYNC_TARGETS=<规则id> SYNC_RUN_CONDITION="org.number = '0101' or org.number = '0301'" \
+  node .claude/skills/long-cosmic-dev/driver.mjs probe BotpRuleSyncProbe
+# [PROBE]      执行条件：( org.number = '0101' )  ->  org.number = '0101' or org.number = '0301'
+```
+
+预演逐条规则打改前平台实际生效的那一条（条件行和公式拼好的原文，例如
+`( billstatus = ('C')   and    org.name = '…'   and    demo_jgfs = ('1') )`）：要保留的条件照着抄进新公式，
+只改要改的那一段，别只写新加的部分——没抄进去的条件就没了。一批规则共用一条新公式，
+各条规则原来的条件不同时分开调用。
+
+- 公式按每条规则自己的源单核字段和函数，核不过整批不写；改前改后各跑一遍整条规则的平台校验，只拦新增的问题。
+- 源单过滤开了**高级条件**（多组条件）的规则，下推按组走、不读这一处，预演拦下，要在设计器里改。
+- 设计器里这一处以后显示成一条公式，条件行那页是空的。
+- 落库后清缓存、从库里重新读，报公式和条件行是否和要写的一致。
+  改完用 `run push <规则id> --pk <源单内码>` 拿一张该放行和一张该挡住的源单各推一次。
 
 ## 造业务规则时要抄全的字段
 

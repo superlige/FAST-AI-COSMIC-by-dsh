@@ -1,11 +1,9 @@
-# fast-ai-cosmic 组合包：给桌面和网页界面声明两个预设（新建会话时选的模式），会话里不切换。
+# fast-ai-cosmic 组合包：给桌面和网页界面声明一个预设「苍穹」。开发（改代码、编译、真跑业务、写元数据）
+# 和查生产（cosmic_prod 只读查生产库、生产元数据、monitor 日志）在同一个会话里，不分模式、不用换会话交接。
+# 生产只读靠 cosmic_prod 这条通道自己的闸；其余产品工具和终端连的都是测试环境。
 #
-#   - cosmic       苍穹开发：产品工具 mode=dev，带终端、后台任务；
-#   - cosmic-prod  生产排障：产品工具 mode=prod，不挂终端和后台任务（生产只读靠工具层，终端能绕过去），
-#                  写工程文件由产品工具的执行前门槛拒（`.cosmic-ai/` 下放行）。
-#
-# 产品工具挂在预设里面，不挂在顶层：挂在顶层的工具每个会话都看得到，排障会话就会看到编译、真跑业务。
-# 两个预设挂的 dsh 插件和无界面配置（scripts/setup-dsh-profiles.mjs）开着的那一套对齐，
+# 产品工具挂在预设里面，不挂在顶层，和预设里的 dsh 插件一起成套。
+# 预设挂的 dsh 插件和无界面配置（scripts/setup-dsh-profiles.mjs）开着的那一套对齐，
 # 命令行跑过的验收在界面里也成立。预设里的插件不继承 dsh-base 顶层行的配置，同名行的配置要原样抄进来，
 # 漏了必填项界面新建会话就失败；test/dsh/presets.test.ts 逐项对。子代理、计划模式、目标、联网、代码模式不挂。
 #
@@ -82,7 +80,7 @@
     provider: openai-codex
     model: gpt-6.1-sol
     reasoningEffort: high
-# dsh 自带的四个预设关掉，模式选择器里只剩这两个
+# dsh 自带的四个预设关掉，模式选择器里只剩苍穹这一个
 - id: preset-standard
   disabled: true
 - id: preset-ptc
@@ -117,8 +115,8 @@
       name: '@deepseek-ai/dsh-agent-preset'
       config:
         id: cosmic
-        name: 苍穹开发
-        description: 改插件、编译、真跑业务验证、写元数据（写之前弹确认单）
+        name: 苍穹
+        description: 改插件、编译、真跑业务验证、写元数据（写之前弹确认单）；只读查生产数据、元数据和 monitor 日志排障
         order: 1
         plugins:
           - id: persona
@@ -176,62 +174,3 @@
               allowParallelInProgress: true
           - id: cosmic-tools
             name: fast-ai-cosmic/tools
-            config:
-              mode: dev
-    - id: preset-cosmic-prod
-      name: '@deepseek-ai/dsh-agent-preset'
-      config:
-        id: cosmic-prod
-        name: 生产排障
-        description: 只读查生产数据、元数据和 monitor 日志，出诊断报告；不编译、不跑业务、不改工程文件
-        order: 2
-        plugins:
-          - id: persona
-            name: '@deepseek-ai/dsh-persona'
-            config:
-              prefix: You are a coding agent powered by the {{model}} model.
-          - id: agent-instructions
-            name: '@deepseek-ai/dsh-agent-instructions'
-            config:
-              maxBytes: 65536
-          - id: time-context
-            name: '@deepseek-ai/dsh-time-context'
-          - id: tool-fs
-            name: '@deepseek-ai/dsh-tool-fs'
-            config:
-              applyPatch: false
-          - id: tool-fs-search
-            name: '@deepseek-ai/dsh-tool-fs-search'
-            config:
-              sampleOverCapGlobResults: false
-          - id: skill-filesystem
-            name: '@deepseek-ai/dsh-skill-filesystem'
-          - id: tool-skill
-            name: '@deepseek-ai/dsh-tool-skill'
-          - id: compaction
-            name: cordis:group
-            group: true
-            isolate:
-              compaction: true
-              toolResultPruner: true
-            config:
-              - id: compaction-basic
-                name: '@deepseek-ai/dsh-compaction-basic'
-              - id: command-compact
-                name: '@deepseek-ai/dsh-command-compact'
-              - id: tool-result-pruner
-                name: '@deepseek-ai/dsh-compaction-tool-result-pruner'
-                config:
-                  thresholdChars: 8192
-                  headChars: 4096
-                  tailChars: 1024
-          - id: tool-ask-user
-            name: '@deepseek-ai/dsh-tool-ask-user'
-          - id: tool-todo
-            name: '@deepseek-ai/dsh-tool-todo'
-            config:
-              allowParallelInProgress: true
-          - id: cosmic-tools
-            name: fast-ai-cosmic/tools
-            config:
-              mode: prod

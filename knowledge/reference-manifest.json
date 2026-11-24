@@ -3,18 +3,18 @@
   "source": {
     "dir": "knowledge/reference"
   },
-  "snapshotId": "0c0ed73f5704d24565af90abe39cb6ac",
+  "snapshotId": "6a961b957a78d44e5159566d66bdc819",
   "counts": {
     "documents": 32,
     "skills": 31,
     "excluded": 2,
     "intraLinksRewritten": 197,
-    "danglingLinks": 19,
+    "danglingLinks": 18,
     "staleCommandDocs": 0,
     "capabilityContradictions": 0,
     "staleCommandOccurrences": 0,
-    "rewrittenCommandDocs": 21,
-    "rewrittenCommandOccurrences": 91
+    "rewrittenCommandDocs": 20,
+    "rewrittenCommandOccurrences": 80
   },
   "classes": {
     "A": {
@@ -31,7 +31,7 @@
         "runtime",
         "verify"
       ],
-      "lines": 2005
+      "lines": 2030
     },
     "B": {
       "title": "领域知识与红线",
@@ -52,7 +52,7 @@
         "print-template-write",
         "runtime-traces"
       ],
-      "lines": 2573
+      "lines": 2638
     },
     "C": {
       "title": "插件开发",
@@ -180,17 +180,17 @@
       "class": "A",
       "description": "非实体元数据的命令入口（meta）。什么时候读：BOTP、打印模板、工作流、公式函数目录的命令。",
       "descriptionChars": 48,
-      "sourceSha256": "a651880a693146225532ac0d720eef21cdcc0d7b150c32e8670ff75108f018f3",
-      "sourceLines": 182
+      "sourceSha256": "992a4be3ab1a345b7d858fc8fbcf8fa8bd6bdc07c539549c7a0eecd8ee9d03b1",
+      "sourceLines": 185
     },
     {
       "name": "cosmic-metadata-botp-write",
       "doc": "metadata-botp-write",
       "class": "B",
-      "description": "BOTP 转换规则（写入、备份与恢复）。什么时候读：BOTP 批量同步、改字段映射和建行层级、备份与恢复。先读写入总则。",
-      "descriptionChars": 60,
-      "sourceSha256": "357afbc099c3c1c8706aa4ecf9120e054a037a85fcc8081269fecb4277e73798",
-      "sourceLines": 129
+      "description": "BOTP 转换规则（写入、备份与恢复）。什么时候读：BOTP 批量同步、改字段映射、建行层级、源单过滤和执行条件，备份与恢复。先读写入总则。",
+      "descriptionChars": 70,
+      "sourceSha256": "c02d00304c34de4adb48bee502dbc6b8f713d80366debda5aab1e84760afd514",
+      "sourceLines": 162
     },
     {
       "name": "cosmic-metadata-botp",
@@ -207,8 +207,8 @@
       "class": "B",
       "description": "实体业务规则（读取与受控写入）。什么时候读：业务规则及函数目录。新增或修改先读写入总则。",
       "descriptionChars": 44,
-      "sourceSha256": "6fedae2dc58433deac7f232e2cc9f1d84077fdafc1badf037d3ff39fac731de8",
-      "sourceLines": 199
+      "sourceSha256": "006495a6e485b1a6e65c6faad875ad5f42ec8ad7de2eec5caedac3b2ed119c75",
+      "sourceLines": 232
     },
     {
       "name": "cosmic-metadata-create",
@@ -225,7 +225,7 @@
       "class": "B",
       "description": "实体与字段元数据（写入）。什么时候读：字段改名、新增、复制或删除；已有单据上加分录；配拆分表、字段换拆分表。先读写入总则。",
       "descriptionChars": 61,
-      "sourceSha256": "39f792a0b1020addccd79f2c136f5afde6280b1cb79e09f8c70f29a86ca57d9e",
+      "sourceSha256": "be69fc9d44ce30a76ca103fd8dbb7b952a1fbdff103ee13c38c3fa3e2c19b572",
       "sourceLines": 253
     },
     {
@@ -252,7 +252,7 @@
       "class": "B",
       "description": "表单布局元数据。什么时候读：表单布局、列表字段和工具栏、控件属性和位置、加删控件和字段、按钮和操作、挂插件、派生布局。",
       "descriptionChars": 59,
-      "sourceSha256": "3999a586c7160885b2f841f3b409a8a25dd1ef62702e1e2df23072a580a9b5a4",
+      "sourceSha256": "df518e88d0dde05aa6922f72be6d0c171753a4cb3d2861cd835cad1905eb22e4",
       "sourceLines": 311
     },
     {
@@ -279,7 +279,7 @@
       "class": "B",
       "description": "共享元数据写入总则。什么时候读：任何共享元数据写入（确认单怎么填、红线、备份、回验）；造数据、改数据（不用确认）。",
       "descriptionChars": 57,
-      "sourceSha256": "c017c2df27e4fd404012e2109ac0ffa632d3b1cb33ad2af984986fe11b7b1f30",
+      "sourceSha256": "88ffd519b6e98550271b6f5b7829a2b4dc633a8220e3d210aa0ef99d7b68012b",
       "sourceLines": 99
     },
     {
@@ -333,8 +333,8 @@
       "class": "B",
       "description": "打印模板（写入与回滚）。什么时候读：修改打印模板设计内容与回滚。先读写入总则。",
       "descriptionChars": 39,
-      "sourceSha256": "951668aa547a2207aca4f66e5ed62ae63f1f4554469f7ec6a0a1affd7000f358",
-      "sourceLines": 285
+      "sourceSha256": "07b6955caf36e5cc35a9128385335beaec7edfe0b10ae290db54265baaacf5c2",
+      "sourceLines": 284
     },
     {
       "name": "cosmic-print-template",
@@ -342,7 +342,7 @@
       "class": "B",
       "description": "打印模板（读取、审计与预览）。什么时候读：打印模板查询、审计、预览与本地备份。",
       "descriptionChars": 39,
-      "sourceSha256": "21fe745704668d73a6b40efb687c399bc54f529dbb4aa544212c0702c5e51e39",
+      "sourceSha256": "a1b7d942acceb382cef7c2b9b9a5277cafc52f920ef7ab38866a08c730a69137",
       "sourceLines": 251
     },
     {
@@ -351,7 +351,7 @@
       "class": "A",
       "description": "探针：在真实苍穹环境里跑任意 Java。什么时候读：写一段代码去真实环境验证逻辑 / 造新探针。",
       "descriptionChars": 48,
-      "sourceSha256": "07426d18d028222e19a783fc0e51c5044491800c1abf9460f8748aa41e678b70",
+      "sourceSha256": "c8bf3ed20e9cc54bede5906be080215a136333bf57eaade724e0f22c2a094417",
       "sourceLines": 365
     },
     {
@@ -369,7 +369,7 @@
       "class": "A",
       "description": "run —— 免界面跑真实业务动作。什么时候读：免界面跑操作、表单、列表、规则、打印、BOTP 下推、工作流插件，以及直接调本工程类的方法。正常路径按 cosmic_run 的工具说明组合参数；被拒、拿不准或首次失败时再读全文。",
       "descriptionChars": 114,
-      "sourceSha256": "8139879e761f27307fa064655fa6d989b7ba4ff177351d786b23d8443c50f3f4",
+      "sourceSha256": "4154fe97a88d5222b07631d2c178a8d87163f53345699e055170171efcd5a776",
       "sourceLines": 746
     },
     {
@@ -387,8 +387,8 @@
       "class": "A",
       "description": "构建 / fast / 起节点 / 截图 / 部署 / 排错。什么时候读：构建、fast、本地节点、截图、部署与排错。",
       "descriptionChars": 59,
-      "sourceSha256": "ca4405c10cde15300c9cc4085a4cdafc8e1493e6b2691e8b449b3fb03ebb19c0",
-      "sourceLines": 229
+      "sourceSha256": "0c192a5da77c2095ff1924f45140cc61c1bf3c40225fb7e59f46acea3240dd7e",
+      "sourceLines": 251
     },
     {
       "name": "cosmic-sdk",
@@ -405,7 +405,7 @@
       "class": "A",
       "description": "验证与完成情况。什么时候读：判断改动验够了没有，以及写完成情况。",
       "descriptionChars": 32,
-      "sourceSha256": "c30b43fda9182f2e8299c01682524f26435e2ca5f0bcadf103abafa4ee7f8afa",
+      "sourceSha256": "78521b2232311ed0c609ff06b53af1ec9ee190d679f2dbc8187afb31337d23bf",
       "sourceLines": 103
     },
     {
@@ -447,13 +447,13 @@
       ]
     },
     "metadata-botp-write": {
-      "count": 3,
+      "count": 4,
       "commands": [
         "probe"
       ]
     },
     "metadata-business-rules": {
-      "count": 7,
+      "count": 9,
       "commands": [
         "probe",
         "run"
@@ -539,20 +539,6 @@
       "count": 11,
       "commands": [
         "run"
-      ]
-    },
-    "runtime": {
-      "count": 14,
-      "commands": [
-        "build",
-        "deploy",
-        "doctor",
-        "fast",
-        "logs",
-        "probe",
-        "start",
-        "status",
-        "stop"
       ]
     },
     "sdk": {
@@ -656,11 +642,6 @@
       "kind": "outside-migration-scope"
     },
     {
-      "from": "runtime",
-      "target": "../CLAUDE.md",
-      "kind": "outside-migration-scope"
-    },
-    {
       "from": "sdk",
       "target": "official-knowledge.md",
       "kind": "excluded-doc"
@@ -693,13 +674,13 @@
     },
     {
       "path": "cosmic-meta-cmd/SKILL.md",
-      "bytes": 11521,
-      "sha256": "5332ab74c6c1e1c6b3e516c28722ebb9dbd8343f8ed722b6f893aab355950834"
+      "bytes": 11863,
+      "sha256": "3adc390d3ea509cd453309f33b4322dd5284182cf7073565ee8b3b87824ef48b"
     },
     {
       "path": "cosmic-metadata-botp-write/SKILL.md",
-      "bytes": 8383,
-      "sha256": "f5ba885e7889f7fafad3da225d8aba10272f6b92580953623302dce0ac51464f"
+      "bytes": 10741,
+      "sha256": "9c6e451da884019abb6c970158d5702071b2db4b6f59640aa7631553596c0415"
     },
     {
       "path": "cosmic-metadata-botp/SKILL.md",
@@ -708,8 +689,8 @@
     },
     {
       "path": "cosmic-metadata-business-rules/SKILL.md",
-      "bytes": 11088,
-      "sha256": "989c53e261b98849cf8da168e8c576a909e62544057709876950b5e7c7cbf509"
+      "bytes": 13209,
+      "sha256": "fa136b75de54ce50d7db9c79a02e30b981b776fc2a250b2fdeccb9adfadb70cc"
     },
     {
       "path": "cosmic-metadata-create/SKILL.md",
@@ -718,8 +699,8 @@
     },
     {
       "path": "cosmic-metadata-entity-write/SKILL.md",
-      "bytes": 18984,
-      "sha256": "607d494fd605be0626a246c470e353300c61631589d095d6e076cb2168cc954b"
+      "bytes": 18976,
+      "sha256": "40d07af189dcd327616ba53ede335bb7c72cd9bd30b1fe6c6604c4c4c3f6530e"
     },
     {
       "path": "cosmic-metadata-entity/SKILL.md",
@@ -733,8 +714,8 @@
     },
     {
       "path": "cosmic-metadata-form/SKILL.md",
-      "bytes": 26405,
-      "sha256": "0205f9c5f35338f35ff31c327813b760f0691949b6562d9b2826cf1d394ee7d5"
+      "bytes": 26429,
+      "sha256": "11ca42b395e833243e9a1c3df964ce320744d9db3a259524380153bb17ff28b4"
     },
     {
       "path": "cosmic-metadata-or-code/SKILL.md",
@@ -748,8 +729,8 @@
     },
     {
       "path": "cosmic-metadata-write/SKILL.md",
-      "bytes": 12514,
-      "sha256": "f8075fea52028b49299866894d901bb5429738ef0a17fe872ee68abcf42e52fd"
+      "bytes": 12486,
+      "sha256": "11d481b89728d3adbe43c72293b08fb14e334403e666b1d7636688723b87e188"
     },
     {
       "path": "cosmic-plugin-dev/SKILL.md",
@@ -778,18 +759,18 @@
     },
     {
       "path": "cosmic-print-template-write/SKILL.md",
-      "bytes": 21249,
-      "sha256": "647db458b6a6a734470ee02b62c973a8033af3d7c14f60f33b960b75a14969aa"
+      "bytes": 21086,
+      "sha256": "cc31bd9d8d30a528f86281c9165d6067c31b67217eb7f9270a9e65ca74b1a14e"
     },
     {
       "path": "cosmic-print-template/SKILL.md",
-      "bytes": 14454,
-      "sha256": "abdfeccbb8cccd9361efd4f94a629d91f7267e844b1d224b6e984ea463d0cbc3"
+      "bytes": 14531,
+      "sha256": "2eacf57729609524770c7da216a65041247f4d0229ddb6be4c31dea76df72e19"
     },
     {
       "path": "cosmic-probes/SKILL.md",
-      "bytes": 29053,
-      "sha256": "31b0828cec147368bec31705567b696ebf556d4817f5e01108a8a45d1757cfba"
+      "bytes": 29166,
+      "sha256": "9cd57a92abf469d42b33d9b30ecdfdabe39612b1c7412e02a0b7f9032e1b625c"
     },
     {
       "path": "cosmic-run-parent-child/SKILL.md",
@@ -798,8 +779,8 @@
     },
     {
       "path": "cosmic-run/SKILL.md",
-      "bytes": 69953,
-      "sha256": "071f219a10afb401a71f701bd212d18b4be366525536599f74983c21549add8b"
+      "bytes": 69948,
+      "sha256": "1064ab6c07bd27ff37e7045fb9f6e219090ad60212819e6ef579d8283b3901d5"
     },
     {
       "path": "cosmic-runtime-traces/SKILL.md",
@@ -808,8 +789,8 @@
     },
     {
       "path": "cosmic-runtime/SKILL.md",
-      "bytes": 16109,
-      "sha256": "d8d8b3e7de5fc68af094ac5073ad7587e267e2d5d256e7dc3e5c2d4d23651bb7"
+      "bytes": 19426,
+      "sha256": "3f5eca80e0f2a007888df81e93acc55d46641f4b5c1c473ab6b18409dc9917ad"
     },
     {
       "path": "cosmic-sdk/SKILL.md",
@@ -818,8 +799,8 @@
     },
     {
       "path": "cosmic-verify/SKILL.md",
-      "bytes": 8730,
-      "sha256": "86cc1f0bbef15977d1351373259ff8bb1881844f77c5e91e6e731917986d1256"
+      "bytes": 8758,
+      "sha256": "558f8ca0e2d92aa39514b2c8fe7a39df4808891628c904600770c8b2459bc9ad"
     },
     {
       "path": "cosmic-workflow/SKILL.md",

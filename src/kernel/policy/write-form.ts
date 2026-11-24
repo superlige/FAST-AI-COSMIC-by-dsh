@@ -312,7 +312,46 @@ function formRuleForm(env: Readonly<Record<string, string>>): WriteForm {
 	});
 }
 
-function bizRuleForm(env: Readonly<Record<string, string>>): WriteForm {
+/**
+ * 原位改一条已有业务规则（`BIZ_RULE`）。入参里只有改后；改前、规则名、宿主只取探针按项报的 `t=biz-rule-change`，
+ * 预演没报就明说，不拿入参顶替。
+ */
+function bizRuleEditForm(env: Readonly<Record<string, string>>, records: readonly ProbeJsonRecord[]): WriteForm {
+	const b = new Builder();
+	const rule = env.BIZ_RULE ?? "";
+	const changes = records.filter((record) => record.t === "biz-rule-change");
+	const name = str(changes[0]?.name);
+	b.object("实体", env.BIZ_ENTITY ?? "");
+	if (str(changes[0]?.host) !== "") b.object("挂在", str(changes[0]?.host));
+	b.line("规则", name === "" ? `id ${rule}` : `${name}（id ${rule}）`);
+	if ((env.BIZ_CONDITION ?? "") !== "")
+		b.head.push({
+			label: "改后的条件",
+			cells: [b.slot("condition", "改后的条件用人话说，例如「组织是 0101 或 0301，且勾了去包覆层」")],
+		});
+	b.tables.push({
+		columns: ["改哪一项", "改前", "改后"],
+		rows:
+			changes.length > 0
+				? changes.map((record) => [
+						text(str(record.item)),
+						text(str(record.before) === "" ? "（空）" : str(record.before)),
+						text(str(record.after)),
+					])
+				: [[text("（预演没报）"), text("—"), text("—")]],
+	});
+	const items = changes.map((record) => str(record.item));
+	return b.build({
+		kind: "业务规则",
+		category: "元数据",
+		summary: `改业务规则「${name === "" ? rule : name}」的${items.length > 0 ? items.join("、") : "内容"}`,
+		impact: "所有人录单时立即按改后的条件、公式自动计算、赋值；还是原来那条规则，设计器里看到的就是改后的样子",
+		undo: `用同一个 BIZ_RULE=${rule} 把这几项改回「改前」那一列`,
+	});
+}
+
+function bizRuleForm(env: Readonly<Record<string, string>>, records: readonly ProbeJsonRecord[]): WriteForm {
+	if ((env.BIZ_RULE ?? "") !== "") return bizRuleEditForm(env, records);
 	const b = new Builder();
 	b.object("实体", env.BIZ_ENTITY ?? "");
 	if ((env.BIZ_HOST ?? "") !== "") b.object("挂在", env.BIZ_HOST ?? "");
@@ -399,6 +438,46 @@ function botpLinkTables(b: Builder, records: readonly ProbeJsonRecord[]): string
 	});
 }
 
+/**
+ * 改源单过滤（`SYNC_FILTER`）、执行条件（`SYNC_RUN_CONDITION`）那张表。改前是平台把条件行和公式拼好的那一条，
+ * 入参里没有，只取探针按规则报的 `t=botp-condition`；预演没报就明说。返回要并进影响那一句的话。
+ */
+function botpConditionTable(
+	b: Builder,
+	env: Readonly<Record<string, string>>,
+	records: readonly ProbeJsonRecord[],
+): string[] {
+	const parts: [string, string][] = [
+		["源单过滤", env.SYNC_FILTER ?? ""],
+		["执行条件", env.SYNC_RUN_CONDITION ?? ""],
+	];
+	const asked = parts.filter(([, value]) => value.trim() !== "");
+	if (asked.length === 0) return [];
+	for (const [part, value] of asked)
+		b.line(`${part}改成`, value.trim().toLowerCase() === "clear" ? "清掉，不再限制" : value.trim());
+	if (asked.some(([, value]) => value.trim().toLowerCase() !== "clear"))
+		b.head.push({
+			label: "改后的条件",
+			cells: [b.slot("condition", "改后的条件用人话说，例如「源单组织是 0101、0102 或 0301，且已审核」")],
+		});
+	const changes = records.filter((record) => record.t === "botp-condition");
+	b.tables.push({
+		columns: ["规则 id", "哪一处", "改前（下推时实际生效的条件）", "改后"],
+		rows:
+			changes.length > 0
+				? changes.map((record) => [
+						text(str(record.rule)),
+						text(str(record.part)),
+						text(str(record.before) === "" ? "（没有）" : str(record.before)),
+						text(str(record.after) === "" ? "（清掉，不再限制）" : str(record.after)),
+					])
+				: [[text("（预演没报）"), text("—"), text("—"), text("—")]],
+	});
+	return [
+		`下推、选单时按改后的${asked.map(([part]) => part).join("、")}挑源单；设计器里这一处以后显示成一条公式，原来的条件行清空`,
+	];
+}
+
 function botpForm(
 	env: Readonly<Record<string, string>>,
 	targets: readonly string[],
@@ -436,11 +515,12 @@ function botpForm(
 	const link = env.SYNC_LINK ?? "";
 	if (link !== "") b.line("建行层级改成", link);
 	const linkImpact = link === "" ? [] : botpLinkTables(b, records);
+	const conditionImpact = botpConditionTable(b, env, records);
 	return b.build({
 		kind: "BOTP 转换规则",
 		category: "元数据",
 		summary: `改 ${String(rules.length)} 条转换规则`,
-		impact: ["用这些规则下推时立即按新配置取值", ...linkImpact].join("；"),
+		impact: ["用这些规则下推时立即按新配置取值", ...linkImpact, ...conditionImpact].join("；"),
 		undo: "执行时先把改前原文存进备份目录，用「BOTP 还原」写回",
 	});
 }
@@ -749,7 +829,7 @@ export function buildWriteForm(input: {
 		case "FormRuleProbe":
 			return formRuleForm(env);
 		case "BizRuleProbe":
-			return bizRuleForm(env);
+			return bizRuleForm(env, records);
 		case "BotpRuleSyncProbe":
 			return botpForm(env, targets, records);
 		case "PrintTplWriteProbe":

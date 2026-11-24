@@ -409,6 +409,8 @@ function fieldRecords(records: readonly Record<string, unknown>[]): FieldRecords
 					entry: String(row.entry ?? ""),
 					kind: String(row.kind ?? "field"),
 					parentEntry: String(row.parentEntry ?? ""),
+					name: String(row.name ?? ""),
+					type: String(row.type ?? ""),
 				}),
 			);
 		} else if (row.t === "billname") {

@@ -19,7 +19,7 @@ probes: ExpectSpec.java@3a22e27875d0
 
 ## 验证记录：每次断言运行留下的一份事实
 
-每次带 `--expect` 的 `cosmic_run` 会在 `.cosmic-ai/evidence/assertions/` 留一条记录，写着：
+每次带 `--expect` 的 `cosmic_run` 会在本会话目录（`.cosmic-ai/sessions/<会话>/assertions/`）留一条记录，写着：
 在哪个环境（RuntimeKey）、哪份代码（源码指纹）、跑了什么命令、每条断言过没过、日志在哪。
 
 写完成情况时按**场景**看：一条命令去掉 `--expect` / `--show` 之后剩下的部分就是场景。

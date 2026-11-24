@@ -8,14 +8,19 @@
  */
 
 import { existsSync } from "node:fs";
-import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { type CosmicAgentKernel, createKernelAdapter } from "../agent/tools/kernel-adapter.ts";
+import { indexStaleReason, refreshMeta } from "../kernel/commands/impact.ts";
+import { buildFormCatalog, type MentionProbe } from "../kernel/commands/mention.ts";
+import type { KernelContext } from "../kernel/context.ts";
 import { KNOWLEDGE_PACK_FILENAME } from "../knowledge/embedded.ts";
 import { REFERENCE_PACK_FILENAME } from "../knowledge/reference.ts";
 import { EMBEDDED_RESOURCES } from "../resources/embedded.generated.ts";
+import { CacheBoard } from "./cache-board.ts";
 import { JvmBoard } from "./jvm-board.ts";
+import { MentionService } from "./mention.ts";
+import { COSMIC_AGENT_DIR } from "./prod-secrets.ts";
 
 export type CosmicKernel = ReturnType<typeof createKernelAdapter>;
 export type ProjectHandle = CosmicKernel extends CosmicAgentKernel<infer H> ? H : never;
@@ -62,7 +67,7 @@ let shared: CosmicKernel | undefined;
 
 export function cosmicKernel(): CosmicKernel {
 	if (shared !== undefined) return shared;
-	const agentConfigDir = join(homedir(), ".fast-ai-cosmic");
+	const agentConfigDir = COSMIC_AGENT_DIR;
 	const { knowledgePackFile, referencePackFile } = cosmicPackFiles();
 	shared = createKernelAdapter({
 		agentConfigDir,
@@ -80,4 +85,33 @@ let board: JvmBoard<ProjectHandle> | undefined;
 export function cosmicJvmBoard(): JvmBoard<ProjectHandle> {
 	board ??= new JvmBoard<ProjectHandle>(cosmicKernel());
 	return board;
+}
+
+let mentions: MentionService<ProjectHandle> | undefined;
+
+/** 输入框 `@` 引用：会话 → 工程走 JVM 状态板（进会话时已认过），探针走同一个内核。 */
+export function cosmicMentions(): MentionService<ProjectHandle> {
+	mentions ??= new MentionService<ProjectHandle>({
+		project: (sessionId) => cosmicJvmBoard().projectOf(sessionId),
+		ctxOf: (handle) => handle.ctx,
+		probe: (handle, name, options) => cosmicKernel().probe(handle, name, options),
+	});
+	return mentions;
+}
+
+let caches: CacheBoard<ProjectHandle> | undefined;
+
+/** 「缓存」面板：会话 → 工程同样走 JVM 状态板；重建走同一个内核，和模型调工具时的自动重建不抢。 */
+export function cosmicCacheBoard(): CacheBoard<ProjectHandle> {
+	caches ??= new CacheBoard<ProjectHandle>({
+		project: (sessionId) => cosmicJvmBoard().projectOf(sessionId),
+		ctxOf: (handle) => handle.ctx,
+		impact: (handle, request) => cosmicKernel().impact(handle, request),
+		refreshMeta: (handle) => refreshMeta(handle.ctx),
+		buildForms: (handle) =>
+			buildFormCatalog(handle.ctx, ((_ctx: KernelContext, name: string, options) =>
+				cosmicKernel().probe(handle, name, options ?? {})) as MentionProbe),
+		indexStale: (ctx) => indexStaleReason(ctx),
+	});
+	return caches;
 }

@@ -32,7 +32,7 @@
  * Registered in docs/command-parity.md §9.
  */
 
-import { isAbsolute, resolve } from "node:path";
+import { resolve } from "node:path";
 import type { KernelContext } from "../context.ts";
 import { err, KernelError, type KernelResult, ok } from "../errors.ts";
 import { layoutJson } from "../json-layout.ts";
@@ -49,6 +49,7 @@ import { loadFieldRows } from "../meta/entity-role.ts";
 import { META_FAMILIES, META_HELP, type MetaPlan, parseMeta } from "../meta/parse.ts";
 import { isDesign, parseDesignText, stringifyDesign, type TplDesign, type TplLocale } from "../meta/ptpl-design.ts";
 import { applyEdit, type EditContext, type FieldOwnershipRow, overview, summarizeChanges } from "../meta/ptpl-edit.ts";
+import { placeOutput, resolveInputDir } from "../project/output-paths.ts";
 import { probeDidNotRun } from "./impact.ts";
 import { type ProbeOutcome, type ProbeProgressStage, probe } from "./probe.ts";
 
@@ -124,9 +125,9 @@ function argsInvalid(message: string, remedy: string): KernelError {
 	return new KernelError("META_ARGS_INVALID", message, { remedy });
 }
 
-/** Resolves one side of a `diff` against the project root, as the frozen command did. */
+/** 一边要比的目录：照给的找，找不到再按名字到本会话导出、备份里找（见 output-paths.ts）。 */
 function diffDir(ctx: KernelContext, given: string): KernelResult<string> {
-	const dir = isAbsolute(given) ? resolve(given) : resolve(ctx.projectRoot, given);
+	const dir = resolveInputDir(ctx.layout, ctx.ports.fs, given);
 	if (!ctx.ports.fs.exists(dir)) {
 		return err(argsInvalid(`目录不存在：${dir}`, "diff 比的是两次 backup / dump 的产物目录，先跑一次导出再比。"));
 	}
@@ -271,10 +272,10 @@ function readJson(ctx: KernelContext, path: string): KernelResult<Record<string,
 
 function openCandidate(ctx: KernelContext, dir: string, from: string): KernelResult<MetaEditReport> {
 	const fs = ctx.ports.fs;
-	const source = isAbsolute(from) ? resolve(from) : resolve(ctx.projectRoot, from);
+	const source = resolveInputDir(ctx.layout, fs, from);
 	if (!fs.exists(source)) {
 		return err(
-			argsInvalid(`dump 目录不存在：${source}`, "先跑 meta ptpl dump <模板编码> --out <目录>，再拿那个目录开候选。"),
+			argsInvalid(`dump 目录不存在：${source}`, "先跑 meta ptpl dump <模板编码> --out <名字>，再拿那个名字开候选。"),
 		);
 	}
 	const names = fs
@@ -384,7 +385,8 @@ async function runEdit(
 	plan: Extract<MetaPlan, { kind: "edit" }>,
 ): Promise<KernelResult<MetaEditReport>> {
 	const fs = ctx.ports.fs;
-	const dir = isAbsolute(plan.dir) ? resolve(plan.dir) : resolve(ctx.projectRoot, plan.dir);
+	// 候选是本会话的导出：只认名字，放进本会话目录；照返回里的完整路径再调也认
+	const dir = placeOutput(ctx.layout, "export", plan.dir, "ptpl-candidate", ctx.ports.clock.now());
 	if (plan.op.op === "open") return openCandidate(ctx, dir, plan.op.from);
 
 	const loaded = loadCandidate(ctx, dir);
@@ -394,7 +396,7 @@ async function runEdit(
 	const origin = readJson(ctx, originPath);
 	if (!origin.ok) return err(origin.error);
 	const originDesign = origin.value as TplDesign;
-	const handback = `改完整份交回：meta ptpl apply ${meta.number} --file ${resolve(dir, meta.metaFile)} --locale ${resolve(dir, meta.localeFile)} --backup <目录>`;
+	const handback = `改完整份交回：meta ptpl apply ${meta.number} --file ${resolve(dir, meta.metaFile)} --locale ${resolve(dir, meta.localeFile)}`;
 
 	if (plan.op.op === "reset") {
 		fs.write(resolve(dir, meta.metaFile), fs.read(originPath));

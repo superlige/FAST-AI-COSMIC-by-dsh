@@ -252,3 +252,63 @@ describe("摘要和比对", () => {
 		expect(text).toContain("两边都有但内容不同的行：0");
 	});
 });
+
+describe("派生布局：编号只在布局表里有", () => {
+	const DERIVED = `<FormMetadata><Id>DERIV</Id><ParentId>BILL</ParentId><Items><BillFormAp action="edit" oid="FORMHEAD"><Plugins><Plugin><ClassName>demo.plugin.DerivedEdit</ClassName></Plugin></Plugins></BillFormAp></Items></FormMetadata>`;
+	const rows: MetaRow[] = [
+		...ROWS,
+		row("form", "DERIV", "demo_bill_xnl", DERIVED, {
+			fisv: "demo",
+			fparentid: "BILL",
+			finheritpath: "BASEDOC,BILL",
+		}),
+	];
+	// 两边库返回的行序不一样（真机：生产本单排第一，测试按内码排、原厂模板排第一）
+	const prodOrder = [...rows.filter((r) => r.fid === "BILL"), ...rows.filter((r) => r.fid !== "BILL")];
+	const reordered = [...rows].sort((a, b) => a.fid.localeCompare(b.fid));
+
+	it("实体顺着布局的父单去认，不拿文件里第一行凑", () => {
+		const side = summarizeSide(reordered, "demo_bill_xnl");
+		expect(side.entityOrder.map((r) => r.fnumber)).toEqual(["demo_billtpl", "demo_bill", "demo_bill_ext"]);
+		expect(side.formOrder.map((r) => r.fnumber)).toEqual(["demo_billtpl", "demo_bill", "demo_bill_xnl"]);
+		expect(side.formPlugins.map((p) => p.className)).toContain("demo.plugin.DerivedEdit");
+	});
+
+	it("两边行序不同、内容相同：比出来 0 项差异", () => {
+		const prod = summarizeSide(prodOrder, "demo_bill_xnl");
+		const test = summarizeSide(reordered, "demo_bill_xnl");
+		const diff = diffSides(prodOrder, prod, reordered, test);
+		expect(diff.fieldsOnlyProd).toEqual([]);
+		expect(diff.fieldsOnlyTest).toEqual([]);
+		expect(diff.fieldsChanged).toEqual([]);
+		expect(diff.pluginsOnlyProd).toEqual([]);
+		expect(diff.pluginsOnlyTest).toEqual([]);
+	});
+
+	it("编号两张表都没有：不拿别的行冒充", () => {
+		const side = summarizeSide(rows, "demo_nothing");
+		expect(side.entityOrder).toEqual([]);
+		expect(side.formOrder).toEqual([]);
+	});
+});
+
+it("只是写法不同（缩进、空元素 <a/> 和 <a></a>、XML 声明）不算内容不同", () => {
+	const pretty = `<?xml version="1.0" encoding="UTF-8"?>
+<FormMetadata>
+  <Id>BILL</Id>
+  <IsvSign/>
+  <Items>
+    <BillFormAp action="edit" oid="FORMHEAD"/>
+  </Items>
+</FormMetadata>`;
+	const flat = `<FormMetadata><Id>BILL</Id><IsvSign></IsvSign><Items><BillFormAp action="edit" oid="FORMHEAD"></BillFormAp></Items></FormMetadata>`;
+	const changed = flat.replace("<IsvSign></IsvSign>", "<IsvSign>demo</IsvSign>");
+	const prodRows = [row("form", "BILL", "demo_bill", pretty)];
+	const diff = (testData: string) => {
+		const testRows = [row("form", "BILL", "demo_bill", testData)];
+		return diffSides(prodRows, summarizeSide(prodRows, "demo_bill"), testRows, summarizeSide(testRows, "demo_bill"))
+			.changedRows;
+	};
+	expect(diff(flat)).toEqual([]);
+	expect(diff(changed)).toHaveLength(1);
+});

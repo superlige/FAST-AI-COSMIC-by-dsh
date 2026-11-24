@@ -1,5 +1,5 @@
 /**
- * 发给模型的固定文字，一处拼出来：每个模式的常驻系统提示（最坏情况）、每轮现算那段（最坏情况）、挂上的每个产品工具的说明和参数说明。
+ * 发给模型的固定文字，一处拼出来：常驻系统提示（最坏情况）、每轮现算那段（最坏情况）、每个产品工具的说明和参数说明。
  *
  * 量大小（`scripts/measure-dsh-prompt.ts`）、导出给人审读（`scripts/dump-prompt-text.ts`）、查同一句写两处
  * （`scripts/prompt-duplicates.ts`）、查历史沿革（`test/agent/prompt-hygiene.test.ts`）都从这里取，
@@ -7,8 +7,6 @@
  */
 
 import { cosmicSystemPrompt, STANDING_ROOT_MAX, standingContext } from "../agent/prompt/system-prompt.ts";
-import { type CosmicMode, toolsForMode } from "../agent/state/prod-state.ts";
-import { COSMIC_TOOL_NAMES } from "../agent/tools/names.ts";
 import { type CosmicToolSpec, toDshSchema } from "./define.ts";
 import { CosmicHost } from "./host.ts";
 import type { CosmicKernel } from "./kernel.ts";
@@ -22,7 +20,7 @@ import { projectTools } from "./tools/project.ts";
 import { runTool } from "./tools/run.ts";
 import type { Confirm } from "./write.ts";
 
-/** 全部 12 个产品工具的规格；挂哪几个由模式定（`toolsForMode`）。 */
+/** 全部 12 个产品工具的规格，每个会话都挂。 */
 export function cosmicToolSpecs(host: CosmicHost, confirm: Confirm, askInCall?: AskInCall): CosmicToolSpec<never>[] {
 	return [
 		...projectTools(host),
@@ -35,11 +33,9 @@ export function cosmicToolSpecs(host: CosmicHost, confirm: Confirm, askInCall?: 
 	] as unknown as CosmicToolSpec<never>[];
 }
 
-/** 某个模式下挂上的工具规格；只取文字用，不碰内核。 */
-export function mountedToolSpecs(mode: CosmicMode): CosmicToolSpec<never>[] {
-	const host = new CosmicHost(mode, {} as CosmicKernel);
-	const mounted = new Set(toolsForMode(mode, COSMIC_TOOL_NAMES));
-	return cosmicToolSpecs(host, async () => ({ kind: "approved" })).filter((spec) => mounted.has(spec.name));
+/** 挂上的工具规格；只取文字用，不碰内核。 */
+export function mountedToolSpecs(): CosmicToolSpec<never>[] {
+	return cosmicToolSpecs(new CosmicHost({} as CosmicKernel), async () => ({ kind: "approved" }));
 }
 
 export interface FixedTextPiece {
@@ -63,21 +59,20 @@ function parameterTexts(prefix: string, schema: unknown, out: FixedTextPiece[]):
 	}
 }
 
-/** 一个模式下发给模型的全部固定文字。系统提示取最坏情况：技能文档整体没装上、每轮那段每行都在。 */
-export function fixedTextPieces(mode: CosmicMode): FixedTextPiece[] {
+/** 发给模型的全部固定文字。系统提示取最坏情况：技能文档整体没装上、每轮那段每行都在。 */
+export function fixedTextPieces(): FixedTextPiece[] {
 	const probes = releasedProbes();
 	const pieces: FixedTextPiece[] = [
 		{
-			where: `${mode} 系统提示`,
+			where: "系统提示",
 			text: cosmicSystemPrompt({
 				releasedProbes: probes.names,
 				probeInputs: probes.inputs,
 				referenceSkills: { ok: false, reason: "KNOWLEDGE_UNAVAILABLE" },
-				mode,
 			}),
 		},
 		{
-			where: `${mode} 每轮状态`,
+			where: "每轮状态",
 			text: standingContext({
 				projectRoot: "R".repeat(STANDING_ROOT_MAX),
 				javaEdited: 1,
@@ -86,26 +81,11 @@ export function fixedTextPieces(mode: CosmicMode): FixedTextPiece[] {
 			}),
 		},
 	];
-	for (const spec of mountedToolSpecs(mode)) {
+	for (const spec of mountedToolSpecs()) {
 		pieces.push({ where: `${spec.name} 说明`, text: spec.description });
 		parameterTexts(spec.name, toDshSchema(spec.parameters), pieces);
 	}
 	return pieces;
-}
-
-/** 两个模式合起来（同一个工具在两个模式里说明一样，按出处去重）。 */
-export function allFixedTextPieces(): FixedTextPiece[] {
-	const seen = new Set<string>();
-	const out: FixedTextPiece[] = [];
-	for (const mode of ["dev", "prod"] as const) {
-		for (const piece of fixedTextPieces(mode)) {
-			const key = `${piece.where}\u0000${piece.text}`;
-			if (seen.has(key)) continue;
-			seen.add(key);
-			out.push(piece);
-		}
-	}
-	return out;
 }
 
 /** 句子大于这么多 UTF-8 字节才算重复（和会话尺子的重复口径同一条线）。 */
@@ -118,7 +98,6 @@ export interface DuplicateSentence {
 
 /**
  * 同一句写在两处以上的地方：按「。」「；」和换行切句。同一句写两处，改一处忘一处就成了两种说法，模型每轮也多读一遍。
- * 只比同一个模式里的（两个模式本来就各发一份系统提示，模型一次只看到一份）。
  */
 export function duplicateSentences(
 	pieces: readonly FixedTextPiece[],
@@ -146,13 +125,13 @@ export interface FixedTextBytes {
 	toolBytes: number;
 }
 
-/** 一个模式下每次请求都带的固定文字有多少 UTF-8 字节。 */
-export function fixedTextBytes(mode: CosmicMode): FixedTextBytes {
+/** 每次请求都带的固定文字有多少 UTF-8 字节。 */
+export function fixedTextBytes(): FixedTextBytes {
 	const bytes = (text: string): number => Buffer.byteLength(text, "utf8");
-	const system = fixedTextPieces(mode)
-		.filter((piece) => piece.where === `${mode} 系统提示` || piece.where === `${mode} 每轮状态`)
+	const system = fixedTextPieces()
+		.filter((piece) => piece.where === "系统提示" || piece.where === "每轮状态")
 		.reduce((sum, piece) => sum + bytes(piece.text), 0);
-	const tools = mountedToolSpecs(mode).reduce(
+	const tools = mountedToolSpecs().reduce(
 		(sum, spec) => sum + bytes(spec.description) + bytes(JSON.stringify(toDshSchema(spec.parameters))),
 		0,
 	);

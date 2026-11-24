@@ -174,7 +174,7 @@ import kd.bos.servicehelper.DBServiceHelper;
  *                                    例如 show filter billstatus as demo_status_filter into filtergridview；同一视图不重复加同一字段。
  *                                    属性用 set 改（Multi、DefValue、DateConst 等，先查 LAYOUT_PROPS），顺序用 move，撤下用 remove；字段本身保留
  *   LAYOUT_RESTORE=<备份目录>      把改前备份原样写回，和 LAYOUT_EDIT 二选一
- *   LAYOUT_BACKUP=<目录>           APPLY=1 时必给：落库前把改前的布局（改了字段属性或操作时连同实体）存进去
+ *   LAYOUT_BACKUP=<目录>           落库前把改前的布局（改了字段属性或操作时连同实体）存进去；APPLY=1 时工具自动给（.cosmic-ai/evidence/backups/ 下），不用写
  *   APPLY=1                        真落库
  *
  * 整份清单先在内存里的元数据对象上改完，问题一次列全，有一处不对就一处都不写；某行要加的东西没加成，后面用到它的行合成一句，不逐行报；
@@ -352,7 +352,7 @@ public class FormLayoutWriteProbe {
 
         if (!apply) {
             IsvGuard.reportTargets();
-            System.out.println("[PROBE] dry-run 结束，数据库未修改。确认无误后加 APPLY=1 和 LAYOUT_BACKUP=<目录>");
+            System.out.println("[PROBE] dry-run 结束，数据库未修改。确认无误后加 APPLY=1");
             return;
         }
 

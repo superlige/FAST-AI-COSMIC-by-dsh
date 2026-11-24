@@ -260,6 +260,9 @@ export function baseConfig(overrides: Partial<KernelConfig> = {}): KernelConfig 
 		probeServerPort: 8099,
 		jrebel: null,
 		dbLink: "fast",
+		javaHome: null,
+		jvmArgs: [],
+		gradleArgs: ["--offline"],
 		sources: {},
 		auto: {
 			isv: "zlgd",
@@ -271,6 +274,10 @@ export function baseConfig(overrides: Partial<KernelConfig> = {}): KernelConfig 
 			modules: ["demo-debug", "demo-biz"],
 			moduleDirs: {},
 			unresolvedDeps: [],
+			appFile: null,
+			tenant: null,
+			javaHome: null,
+			gradleDirs: null,
 		},
 		...overrides,
 	};

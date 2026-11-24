@@ -28,7 +28,7 @@
 
 import { createHash } from "node:crypto";
 import { readdirSync, readFileSync, statSync } from "node:fs";
-import { isAbsolute, join, relative, resolve } from "node:path";
+import { join } from "node:path";
 
 /** 写探针 → 给人看的修改类别（授权报告和回执里用）。 */
 export const METADATA_WRITERS: Readonly<Record<string, string>> = {
@@ -116,10 +116,10 @@ export function isPlannedDryRun(input: {
 
 /**
  * 真落库时探针要求一起给的备份目录：APPLY 前把改前原文存进去，不给就中止。
+ * 这个目录由工具在落库那一刻定（`project/output-paths.ts`，进 evidence/backups/），调用方不用给。
  *
- * 它只决定改前快照存在本机哪里，不改写进共享环境的内容，所以不进指纹。探针自己的 dry-run
- * 结束行就是「确认无误后加 APPLY=1 和 TPL_BACKUP=<目录>」——照着做的人 dry-run 时没给、
- * APPLY 时才给，指纹要是算进它，清单里那一项就永远对不上。
+ * 它只决定改前快照存在本机哪里，不改写进共享环境的内容，所以不进指纹：预演时没有、
+ * 落库时才有，指纹要是算进它，清单里那一项就永远对不上。
  */
 const BACKUP_KEYS: Readonly<Record<string, string>> = {
 	PrintTplWriteProbe: "TPL_BACKUP",
@@ -138,39 +138,6 @@ const TRIAL_KEYS: Readonly<Record<string, readonly string[]>> = {
 	BizRuleProbe: ["RULE_SET", "RULE_SHOW", "RULE_ROW"],
 	PrintTplWriteProbe: ["PRINT_PK", "PRINT_SHOW"],
 };
-
-/**
- * APPLY 缺的备份目录入参名；不缺、或这个探针不要备份时为 null。
- *
- * BOTP 还原（SYNC_RESTORE）本身就是把备份写回去，探针不要求另给备份。在进内核之前查，
- * 缺了就当参数错误拒掉——不然探针打一行「中止」退出码 0，清单里那一项白白用掉。
- */
-export function missingBackup(probe: string, env: Readonly<Record<string, string>>): string | null {
-	if (!Object.hasOwn(BACKUP_KEYS, probe)) return null;
-	if (probe === "BotpRuleSyncProbe" && (env.SYNC_RESTORE ?? "") !== "") return null;
-	const key = BACKUP_KEYS[probe] as string;
-	return (env[key] ?? "") === "" ? key : null;
-}
-
-/**
- * 备份目录落在工程的某个 `build/` 下时，给出入参名和那个目录；不在、或这个探针不要备份时为 null。
- *
- * 备份是改坏之后唯一的退路，而 Gradle clean 会把整个 `build/` 连同里面的备份一起删掉。
- * 目录按工程根解析（探针进程的工作目录就是工程根）；解析到工程外的不管——那里没有 Gradle 会去清。
- */
-export function backupInBuild(
-	probe: string,
-	env: Readonly<Record<string, string>>,
-	projectRoot: string,
-): { key: string; dir: string } | null {
-	if (!Object.hasOwn(BACKUP_KEYS, probe)) return null;
-	const key = BACKUP_KEYS[probe] as string;
-	const dir = (env[key] ?? "").trim();
-	if (dir === "") return null;
-	const inside = relative(resolve(projectRoot), resolve(projectRoot, dir));
-	if (inside === "" || inside.startsWith("..") || isAbsolute(inside)) return null;
-	return inside.split(/[\\/]+/).some((segment) => segment.toLowerCase() === "build") ? { key, dir } : null;
-}
 
 /**
  * 写探针真落库成功时打的那一行，每个探针一种说法。只在落库那条路的最后打，中止路径都不打。

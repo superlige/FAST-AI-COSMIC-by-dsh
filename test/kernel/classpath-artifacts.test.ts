@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { build } from "../../src/kernel/commands/build.ts";
 import { refreshIndexIfStale } from "../../src/kernel/commands/impact.ts";
+import { gradleModulesFile } from "../../src/kernel/config/detect.ts";
 import { artifactState, ensureBuilt } from "../../src/kernel/toolchain.ts";
 import { fakeArgfile, makeContext } from "./fake-context.ts";
 
@@ -60,8 +61,29 @@ describe("类路径清单要对得上当前工程", () => {
 		expect(built.ok).toBe(false);
 		if (!built.ok) {
 			expect(built.error.code).toBe("BUILD_FAILED");
-			expect(built.error.remedy).toContain("build/classes/java/main");
+			expect(built.error.remedy).toContain("cosmic_doctor action=config");
 		}
+	});
+
+	it("工程把输出目录挪了：照 Gradle 报的目录核对，重新生成一次就对上", async () => {
+		const fake = makeContext({ config: modules });
+		const moved = "D:/proj/demo-biz/out/classes";
+		const argfile = `-cp "${moved};D:/cosmic/lib/bos-core-8.0.jar"\n`;
+		// 老版本生成的产物：没有模块目录清单，按默认目录核对，对不上
+		fake.fs.put(fake.ctx.layout.javacArgs, argfile);
+		expect(artifactState(fake.ctx).state).toBe("stale");
+		fake.proc.handler = (spec) => {
+			if (spec.args.some((arg) => arg.includes("cosmicJavacArgs"))) {
+				fake.fs.put(fake.ctx.layout.javacArgs, argfile);
+				fake.fs.put(
+					gradleModulesFile(fake.ctx.projectRoot),
+					JSON.stringify({ modules: { "demo-biz": { src: ["D:/proj/demo-biz/source"], out: moved } } }),
+				);
+			}
+			return { status: 0 };
+		};
+		const built = await ensureBuilt(fake.ctx);
+		expect(built.ok).toBe(true);
 	});
 
 	it("清单对得上就不跑 Gradle", async () => {

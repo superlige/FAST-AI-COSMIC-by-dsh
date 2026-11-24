@@ -165,6 +165,10 @@ export interface FieldOwnership {
 	parentEntry?: string;
 	/** Absent means `field`; `container` is an entry or sub-entry itself. */
 	kind?: string;
+	/** The design-time Chinese name (`<Name>` in the design XML). Absent on snapshots built before, or when the design has none. */
+	name?: string;
+	/** The field's design-time type, the block name (`BasedataField`); absent on a container. */
+	type?: string;
 }
 
 /**
@@ -180,6 +184,8 @@ export function compactField(row: FieldOwnership): FieldOwnership {
 		...(row.entry ? { entry: row.entry } : {}),
 		...(row.parentEntry ? { parentEntry: row.parentEntry } : {}),
 		...(row.kind && row.kind !== "field" ? { kind: row.kind } : {}),
+		...(row.name ? { name: row.name } : {}),
+		...(row.type ? { type: row.type } : {}),
 	};
 }
 
@@ -1200,9 +1206,18 @@ export function lookup(index: ImpactIndex): IndexLookup {
 		if (list) list.push(artifact);
 		else byArtifact.set(artifact.id, [artifact]);
 	}
+	// An extension design's fields are on the bill it extends: code, plugins and `@` references
+	// name that bill (`sm_salorder.zlgd_x`), the snapshot files them under the extension design.
+	const extended = new Map<string, string>();
+	for (const bill of index.billNames ?? []) if (bill.base) extended.set(bill.bill, bill.base);
 	for (const row of index.fields ?? []) {
 		fieldMeta.set(`${row.entity}|${row.key}`, row);
 		fieldEntities.add(row.entity);
+		const base = extended.get(row.entity);
+		if (base !== undefined && !fieldMeta.has(`${base}|${row.key}`)) {
+			fieldMeta.set(`${base}|${row.key}`, row);
+			fieldEntities.add(base);
+		}
 		const on = fieldOn.get(row.key);
 		if (!on) fieldOn.set(row.key, [row.entity]);
 		else if (!on.includes(row.entity)) on.push(row.entity);

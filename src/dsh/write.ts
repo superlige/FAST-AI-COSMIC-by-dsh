@@ -28,7 +28,6 @@ import {
 import { appliedRecordsView, withModelView } from "../agent/tools/model-view.ts";
 import { buildWriteForm } from "../kernel/policy/write-form.ts";
 import {
-	backupInBuild,
 	dataBaseline,
 	declaredTargets,
 	deniedTargets,
@@ -36,7 +35,6 @@ import {
 	isBlockedWrite,
 	isPlannedDryRun,
 	isStaleBaseline,
-	missingBackup,
 	requiredTargets,
 	writePlanDigest,
 	writerKind,
@@ -49,7 +47,6 @@ import { type AgentFailure, renderSuccess } from "./result.ts";
 import type { MetaWriteFact } from "./session.ts";
 
 export const WRITE_REPORT_INVALID_CODE = "COSMIC_WRITE_REPORT_INVALID";
-export const WRITE_BACKUP_REQUIRED_CODE = "COSMIC_WRITE_BACKUP_REQUIRED";
 export const WRITE_JAVA_STALE_CODE = "COSMIC_WRITE_JAVA_STALE";
 export const WRITE_NOT_PLANNED_CODE = "COSMIC_WRITE_NOT_PLANNED";
 export const WRITE_CONFIRM_UNAVAILABLE_CODE = "COSMIC_WRITE_CONFIRM_UNAVAILABLE";
@@ -72,8 +69,6 @@ export interface WriteDoor {
 	env: Readonly<Record<string, string>>;
 	/** 怎么调的，给人看。 */
 	label: string;
-	/** 要备份目录时怎么给（两扇门的写法不一样）。 */
-	backupHint: string;
 	preview(): Promise<WriteRun | AgentFailure>;
 	apply(authorization: {
 		targets: string[];
@@ -122,33 +117,7 @@ export async function writeMetadata(
 	const session = call.session;
 	const root = session.project?.root ?? "";
 
-	// 1. 前提：备份目录、本会话改过的 Java 编译新鲜。
-	const backup = missingBackup(door.probe, door.env);
-	if (backup !== null) {
-		throw host.fail(
-			call,
-			{
-				code: WRITE_BACKUP_REQUIRED_CODE,
-				message: `${door.probe} 落库要同时给备份目录 ${backup}，落库前把改前原文存进去`,
-				detail: { probe: door.probe, missing: backup },
-				remedy: `${door.backupHint}（例如 .cosmic-ai/evidence/meta-backup/改前），其余参数不变。`,
-			},
-			input,
-		);
-	}
-	const inBuild = backupInBuild(door.probe, door.env, root);
-	if (inBuild !== null) {
-		throw host.fail(
-			call,
-			{
-				code: WRITE_BACKUP_REQUIRED_CODE,
-				message: `备份目录 ${inBuild.dir} 在 build/ 下，Gradle clean 会连备份一起删`,
-				detail: { probe: door.probe, key: inBuild.key, dir: inBuild.dir },
-				remedy: "备份目录换到 build/ 以外（例如 .cosmic-ai/evidence/meta-backup/改前），其余参数不变。",
-			},
-			input,
-		);
-	}
+	// 1. 前提：本会话改过的 Java 编译新鲜。改前备份不用调用方给：落库时工具自己存进 evidence/backups/。
 	const java = host.sessionJava(session);
 	if (java.length > 0) {
 		const current = host.unwrap(call, await host.kernel.freshness(handle), input);
@@ -229,7 +198,7 @@ export async function writeMetadata(
 		object: change.object,
 		purpose: change.fill.purpose,
 		undo: plan.form.undo,
-		backup: backupDir(door.env),
+		backup: null as string | null,
 		outputFile: null as string | null,
 		// 完成情况按对象列「改前→改后」，取的就是用户确认的这张表。
 		form: renderForm(plan.form, change.fill, 100).join("\n"),
@@ -281,7 +250,7 @@ export async function writeMetadata(
 	const blocked = !written && isBlockedWrite({ cls: door.probe, output: applied.output });
 	const stale = blocked && isStaleBaseline(applied.output);
 	const outcome = written ? "written" : applied.exitCode === 0 || blocked ? "not-applied" : "failed";
-	record({ ...fact, outcome, outputFile: writeLog });
+	record({ ...fact, outcome, outputFile: writeLog, backup: backupOf(applied.value) });
 	const archived = writeLog === null ? "" : `本次写通道输出已存 ${writeLog}。`;
 
 	// 6. 回读：写探针自己核对过，逐条改动在确认单上给过，这里只给条数和对不上的。
@@ -317,10 +286,12 @@ export async function writeMetadata(
 	throw host.ranFailed(call, outcome === "failed" ? WRITE_FAILED_CODE : WRITE_NOT_APPLIED_CODE, blocks, input);
 }
 
-/** 入参里给的备份目录（各写探针的键名不同，取第一个以 BACKUP 结尾的）。 */
-function backupDir(env: Readonly<Record<string, string>>): string | null {
-	for (const [key, value] of Object.entries(env)) if (/BACKUP/i.test(key) && value !== "") return value;
-	return null;
+/** 落库时工具定的备份目录（探针结果的 `placed` 里 role 是 backup 的那一项；cosmic_meta 的在 `probe` 下面一层）。 */
+function backupOf(value: Record<string, unknown>): string | null {
+	const carrier = (typeof value.probe === "object" && value.probe !== null ? value.probe : value) as {
+		placed?: { role?: string; path?: string }[];
+	};
+	return carrier.placed?.find((one) => one.role === "backup")?.path ?? null;
 }
 
 export { writePlanCall };

@@ -1,5 +1,5 @@
 {
 	"note": "发给模型的固定文字（UTF-8 字节），尺子是 src/dsh/fixed-text.ts 的 fixedTextBytes。比记录多，npm run check 失败：加不加以交付效率和质量为准（AGENTS.md 第五节第 4 条），要加就同时改这里，并在提交说明写明想改善哪个数、怎么量。比记录少也失败，把记录改成新数，锁住省下来的。",
-	"dev": { "systemWorstBytes": 7476, "toolBytes": 16618 },
-	"prod": { "systemWorstBytes": 5483, "toolBytes": 17234 }
+	"systemWorstBytes": 8014,
+	"toolBytes": 20140
 }

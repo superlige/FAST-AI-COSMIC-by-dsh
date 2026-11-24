@@ -5,16 +5,37 @@
  * reached through an injectable probe so tests need no real directories.
  */
 import { existsSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { KernelError } from "../errors.ts";
 
-/** A Cosmic Gradle project root has both markers. Injectable for tests. */
+/** Injectable for tests. */
 export type ExistsProbe = (path: string) => boolean;
 
 const realExists: ExistsProbe = (path) => existsSync(path);
 
+/** Groovy and Kotlin spellings of the two Gradle scripts, in the order Gradle itself prefers them. */
+export const SETTINGS_SCRIPTS = ["settings.gradle", "settings.gradle.kts"] as const;
+export const BUILD_SCRIPTS = ["build.gradle", "build.gradle.kts"] as const;
+
+/** The settings script a Gradle root has, or null. */
+export function settingsScriptOf(root: string, exists: ExistsProbe = realExists): string | null {
+	for (const name of SETTINGS_SCRIPTS) {
+		const file = join(root, name);
+		if (exists(file)) return file;
+	}
+	return null;
+}
+
+/**
+ * A Gradle build root is the directory holding its settings script -- that is how
+ * Gradle itself finds it. `gradle.properties` used to be required as well; it is
+ * optional (a project may keep cosmic_home elsewhere and fill it from config.json),
+ * and requiring it rejected Kotlin-DSL and hand-made projects outright, with no
+ * setting that could get them in. `buildSrc` carries a settings script of its own
+ * but is never the project, so the walk goes past it.
+ */
 export function hasProjectMarkers(root: string, exists: ExistsProbe = realExists): boolean {
-	return exists(join(root, "gradle.properties")) && exists(join(root, "settings.gradle"));
+	return basename(root) !== "buildSrc" && settingsScriptOf(root, exists) !== null;
 }
 
 /** Walks up from any directory inside a project to the Cosmic Gradle project root. */
@@ -65,9 +86,9 @@ export function resolveProjectRoot(
 	if (explicit) {
 		const root = resolve(explicit);
 		if (hasProjectMarkers(root, exists)) return { root, source: "explicit" };
-		throw new KernelError("PROJECT_ROOT_INVALID", `COSMIC_PROJECT_ROOT 不是苍穹 Gradle 工程根：${root}`, {
-			detail: { root, markers: ["gradle.properties", "settings.gradle"] },
-			remedy: "该目录必须同时包含 gradle.properties 和 settings.gradle。",
+		throw new KernelError("PROJECT_ROOT_INVALID", `指定的目录不是 Gradle 工程根：${root}`, {
+			detail: { root, markers: [...SETTINGS_SCRIPTS] },
+			remedy: "工程根是放 settings.gradle（或 settings.gradle.kts）的那一层目录。",
 		});
 	}
 
@@ -87,6 +108,8 @@ export function resolveProjectRoot(
 			triedEntry: entryFile ?? null,
 			triedLegacy: legacyRoot ?? null,
 		},
-		remedy: "从工程根或其子目录启动，或设置 COSMIC_PROJECT_ROOT=<工程绝对路径>。",
+		remedy:
+			"往上找遍了都没有 settings.gradle / settings.gradle.kts。会话工作目录要在苍穹工程里，" +
+			"或者调 cosmic_open_project 并给 projectRoot（工程根的绝对路径）。",
 	});
 }

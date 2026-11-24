@@ -80,7 +80,6 @@ export function metaTool(host: CosmicHost, confirm: Confirm): CosmicToolSpec<Met
 						probe: channel.probe,
 						env: channel.env,
 						label: `cosmic_meta ${args.argv.join(" ")}`,
-						backupHint: "argv 里加 --backup <目录>",
 						async preview() {
 							// 预演是这次写调用的一部分，不算「同一个问题又问一遍」：见 write.ts 第 2 步。
 							const result = await host.kernel.meta(project.handle, args.argv, {

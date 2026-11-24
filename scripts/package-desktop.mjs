@@ -288,12 +288,32 @@ edit("欢迎页", "apps/desktop/src/welcome-api.ts", [
 	],
 ]);
 
-// 图标：青绿轨道标（占位）。sharp 用 dsh 检出目录装好的那份，副本这时还没装依赖
+// 图标：终端 + iOS。深色圆角方块里一个终端提示符「❯▌」：银白的箭头、发青绿光的块状光标（pi 版首页那个光标），
+// 和界面侧栏的标志同一个图形（client/brand.js 的 LogoSvg，改一边要改另一边）。
+// 底上淡淡几道扫描线；高光只在上下两条边，外沿一圈很淡的暗边。圆角取边长的 22.37%。
+// sharp 用 dsh 检出目录装好的那份，副本这时还没装依赖
 const sharp = createRequire(join(checkout, "apps/desktop/package.json"))("sharp");
-const MARK = `<rect x="0.5" y="0.5" width="23" height="23" rx="5" fill="rgb(20,40,38)"/>
-  <circle cx="12" cy="12" r="6.6" fill="none" stroke="rgb(112,226,208)" stroke-width="1.5"/>
-  <ellipse cx="12" cy="12" rx="9" ry="3.2" fill="none" stroke="rgb(112,226,208)" stroke-width="0.9" transform="rotate(-25 12 12)" opacity="0.75"/>
-  <circle cx="12" cy="12" r="2.3" fill="rgb(112,226,208)"/>`;
+const SCANLINES = Array.from(
+	{ length: 14 },
+	(_, at) =>
+		`<rect x="0" y="${(2.2 + at * 1.5).toFixed(1)}" width="24" height="0.35" fill="#ffffff" fill-opacity="0.025"/>`,
+).join("");
+const MARK = `<defs>
+    <linearGradient id="cx-bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2B2F33"/><stop offset="0.6" stop-color="#121518"/><stop offset="1" stop-color="#090B0C"/></linearGradient>
+    <radialGradient id="cx-bloom" cx="63%" cy="50%" r="40%"><stop offset="0" stop-color="#70E2D0" stop-opacity="0.38"/><stop offset="1" stop-color="#70E2D0" stop-opacity="0"/></radialGradient>
+    <linearGradient id="cx-chevron" gradientUnits="userSpaceOnUse" x1="0" y1="7" x2="0" y2="17"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#BFC8C6"/></linearGradient>
+    <linearGradient id="cx-cursor" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#C8FFF5"/><stop offset="1" stop-color="#46C7B2"/></linearGradient>
+    <linearGradient id="cx-edge" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff" stop-opacity="0.32"/><stop offset="0.05" stop-color="#ffffff" stop-opacity="0"/><stop offset="0.96" stop-color="#ffffff" stop-opacity="0"/><stop offset="1" stop-color="#ffffff" stop-opacity="0.12"/></linearGradient>
+  </defs>
+  <rect width="24" height="24" rx="5.37" fill="url(#cx-bg)"/>
+  ${SCANLINES}
+  <rect width="24" height="24" rx="5.37" fill="url(#cx-bloom)"/>
+  <path d="M7.2 8.4 10.8 12l-3.6 3.6" fill="none" stroke="#000000" stroke-opacity="0.45" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" transform="translate(0 0.4)"/>
+  <path d="M7.2 8.4 10.8 12l-3.6 3.6" fill="none" stroke="url(#cx-chevron)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="13.2" y="8.3" width="3.8" height="7.4" rx="0.8" fill="url(#cx-cursor)"/>
+  <rect x="13.6" y="8.55" width="3" height="0.35" rx="0.17" fill="#ffffff" fill-opacity="0.7"/>
+  <rect width="24" height="24" rx="5.37" fill="url(#cx-edge)"/>
+  <rect x="0.125" y="0.125" width="23.75" height="23.75" rx="5.27" fill="none" stroke="#000000" stroke-opacity="0.3" stroke-width="0.25"/>`;
 const svg = (size) =>
 	Buffer.from(
 		`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="${size}" height="${size}">${MARK}</svg>`,
@@ -333,7 +353,7 @@ report.push({
 const installerAssets = join(copy, "apps/desktop/installer/assets");
 const font = "Segoe UI, Microsoft YaHei, Arial, sans-serif";
 const brand = (scale, dark) => {
-	const ink = dark ? "rgb(236,242,241)" : "rgb(20,40,38)";
+	const ink = dark ? "rgb(244,244,248)" : "rgb(22,22,28)";
 	return Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${600 * scale}" height="${196 * scale}" viewBox="0 0 600 196">
   ${mark(252, 14, 96)}
   <text x="296" y="172" text-anchor="end" font-family="${font}" font-size="30" font-weight="700" fill="${ink}">Fast-AI</text>
@@ -350,9 +370,9 @@ for (const [file, scale, dark] of [
 	await sharp(brand(scale, dark)).png().toFile(join(installerAssets, file));
 await sharp(
 	Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="164" height="314" viewBox="0 0 164 314">
-  <rect width="164" height="314" fill="rgb(243,245,245)"/>${mark(34, 91, 96)}</svg>`),
+  <rect width="164" height="314" fill="rgb(244,244,247)"/>${mark(34, 91, 96)}</svg>`),
 )
-	.flatten({ background: "#f3f5f5" })
+	.flatten({ background: "#f4f4f7" })
 	.png()
 	.toFile(join(installerAssets, "uninstaller-sidebar.png"));
 report.push({

@@ -8,9 +8,9 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { kernelLayout } from "../../src/kernel/layout.ts";
 import { metaOperationDigest, metaWritePlan } from "../../src/kernel/meta/parse.ts";
 import {
-	backupInBuild,
 	DATA_WRITERS,
 	declaredTargets,
 	deniedTargets,
@@ -19,12 +19,12 @@ import {
 	isMetadataWriter,
 	isPlannedDryRun,
 	METADATA_WRITERS,
-	missingBackup,
 	requiredTargets,
 	writePlanDigest,
 	writerKind,
 } from "../../src/kernel/policy/write-plan.ts";
 import { normTarget } from "../../src/kernel/policy/write-targets.ts";
+import { placeProbeOutputs } from "../../src/kernel/project/output-paths.ts";
 import { EMBEDDED_RESOURCES } from "../../src/resources/embedded.generated.ts";
 
 const PROBE_SOURCES = new Map(
@@ -297,37 +297,25 @@ describe("S18 operation digest", () => {
 });
 
 describe("S18 the backup directory an APPLY needs", () => {
-	it("names the missing input for the writers that abort without one", () => {
-		expect(missingBackup("PrintTplWriteProbe", { TPL_NUMBER: "t" })).toBe("TPL_BACKUP");
-		expect(missingBackup("PrintTplWriteProbe", { TPL_NUMBER: "t", TPL_BACKUP: "" })).toBe("TPL_BACKUP");
-		expect(missingBackup("PrintTplWriteProbe", { TPL_NUMBER: "t", TPL_BACKUP: "build/tpl" })).toBeNull();
-		expect(missingBackup("BotpRuleSyncProbe", { SYNC_TARGETS: "rule-1" })).toBe("SYNC_BACKUP");
-		// Restoring IS writing a backup back; the probe asks for no second one.
-		expect(missingBackup("BotpRuleSyncProbe", { SYNC_RESTORE: "build/botp" })).toBeNull();
-		// S42: a layout restore overwrites whatever is there now, so it backs that up first like any edit.
-		expect(missingBackup("FormLayoutWriteProbe", { LAYOUT_FORM: "f", LAYOUT_EDIT: "set a.B=1" })).toBe(
-			"LAYOUT_BACKUP",
-		);
-		expect(missingBackup("FormLayoutWriteProbe", { LAYOUT_FORM: "f", LAYOUT_RESTORE: "d" })).toBe("LAYOUT_BACKUP");
-		expect(missingBackup("FormRuleProbe", {})).toBeNull();
-	});
-
-	it("S37 3.6: a backup directory inside any build/ of the project is named, outside it is not", () => {
-		const root = "D:/proj";
-		expect(backupInBuild("PrintTplWriteProbe", { TPL_BACKUP: "build/tpl" }, root)).toEqual({
-			key: "TPL_BACKUP",
-			dir: "build/tpl",
+	it("the tool places one for every writer that aborts without it, so an APPLY never lands without a backup", () => {
+		const layout = kernelLayout({
+			root: "D:/proj",
+			sessionId: "s1",
+			cacheRoot: "D:/cache/k",
+			runtimeKeyId: "k",
+			resourcesDir: "D:/cache/k/res",
+			codeModules: [],
 		});
-		expect(backupInBuild("BotpRuleSyncProbe", { SYNC_BACKUP: "code\\zlgd-base\\Build\\b" }, root)?.key).toBe(
-			"SYNC_BACKUP",
-		);
-		expect(backupInBuild("PrintTplWriteProbe", { TPL_BACKUP: "D:/proj/code/m/build" }, root)?.key).toBe("TPL_BACKUP");
-		expect(backupInBuild("PrintTplWriteProbe", { TPL_BACKUP: ".cosmic-ai/evidence/tpl" }, root)).toBeNull();
-		expect(backupInBuild("PrintTplWriteProbe", { TPL_BACKUP: "builds/tpl" }, root)).toBeNull();
-		// Outside the project nothing runs gradle clean over it.
-		expect(backupInBuild("PrintTplWriteProbe", { TPL_BACKUP: "D:/build/tpl" }, root)).toBeNull();
-		expect(backupInBuild("PrintTplWriteProbe", { TPL_BACKUP: "../build/tpl" }, root)).toBeNull();
-		expect(backupInBuild("FormRuleProbe", { TPL_BACKUP: "build/tpl" }, root)).toBeNull();
+		for (const [name, key, env] of [
+			["PrintTplWriteProbe", "TPL_BACKUP", { TPL_NUMBER: "t" }],
+			["BotpRuleSyncProbe", "SYNC_BACKUP", { SYNC_TARGETS: "rule-1" }],
+			["FormLayoutWriteProbe", "LAYOUT_BACKUP", { LAYOUT_FORM: "f", LAYOUT_EDIT: "set a.B=1" }],
+		] as const) {
+			const placed = placeProbeOutputs(layout, name, false, { ...env, APPLY: "1" }, 0).env[key] ?? "";
+			expect(placed.replace(/\\/g, "/")).toContain("/.cosmic-ai/evidence/backups/");
+			// 预演不落库，不用备份
+			expect(placeProbeOutputs(layout, name, false, env, 0).env[key]).toBeUndefined();
+		}
 	});
 
 	it("is what the probes themselves refuse with an exit-0 abort", () => {
@@ -586,10 +574,16 @@ describe("S32 一次往返验完", () => {
 		expect(back?.env.TPL_RESTORE).toBe("build/before");
 		// 编码在入参里给，授权确认单上的目标才对得上（到 JVM 里才知道，那一项已经用掉了）。
 		expect(requiredTargets("PrintTplWriteProbe", back?.env ?? {})).toEqual(["tpl:zlgd_t"]);
-		// 备份目录是 APPLY 的硬要求：恢复本身也会盖掉现在那份。
-		expect(missingBackup("PrintTplWriteProbe", { TPL_NUMBER: "zlgd_t", TPL_RESTORE: "build/before" })).toBe(
-			"TPL_BACKUP",
-		);
+		// 恢复本身也会盖掉现在那份：APPLY 时工具照样先存一份改前备份。
+		const layout = kernelLayout({
+			root: "D:/proj",
+			cacheRoot: "D:/cache/k",
+			runtimeKeyId: "k",
+			resourcesDir: "D:/cache/k/res",
+			codeModules: [],
+		});
+		const restoring = { TPL_NUMBER: "zlgd_t", TPL_RESTORE: "build/before", APPLY: "1" };
+		expect(placeProbeOutputs(layout, "PrintTplWriteProbe", false, restoring, 0).env.TPL_BACKUP).toContain("backups");
 		expect(source).toContain('String restoreDir = env("TPL_RESTORE", "")');
 		expect(source).toContain("备份目录里没有这张模板的设计数据");
 	});

@@ -23,8 +23,8 @@ import kd.bos.print.service.BosPrintServiceHelper;
  * 所以本地读到的结构和写探针里要改的结构逐字段一致。
  *
  * TPL_NUMBER=模板编码（必填）
- * OUT_DIR=目录（可选，默认 outputs/print-tpl-json；同名文件直接覆盖，
- *               改前改后请用不同目录，例如 .../before 和 .../after）
+ * OUT_DIR=名字（可选，工具放进本会话的导出目录，不给就按模板编码起名；同名文件直接覆盖，
+ *               改前改后请用不同名字，例如 before 和 after）
  */
 public class PrintTplJsonProbe {
     public static void run() throws Exception {

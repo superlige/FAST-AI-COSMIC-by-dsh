@@ -58,6 +58,8 @@ export interface FsPort {
 	tryRename(from: string, to: string): boolean;
 	/** Modification time in ms, or null when the path does not exist. */
 	mtimeMs(path: string): number | null;
+	/** 文件大小（字节），不存在时 null。只有清点 `.cosmic-ai/` 用；测试替身可以不给。 */
+	sizeBytes?(path: string): number | null;
 	readDir(path: string): DirEntry[];
 	mkdirp(path: string): void;
 	remove(path: string): void;
@@ -111,6 +113,13 @@ export const nodeFs: FsPort = {
 	mtimeMs(path) {
 		try {
 			return statSync(path).mtimeMs;
+		} catch {
+			return null;
+		}
+	},
+	sizeBytes(path) {
+		try {
+			return statSync(path).size;
 		} catch {
 			return null;
 		}

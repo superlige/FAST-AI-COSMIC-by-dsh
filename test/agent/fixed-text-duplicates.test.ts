@@ -8,14 +8,10 @@ import { describe, expect, it } from "vitest";
 import { duplicateSentences, fixedTextPieces } from "../../src/dsh/fixed-text.ts";
 
 describe("固定文字每句只写一处", () => {
-	for (const mode of ["dev", "prod"] as const) {
-		it(`${mode}：大于 40 字节的句子不在两处出现`, () => {
-			const found = duplicateSentences(fixedTextPieces(mode)).map(
-				(item) => `${item.places.join("、")}：${item.sentence}`,
-			);
-			expect(found).toEqual([]);
-		});
-	}
+	it("大于 40 字节的句子不在两处出现", () => {
+		const found = duplicateSentences(fixedTextPieces()).map((item) => `${item.places.join("、")}：${item.sentence}`);
+		expect(found).toEqual([]);
+	});
 
 	it("这道检查能被触发", () => {
 		const sentence = "这是一句足够长、会被当成重复来报的固定说明文字";

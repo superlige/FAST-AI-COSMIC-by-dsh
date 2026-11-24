@@ -95,9 +95,9 @@ W 会修改共享环境。同一个探针兼有读写模式时，只有明确的
 |---|---|---|
 | `FormRegisterProbe`（`APPLY=1`） | 把新建表单登记进开发平台功能单元 / 回滚登记 | [metadata-create.md](metadata-create.md) |
 | `FormRuleProbe`（`APPLY=1`） | 新增 / 回滚界面规则 | [metadata-form-rules.md](metadata-form-rules.md) |
-| `BizRuleProbe`（`APPLY=1`） | 新增 / 回滚实体业务规则 | [metadata-business-rules.md](metadata-business-rules.md) |
-| `BotpRuleSyncProbe`（`APPLY=1`，走 `meta botp backup|restore`） | 批量复制业务规则、改字段映射和建行层级、备份与恢复 | [metadata-botp-write.md](metadata-botp-write.md) |
-| `FormLayoutWriteProbe`（`APPLY=1` 带 `LAYOUT_BACKUP`） | 加删字段、加分录、照搬字段，改控件属性和位置，加删控件和操作；电脑端列表加字段列、加工具栏按钮并绑定操作；配置常用过滤和快捷搜索字段（show filter），改筛选项属性、排序、撤下；挂摘插件，按备份恢复；整份清单在内存里改完再存一次，问题一次列全 | [metadata-form.md](metadata-form.md)、[metadata-entity-write.md](metadata-entity-write.md) |
+| `BizRuleProbe`（`APPLY=1`） | 新增 / 回滚实体业务规则，原位改已有规则的条件、计算公式、启用 | [metadata-business-rules.md](metadata-business-rules.md) |
+| `BotpRuleSyncProbe`（`APPLY=1`，走 `meta botp backup|restore`） | 批量复制业务规则、改字段映射、建行层级、源单过滤和执行条件，备份与恢复 | [metadata-botp-write.md](metadata-botp-write.md) |
+| `FormLayoutWriteProbe`（`APPLY=1` 落库前自动备份） | 加删字段、加分录、照搬字段，改控件属性和位置，加删控件和操作；电脑端列表加字段列、加工具栏按钮并绑定操作；配置常用过滤和快捷搜索字段（show filter），改筛选项属性、排序、撤下；挂摘插件，按备份恢复；整份清单在内存里改完再存一次，问题一次列全 | [metadata-form.md](metadata-form.md)、[metadata-entity-write.md](metadata-entity-write.md) |
 | `PrintTplWriteProbe`（`APPLY=1`，走 `meta ptpl apply` / `meta ptpl restore`） | 三条写法：`--set` 按「控件 + 属性路径」改已有标量（不新建属性、类型跟旧值走）；`--file` 整份提交改好的设计数据，加控件、加表格、改公式走这条；`restore` 把备份目录里那份原样写回。落库前过差异比对、公式试算、平台解析和拓扑审计，落库后回读核对 | [print-template-write.md](print-template-write.md) |
 | `OpSandbox` / `FormSim` / `FormCallbackSim` / `FormFlowSim` / `ListSim`（走 `run op` / `run form` / `run callback` / `run flow` / `run list`） | 回滚操作、开表单、父子页回调/整条流程、限量运行标准/树列表插件；主动写交互强制回滚 | [run.md](run.md) |
 | `RuleSim`（走 `run rule form` / `run rule biz`） | form：布局静态显隐 + 容器传播 + 界面规则，按字段粒度出终态；biz：目标字段被算成什么值。不建 View 不装插件 | [run.md](run.md) |
@@ -157,13 +157,13 @@ public class MyProbe {
 |---|---|---|
 | 排版：有没有居中 / 在第几列 / 多大 | 转 PNG 读进来看 | `PrintMeasureProbe`（图片和文字都能量），直接吐 `cx=421.0 Δ=+0.3 [单图·居中]` |
 | 颜色、像素、图像内容 | 把整张图读进来 | 探针里扫包围盒 / 采样点 RGB，打印数值 |
-| 字节码：某方法内部怎么调的 | `javap -c` 输出整段进上下文 | dump 到 `.cosmic-ai/evidence/` 文件里再 Grep |
+| 字节码：某方法内部怎么调的 | `javap -c` 输出整段进上下文 | dump 到 `.cosmic-ai/scratch/` 文件里再 Grep |
 | 单位换算、纯函数、常量值 | 改代码 → `deploy` → 渲染 → 看偏了 → 再改 | 探针直接打印 `pixelToLom(335)`、`getCurrentDpi()` |
-| 同一份输出换个角度再看一遍 | 改 grep 条件把探针重跑一遍 | 保存到 `.cosmic-ai/evidence/xxx.txt`，之后所有筛选在本地文件上做 |
+| 同一份输出换个角度再看一遍 | 改 grep 条件把探针重跑一遍 | 保存到 `.cosmic-ai/scratch/xxx.txt`，之后所有筛选在本地文件上做 |
 
 **能在探针里离线算清的绝不端到端试**（改一轮业务代码 `fast` 40 秒、`deploy` 3~4 分钟），
 图片只在最后确认整体观感时看一张。换过滤条件重跑等的是**同一份输出**的第二遍 ——
-第一次就保存到 `.cosmic-ai/evidence/`。
+第一次就保存到 `.cosmic-ai/scratch/`（几天没改自动清）。
 
 ## 环境变量与输出
 

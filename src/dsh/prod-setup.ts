@@ -3,7 +3,7 @@
  *
  * 两处用它：
  *   - `/cosmic-prod-setup` 命令：人主动配；配齐了的也能从这里重填数据库连接或 monitor 账号；
- *   - 排障会话里 `cosmic_prod` 的调用（`ensureProdConfig`）：数据库那几项不齐就先弹向导，填完接着查。
+ *   - `cosmic_prod` 的调用（`ensureProdConfig`）：数据库那几项不齐就先弹向导，填完接着查。
  *     人点了「不填了」或没确认，本会话不再自动弹，之后照实返回「没配置」和命令用法。
  *
  * 写之前用还没落盘的答案连一次生产库：主机、端口、账号、密码填错了当场就知道，不用等到第一次查询。
@@ -12,6 +12,8 @@
  * 密码在提问框里是明文，只写到本机这个文件；确认单和返回给模型的话里都不带密码。
  */
 
+import type { Agent } from "@deepseek-ai/dsh-agent";
+import type { UserQuestionService } from "@deepseek-ai/dsh-user-questions";
 import type { KernelResult } from "../kernel/errors.ts";
 import {
 	monitorUrlProblem,
@@ -236,7 +238,7 @@ export async function configureProd(
 	};
 }
 
-/** 一个排障会话里生产排障配置向导问到哪一步了 */
+/** 一个会话里生产排障配置向导问到哪一步了 */
 export interface ProdSetupPromptState {
 	/** 人不填了或没确认：本会话不再自动弹 */
 	stopAsking: boolean;
@@ -271,5 +273,81 @@ export async function ensureProdConfig(
 		return outcome;
 	} finally {
 		state.flight = undefined;
+	}
+}
+
+export const ALLOW_PROD = "允许";
+export const DENY_PROD = "不允许";
+export const PROD_CONSENT_QUESTION = "这个会话要查生产，允许吗？";
+export const PROD_CONSENT_DETAIL =
+	"只读查生产库、生产元数据和 monitor 日志，不写生产；每次查询记在工程的 .cosmic-ai/evidence/prod-audit.jsonl。允许后本会话不再问。";
+
+/**
+ * 问人「这个会话能不能查生产」的结果。`unavailable` 是框根本弹不出来（无界面运行时提问服务没有人能答，
+ * 直接报错），和人点了「不允许」、跳过不是一回事。
+ */
+export type ProdConsentAnswer = "allowed" | "declined" | "unavailable";
+export type AskProdConsent = () => Promise<ProdConsentAnswer>;
+
+/**
+ * 经 dsh 的提问服务问一次。提问服务报错（无界面运行时没有人能答，报 NO_PROVIDER）算弹不出来；
+ * 人点了「不允许」或跳过才算不同意；人中途停了这一轮也会报错，那不是弹不出来，算不同意。
+ * 不借 `questionAsk`：它把报错和跳过都变成「没答」，无界面运行就永远查不了生产。
+ */
+export async function askProdConsentVia(
+	questions: UserQuestionService | undefined,
+	agent: Agent | undefined,
+	signal: AbortSignal,
+): Promise<ProdConsentAnswer> {
+	if (questions === undefined) return "unavailable";
+	try {
+		const answer = await questions.ask({
+			...(agent === undefined ? {} : { agent }),
+			signal,
+			questions: [
+				{
+					id: "cosmic-prod-consent",
+					header: "查生产",
+					question: PROD_CONSENT_QUESTION,
+					detail: PROD_CONSENT_DETAIL,
+					options: [{ label: ALLOW_PROD }, { label: DENY_PROD }],
+					intent: { kind: "approval", approve: ALLOW_PROD, reject: DENY_PROD },
+				},
+			],
+		});
+		const item = answer.answers.find((one) => one.id === "cosmic-prod-consent");
+		return item?.selected.includes(ALLOW_PROD) === true ? "allowed" : "declined";
+	} catch {
+		return signal.aborted ? "declined" : "unavailable";
+	}
+}
+
+/** 本会话查生产问没问过人、人答了什么 */
+export interface ProdConsentState {
+	/** 人点过「允许」：本会话之后不再问 */
+	allowed: boolean;
+	/** 同一轮并行的几个调用只弹一个框，其余的等它 */
+	flight: Promise<ProdConsentAnswer> | undefined;
+}
+
+export function initialProdConsentState(): ProdConsentState {
+	return { allowed: false, flight: undefined };
+}
+
+/**
+ * 本会话第一次连生产前问人一次。开发和查生产在同一个会话里，这个框让人看得见「这个会话碰了生产」，
+ * 也拦住普通开发需求里顺手去查生产。允许了本会话不再问；不允许或跳过，这次不查，下次调用再问。
+ * 框弹不出来（没有提问服务，或无界面运行时没有人能答）就放行：生产只读靠的是 cosmic_prod 的闸，不是这个框。
+ */
+export async function ensureProdConsent(state: ProdConsentState, ask: AskProdConsent | undefined): Promise<boolean> {
+	if (state.allowed || ask === undefined) return true;
+	state.flight ??= ask();
+	const flight = state.flight;
+	try {
+		const answer = await flight;
+		if (answer === "allowed") state.allowed = true;
+		return answer !== "declined";
+	} finally {
+		if (state.flight === flight) state.flight = undefined;
 	}
 }

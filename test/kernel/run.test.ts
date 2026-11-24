@@ -1041,6 +1041,20 @@ describe("必填字段预检挑得出该检查的场景", () => {
  * S27 真机 2026-09-19：运行真提交后，「同一个问题问第三遍就拦」会拦错——
  * 还原一张单的备注被当成「问过三遍」挡下，可中间另一次运行已经把那格改掉了。
  */
+describe("run form 把本工程包前缀交给探针", () => {
+	it("FormSim 按它从真装上的插件里挑出本工程的发 own-plugins；不给，事实账把表单插件全报成没跑到", async () => {
+		// 真机：表单日志里 SysXNLTestFormPlugin 装上了、propertyChanged 也跑了，cosmic_facts 却说它没跑到
+		const fake = runFake();
+		fake.fs.put(
+			fake.ctx.layout.impactIndex,
+			JSON.stringify({ kind: "ImpactIndex", classes: [{ class: "zlgd.demo.DemoFormPlugin", bindings: [] }] }),
+		);
+		fake.proc.handler = () => ({ status: 0, stdout: "[PROBE-OK]\n" });
+		await run(fake.ctx, ["form", "zlgd_bill", "--pk", "1", "--show", "billno"]);
+		expect(fake.proc.runsOf("java")[0]?.env.OP_PKGS).toContain("zlgd");
+	});
+});
+
 describe("--schedule 只走常驻进程（S37 2-E.4）", () => {
 	it("常驻进程用不上时不降级冷进程：冷进程跑完就退，发起的流程没人接", async () => {
 		const fake = runFake();

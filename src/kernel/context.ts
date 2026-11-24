@@ -179,6 +179,25 @@ export function poolProps(config: Pick<KernelConfig, "dbLink">): string[] {
  */
 export const KEEP_EXCEPTION_STACKS = "-XX:-OmitStackTraceInFastThrow";
 
+/** Product defaults a user's own value of the same option replaces instead of fighting with. */
+const REPLACEABLE_JVM_OPTIONS: readonly RegExp[] = [/^-Xmx/, /^-Xms/, /^-XX:MaxMetaspaceSize=/];
+
+/**
+ * A JVM's built-in memory options minus the ones config.json's `jvmArgs` sets itself.
+ * The rest of `jvmArgs` goes after the product's own options (see `userJvmArgs`), so a
+ * user `-Dx=y` is the one the JVM keeps.
+ */
+export function productJvmOptions(config: Pick<KernelConfig, "jvmArgs">, defaults: readonly string[]): string[] {
+	return defaults.filter(
+		(option) => !REPLACEABLE_JVM_OPTIONS.some((re) => re.test(option) && config.jvmArgs.some((arg) => re.test(arg))),
+	);
+}
+
+/** config.json `jvmArgs`, for every JVM that runs the project's launch class. */
+export function userJvmArgs(config: Pick<KernelConfig, "jvmArgs">): string[] {
+	return [...config.jvmArgs];
+}
+
 /** `-Dcosmic.*` properties the probe host reads. Ported unchanged from config.mjs. */
 export function jvmProps(config: KernelConfig): string[] {
 	return [

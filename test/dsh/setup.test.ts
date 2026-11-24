@@ -1,6 +1,8 @@
 /**
- * 工程配置向导（/cosmic-env 里，以及工具第一次要打开工程时配置不全）：缺什么问什么、填错重问、
- * 按手机号选用户、不确认不写；工具调用里自己弹，人不填就本会话不再弹，补救改成请用户敲 /cosmic-env。
+ * 工程配置向导（/cosmic-env 里，以及工具第一次要打开工程时配置不全）：只问账套和用户——
+ * 账套从环境列出来的名单里选、用户按手机号查出来选，选完直接写、不再弹确认单；
+ * 工程文件里认得出来的项（启动类、模块……）缺了不问人，交给模型；
+ * 工具调用里自己弹，人不填就本会话不再弹，补救改成请用户敲 /cosmic-env。
  */
 import { describe, expect, it } from "vitest";
 import { type CallContext, CosmicHost } from "../../src/dsh/host.ts";
@@ -10,6 +12,7 @@ import { CosmicSession } from "../../src/dsh/session.ts";
 import { type Ask, configureProject } from "../../src/dsh/setup.ts";
 import type { DoctorReport } from "../../src/kernel/commands/doctor.ts";
 import type { ProjectConfigAnswers } from "../../src/kernel/config/initialize.ts";
+import { USER_ANSWERED_FIELDS } from "../../src/kernel/config/load-config.ts";
 import { KernelError } from "../../src/kernel/errors.ts";
 
 const ROOT = "D:/demo/project";
@@ -27,9 +30,16 @@ function report(missing: string[]): DoctorReport {
 	} as unknown as DoctorReport;
 }
 
-function fakeKernel(missing: string[]) {
+const ACCOUNTS = [
+	{ id: "1700000000000000001", number: "demo_dev", name: "开发账套" },
+	{ id: "1700000000000000002", number: "demo_uat", name: "测试账套" },
+];
+
+function fakeKernel(missing: string[], accounts = ACCOUNTS) {
 	const written: ProjectConfigAnswers[] = [];
 	const lookups: string[] = [];
+	const userLookupAccounts: (string | undefined)[] = [];
+	let accountLookups = 0;
 	let current = missing;
 	const kernel = {
 		discover: async () => ({ ok: true as const, value: { root: ROOT, source: "cwd" as const } }),
@@ -48,8 +58,13 @@ function fakeKernel(missing: string[]) {
 				},
 			};
 		},
-		lookupUsers: async (_root: string, keyword: string) => {
+		lookupAccounts: async () => {
+			accountLookups++;
+			return { ok: true as const, value: { candidates: accounts, outputFile: "D:/out.txt" } };
+		},
+		lookupUsers: async (_root: string, keyword: string, pending: { account?: string }) => {
 			lookups.push(keyword);
+			userLookupAccounts.push(pending.account);
 			return {
 				ok: true as const,
 				value: {
@@ -61,11 +76,17 @@ function fakeKernel(missing: string[]) {
 			};
 		},
 	};
-	return { kernel: kernel as unknown as Parameters<typeof configureProject>[0], written, lookups };
+	return {
+		kernel: kernel as unknown as Parameters<typeof configureProject>[0],
+		written,
+		lookups,
+		userLookupAccounts,
+		accountLookups: () => accountLookups,
+	};
 }
 
-/** 按顺序回答文字题；选择题选第一项；确认单按 approve 回答。 */
-function scripted(texts: string[], approve = true) {
+/** 按顺序回答文字题；选择题按 picks 选（不给就选第一项）；确认单按 approve 回答。 */
+function scripted(texts: string[], picks: number[] = []) {
 	const asked: string[] = [];
 	const ask: Ask = {
 		async text(question) {
@@ -74,11 +95,11 @@ function scripted(texts: string[], approve = true) {
 		},
 		async choose(question, _detail, options) {
 			asked.push(question);
-			return options[0];
+			return options[picks.shift() ?? 0];
 		},
 		async approve(question) {
 			asked.push(question);
-			return approve;
+			return true;
 		},
 	};
 	return { ask, asked };
@@ -92,21 +113,35 @@ describe("工程配置向导", () => {
 		expect(asked).toEqual([]);
 	});
 
-	it("缺的逐项问；填错的重问一次；用户放最后、按手机号查出来选；确认后写", async () => {
-		const { kernel, written, lookups } = fakeKernel(["user", "isv", "codeModules"]);
-		const { ask, asked } = scripted(["Demo!", "demo", "':demo-biz', demo-biz", "13800000000"]);
+	it("只有账套和用户是问人的", () => {
+		expect([...USER_ANSWERED_FIELDS].sort()).toEqual(["account", "user"]);
+	});
+
+	it("账套从环境列出来的名单里选、写编码；用户按手机号查出来选，查的时候带上刚选的账套；选完直接写，不弹确认单", async () => {
+		const { kernel, written, lookups, userLookupAccounts } = fakeKernel(["account", "user"]);
+		const { ask, asked } = scripted(["13800000000"], [1, 0]);
 		const outcome = await configureProject(kernel, ask, ROOT);
 		expect(outcome.kind).toBe("ready");
-		expect(asked).toEqual([
-			"工程配置 · ISV 标识",
-			"工程配置 · ISV 标识",
-			"工程配置 · 代码模块",
-			"工程配置 · 用户",
-			"工程配置 · 选一个用户",
-			"写入工程配置？",
-		]);
+		expect(asked).toEqual(["工程配置 · 选一个账套（数据中心）", "工程配置 · 用户", "工程配置 · 选一个用户"]);
 		expect(lookups).toEqual(["13800000000"]);
-		expect(written).toEqual([{ isv: "demo", codeModules: ["demo-biz"], user: "1001" }]);
+		expect(userLookupAccounts).toEqual(["demo_uat"]);
+		expect(written).toEqual([{ account: "demo_uat", user: "1001" }]);
+		if (outcome.kind === "ready") expect(outcome.text).toContain("测试账套");
+	});
+
+	it("列不出账套：说清为什么，改成让人敲编码", async () => {
+		const { kernel, written } = fakeKernel(["account"], []);
+		const { ask, asked } = scripted(["demo_dev"]);
+		expect((await configureProject(kernel, ask, ROOT)).kind).toBe("ready");
+		expect(asked).toEqual(["工程配置 · 账套（数据中心）"]);
+		expect(written).toEqual([{ account: "demo_dev" }]);
+	});
+
+	it("名单里没有要的：选「手工输入」再敲", async () => {
+		const { kernel, written } = fakeKernel(["account"]);
+		const { ask } = scripted(["demo_other"], [ACCOUNTS.length]);
+		await configureProject(kernel, ask, ROOT);
+		expect(written).toEqual([{ account: "demo_other" }]);
 	});
 
 	it("id:1234567 直接当用户 id，不连环境查", async () => {
@@ -117,25 +152,32 @@ describe("工程配置向导", () => {
 		expect(written).toEqual([{ user: "1234567" }]);
 	});
 
-	it("不确认就不写；中途不填就停，说清停在哪", async () => {
-		const declined = fakeKernel(["isv"]);
-		expect(await configureProject(declined.kernel, scripted(["demo"], false).ask, ROOT)).toEqual({
-			kind: "stopped",
-			text: "没确认，工程配置没写。",
-		});
-		expect(declined.written).toEqual([]);
+	it("工程文件里认得出的项缺了：不问人、不起 JVM 列账套，说清交给模型补", async () => {
+		const { kernel, written, accountLookups } = fakeKernel(["appClass", "account", "user"]);
+		const { ask, asked } = scripted([]);
+		const outcome = await configureProject(kernel, ask, ROOT);
+		expect(outcome.kind).toBe("stopped");
+		if (outcome.kind === "stopped") {
+			expect(outcome.text).toContain("appClass");
+			expect(outcome.text).toContain("cosmic_doctor action=config");
+		}
+		expect(asked).toEqual([]);
+		expect(accountLookups()).toBe(0);
+		expect(written).toEqual([]);
+	});
 
-		const quit = fakeKernel(["isv", "account"]);
-		const outcome = await configureProject(quit.kernel, scripted(["demo", ""]).ask, ROOT);
-		expect(outcome).toEqual({ kind: "stopped", text: "工程配置没填完（停在「账套」），没写。" });
+	it("中途不填就停，说清停在哪，什么都不写", async () => {
+		const quit = fakeKernel(["account", "user"]);
+		const outcome = await configureProject(quit.kernel, scripted([""], [0]).ask, ROOT);
+		expect(outcome).toEqual({ kind: "stopped", text: "工程配置没填完（停在「用户」），没写。" });
 		expect(quit.written).toEqual([]);
 	});
 
-	it("同一项连错三次就停，不无限问", async () => {
-		const { kernel, written } = fakeKernel(["isv"]);
-		const { ask, asked } = scripted(["A!", "B!", "C!", "demo"]);
+	it("账套留空就停，只问一次、什么都不写", async () => {
+		const { kernel, written } = fakeKernel(["account"], []);
+		const { ask, asked } = scripted([" ", "demo_dev"]);
 		expect((await configureProject(kernel, ask, ROOT)).kind).toBe("stopped");
-		expect(asked).toHaveLength(3);
+		expect(asked).toHaveLength(1);
 		expect(written).toEqual([]);
 	});
 });
@@ -149,15 +191,23 @@ describe("工具第一次要打开工程、配置不全：在这次调用里弹�
 			open: async () => {
 				opens++;
 				const doctor = await fake.kernel.doctor(ROOT);
-				if (doctor.ok && !doctor.value.ok)
+				if (doctor.ok && !doctor.value.ok) {
+					const fields = doctor.value.missingRequired.map((item) => item.field);
 					return {
 						ok: false,
-						error: new KernelError("CONFIG_INCOMPLETE", "配置不全，缺 1 项：isv", { remedy: "补在 config.json" }),
+						error: new KernelError("CONFIG_INCOMPLETE", `配置不全，缺 ${String(fields.length)} 项`, {
+							detail: {
+								fromProject: fields.filter((field) => !USER_ANSWERED_FIELDS.includes(field)),
+								askUser: fields.filter((field) => USER_ANSWERED_FIELDS.includes(field)),
+							},
+							remedy: "用 cosmic_doctor action=config 写进工程配置",
+						}),
 					};
+				}
 				return { ok: true, value: { handle: {}, summary: { root: ROOT, runtimeKeyId: "rk1" } } };
 			},
 		} as unknown as CosmicKernel;
-		const host = new CosmicHost("dev", kernel);
+		const host = new CosmicHost(kernel);
 		const call = (): CallContext => ({
 			tool: "cosmic_probe",
 			session,
@@ -170,19 +220,28 @@ describe("工具第一次要打开工程、配置不全：在这次调用里弹�
 		return { host, call, written: fake.written, opens: () => opens };
 	}
 
-	it("填好就接着打开，这次调用照常往下走；并行的调用只弹一个", async () => {
-		const { host, call, written } = hostWith(["isv"]);
-		const { ask, asked } = scripted(["demo"]);
+	it("只缺账套：选好就接着打开，这次调用照常往下走；并行的调用只弹一个", async () => {
+		const { host, call, written } = hostWith(["account"]);
+		const { ask, asked } = scripted([]);
 		host.askInCall = () => ask;
 		const [a, b] = await Promise.all([host.project(call(), {}), host.project(call(), {})]);
 		expect(a.root).toBe(ROOT);
 		expect(b.root).toBe(ROOT);
-		expect(written).toEqual([{ isv: "demo" }]);
-		expect(asked.filter((q) => q === "工程配置 · ISV 标识")).toHaveLength(1);
+		expect(written).toEqual([{ account: "demo_dev" }]);
+		expect(asked.filter((q) => q === "工程配置 · 选一个账套（数据中心）")).toHaveLength(1);
+	});
+
+	it("缺的是工程里认得出的项：一个框都不弹，内核的报错（叫模型自己补）原样交回", async () => {
+		const { host, call } = hostWith(["debugModule", "user"]);
+		const { ask, asked } = scripted([]);
+		host.askInCall = () => ask;
+		const failure = await host.project(call(), {}).catch((error: unknown) => error);
+		expect(String((failure as Error).message)).toContain("cosmic_doctor action=config");
+		expect(asked).toEqual([]);
 	});
 
 	it("人不填：照实报配置不全、请用户敲 /cosmic-env；本会话不再弹", async () => {
-		const { host, call, written } = hostWith(["isv"]);
+		const { host, call, written } = hostWith(["user"]);
 		const { ask, asked } = scripted([""]);
 		host.askInCall = () => ask;
 		const failure = await host.project(call(), {}).catch((error: unknown) => error);
@@ -194,10 +253,10 @@ describe("工具第一次要打开工程、配置不全：在这次调用里弹�
 	});
 
 	it("没有提问服务（无头运行）：不弹，原样报内核的错", async () => {
-		const { host, call } = hostWith(["isv"]);
+		const { host, call } = hostWith(["user"]);
 		host.askInCall = () => undefined;
 		const failure = await host.project(call(), {}).catch((error: unknown) => error);
-		expect(String((failure as Error).message)).toContain("补在 config.json");
+		expect(String((failure as Error).message)).toContain("cosmic_doctor action=config");
 		expect(String((failure as Error).message)).not.toContain("/cosmic-env");
 	});
 });

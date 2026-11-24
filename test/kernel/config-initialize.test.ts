@@ -20,7 +20,9 @@ describe("project config initialization", () => {
 		);
 		expect(result).toMatchObject({ ok: true, value: { created: true, changed: true } });
 		expect(JSON.parse(fs.read(FILE))).toEqual({ account: "acct", user: "42" });
-		expect(fs.read(`${ROOT}/.cosmic-ai/.gitignore`)).toBe("/config.json\n/evidence/\n/work/\n/probes/\n");
+		expect(fs.read(`${ROOT}/.cosmic-ai/.gitignore`)).toBe(
+			"/config.json\n/evidence/\n/work/\n/probes/\n/sessions/\n/scratch/\n",
+		);
 	});
 
 	it("preserves unknown and existing non-empty fields while filling blanks", () => {
@@ -40,7 +42,9 @@ describe("project config initialization", () => {
 		);
 		expect(result).toMatchObject({ ok: true, value: { writtenFields: ["user"] } });
 		expect(JSON.parse(fs.read(FILE))).toEqual({ future: { enabled: true }, account: "keep", user: "42" });
-		expect(fs.read(`${ROOT}/.cosmic-ai/.gitignore`)).toBe("# local\n/config.json\n/evidence/\n/work/\n/probes/\n");
+		expect(fs.read(`${ROOT}/.cosmic-ai/.gitignore`)).toBe(
+			"# local\n/config.json\n/evidence/\n/work/\n/probes/\n/sessions/\n/scratch/\n",
+		);
 	});
 
 	it("refuses damaged JSON without writing anything", () => {

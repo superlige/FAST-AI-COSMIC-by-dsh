@@ -3,8 +3,8 @@
  *
  * 两处用它：
  *   - `/cosmic-monitor-login` 命令（人主动登）；
- *   - 排障会话里 `cosmic_prod` 的调用（`ensureMonitorLogin`）：会话里第一次用、以及每次查日志前，
- *     monitor 没登录或过期就弹验证码框，人输完再接着查。桌面版选「生产排障」新建会话这一步不经过任何命令，
+ *   - `cosmic_prod` 的调用（`ensureMonitorLogin`）：会话里第一次用、以及每次查日志前，
+ *     monitor 没登录或过期就弹验证码框，人输完再接着查。开始查生产这一步不经过任何命令，
  *     不在这里补，人就得自己想起来敲命令；而提问框要挂在一个正在跑的会话上，工具执行中弹是确认能弹出来的时机
  *     （写元数据确认单走的同一条路）。
  * 人点了「不填了」或界面弹不了，本会话就不再问；之后查日志照常返回「没登录」和命令用法。
@@ -70,7 +70,7 @@ export async function loginMonitor(
 	return { kind: "failed", text: previous };
 }
 
-/** 一个排障会话里 monitor 登录问到哪一步了 */
+/** 一个会话里 monitor 登录问到哪一步了 */
 export interface MonitorPromptState {
 	/** 会话里第一次用 cosmic_prod 时已经看过一次 */
 	checked: boolean;

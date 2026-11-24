@@ -537,7 +537,8 @@ describe("控件 id", () => {
 
 describe("候选工作区（批 2.1）", () => {
 	const DUMP = "D:/proj/dump";
-	const WORK = "D:/proj/cand";
+	// 候选是本会话的导出：放在本会话目录里（见 output-paths.ts），照返回里的完整路径再调
+	const WORK = "D:/proj/.cosmic-ai/sessions/_local/exports/cand";
 
 	function fake(): FakeContext {
 		const one = makeContext({});

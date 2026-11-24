@@ -199,7 +199,7 @@ ${block("static final class Link")}
 
 	it("建行层级：改完的规则过整条平台校验只拦新增的问题，丢了原有的上下游关联要拦，全在第一次保存之前", () => {
 		const run = block("public static void run()");
-		const before = run.indexOf("checkedBefore = link == null ? null : platformCheck(el)");
+		const before = run.indexOf("checkedBefore = wholeCheck ? platformCheck(el) : null");
 		const applied = run.indexOf("applyLink(h, el, link, st, tt, linkErrors)");
 		const after = run.indexOf("!checkedBefore.contains(msg)");
 		const firstSave = run.indexOf("ConvertRuleWriter.save(");
@@ -219,6 +219,74 @@ ${block("static final class Link")}
 		expect(linkEntity).toContain("instanceof LinkEntryProp");
 		// 关联子实体（*_lk）本身也是 EntryType，不能当建行实体
 		expect(block("private static EntityType rowEntity")).toContain("!(e instanceof LinkEntryType)");
+	});
+
+	it.skipIf(javac.status !== 0)(
+		"SYNC_FILTER / SYNC_RUN_CONDITION：空串是不改，clear 不分大小写是清掉，其余原样当公式",
+		() => {
+			const dir = mkdtempSync(join(tmpdir(), "botp-cond-"));
+			try {
+				writeFileSync(
+					join(dir, "CondMain.java"),
+					`import java.io.FileOutputStream;
+import java.io.PrintStream;
+
+public class CondMain {
+${block("static final class Cond")}
+    public static void main(String[] a) throws Exception {
+        PrintStream out = new PrintStream(new FileOutputStream(a[0]), true, "UTF-8");
+        for (int i = 1; i < a.length; i++) {
+            Cond c = Cond.parse(i % 2 == 1 ? Cond.FILTER : Cond.RUN, a[i]);
+            out.println(c == null ? "NONE" : c.part() + "|" + c.expr + "|" + c.label());
+        }
+    }
+}
+`,
+				);
+				const compiled = spawnSync("javac", ["-encoding", "UTF-8", "-d", dir, join(dir, "CondMain.java")], {
+					encoding: "utf8",
+				});
+				expect(compiled.stderr).toBe("");
+				const out = join(dir, "out.txt");
+				const inputs = [" ", "CLEAR", " org.number in ('0101','0301') ", "clear"];
+				const ran = spawnSync("java", ["-cp", dir, "CondMain", out, ...inputs], { encoding: "utf8" });
+				expect(ran.status, ran.stderr).toBe(0);
+				expect(readFileSync(out, "utf8").replace(/\r\n/g, "\n").trim().split("\n")).toEqual([
+					"NONE",
+					"执行条件||清掉",
+					"源单过滤|org.number in ('0101','0301')|改成 org.number in ('0101','0301')",
+					"执行条件||清掉",
+				]);
+			} finally {
+				rmSync(dir, { recursive: true, force: true });
+			}
+		},
+	);
+
+	it("改条件：整条平台校验改前改后各跑一次、只拦新增的；高级条件不改；写完回读，全在第一次保存前后各就各位", () => {
+		const run = block("public static void run()");
+		const before = run.indexOf("checkedBefore = wholeCheck ? platformCheck(el) : null");
+		const applied = run.indexOf("applyCondition(h, el, c, st, condErrors)");
+		const after = run.indexOf("!checkedBefore.contains(msg)");
+		const abort = run.indexOf("校验不通过");
+		const firstSave = run.indexOf("ConvertRuleWriter.save(");
+		expect(before).toBeGreaterThan(0);
+		expect(before).toBeLessThan(applied);
+		expect(applied).toBeLessThan(after);
+		expect(after).toBeLessThan(abort);
+		expect(abort).toBeLessThan(firstSave);
+		expect(run).toContain("failed += errors.size() + linkErrors.size() + condErrors.size();");
+		expect(run.indexOf("readBackConditions(changed, conds)")).toBeGreaterThan(
+			run.lastIndexOf("ConvertRuleWriter.clearCache("),
+		);
+		const apply = block("private static List<String> applyCondition");
+		// 高级条件开着时下推不读 getCondition()，改了等于没改
+		expect(apply).toMatch(/Boolean\.TRUE\.equals\(fp\.getAdvCondition\(\)\)\)\s*\{\s*errors\.add/);
+		// 公式按源单核，核不过进 errors（整批不写）
+		expect(apply).toMatch(/FormulaCheck\.rule\(c\.expr, st\), true\)\) \{\s*errors\.add/);
+		// 改前改后都取平台自己拼的那一条
+		expect(apply).toContain("now.buildFullFormula(st)");
+		expect(block("private static String fullFormula")).toContain("c.buildFullFormula(st)");
 	});
 
 	it("源字段和公式按每条规则自己的源单解析，不拿第一条规则的源单套全部", () => {

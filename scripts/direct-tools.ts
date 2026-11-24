@@ -7,12 +7,12 @@
  * 写元数据要弹确认单的调用一律当「弹不了」：这里没有人点，不会落库。
  */
 
-import { toolsForMode } from "../src/agent/state/prod-state.ts";
 import { COSMIC_TOOL_NAMES } from "../src/agent/tools/names.ts";
 import { checkArgs } from "../src/dsh/define.ts";
 import { cosmicToolSpecs } from "../src/dsh/fixed-text.ts";
 import { type HookDeps, preExecute } from "../src/dsh/hooks.ts";
 import { type CallContext, CosmicHost, now } from "../src/dsh/host.ts";
+import { COSMIC_AGENT_DIR } from "../src/dsh/prod-secrets.ts";
 import { CosmicToolFailure } from "../src/dsh/result.ts";
 
 export interface DirectCall {
@@ -23,24 +23,25 @@ export interface DirectCall {
 
 export interface DirectTools {
 	call(name: string, args: Record<string, unknown>): Promise<DirectCall>;
-	/** 这个模式挂给模型的产品工具。 */
+	/** 挂给模型的产品工具。 */
 	mounted: readonly string[];
 	host: CosmicHost;
 }
 
-export async function directTools(project: string, mode: "dev" | "prod" = "dev"): Promise<DirectTools> {
-	const host = new CosmicHost(mode);
+export async function directTools(project: string): Promise<DirectTools> {
+	const host = new CosmicHost();
 	// 插件入口在登记技能时记下技能文档目录，知识卡片的出处靠它换成能读的路径。
 	const skills = await host.kernel.referenceSkills();
 	if (skills.ok) host.referenceDocsDir = skills.value.docsDir;
 	const specs = cosmicToolSpecs(host, async () => ({ kind: "unavailable", reason: "直接调用工具，没有人点确认单" }));
-	const mounted = toolsForMode(mode, COSMIC_TOOL_NAMES);
-	const byName = new Map(specs.filter((spec) => mounted.includes(spec.name)).map((spec) => [spec.name, spec]));
+	const mounted = [...COSMIC_TOOL_NAMES];
+	const byName = new Map(specs.map((spec) => [spec.name, spec]));
 	const agent = { id: `direct-${Date.now()}` };
 	const deps: HookDeps = {
 		host,
 		cwdOf: async () => project,
 		ungated: (toolName, args) => byName.get(toolName as never)?.ungated?.(args as never) === true,
+		agentDir: COSMIC_AGENT_DIR,
 	};
 
 	async function call(name: string, args: Record<string, unknown>): Promise<DirectCall> {

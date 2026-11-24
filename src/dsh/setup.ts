@@ -1,15 +1,20 @@
 /**
- * 工程配置向导：`/cosmic-env` 发现工程的 `config.json` 缺必填项时，一项一项问人，问完弹确认单再写。
+ * 工程配置向导：只问工程文件里答不出来的两项——账套（数据中心）和用户。
  *
- * 只补空字段；`user` 不问 id，问手机号（也认用户名、姓名），连一次环境查出候选让人选——
- * 用户 id 填错了完全没有症状，只是从此每次写入的修改人都记在别人头上，而没有人记得自己的 id。
- * 纯数字一律当关键字查（手机号也是纯数字），要直接给 id 写 `id:1234567`。
+ * 别的必填项（ISV、调试模块、代码模块、启动类、配置方法）都是工程文件里的事实：自动探测认得出就不问，
+ * 认不出就交给模型读工程文件、用 `cosmic_doctor action=config` 写，不来问人。
+ * 账套和用户不一样：工程里没有答案，填错了也没有任何症状（连的是别的账套、修改人记在别人头上），
+ * 所以只让人选，而且是从环境里查出来的名单里选：
+ *   - 账套：起一次冷进程列出这个环境的全部账套（约半分钟），选一个；列不出来才让人敲编码；
+ *   - 用户：问手机号（也认用户名、姓名），连环境查出候选来选；要直接给 id 写 `id:1234567`。
+ * 人选的就是答案，选完直接写，不再弹确认单。只补空字段。
  *
  * 问人的事交给 `Ask`（命令里接 dsh 的提问窗），这里只管流程，测试用假的 `Ask`。
  */
 
 import type { ProjectConfigAnswers } from "../kernel/config/initialize.ts";
 import { validateProjectConfigAnswers } from "../kernel/config/initialize.ts";
+import { USER_ANSWERED_FIELDS } from "../kernel/config/load-config.ts";
 import type { CosmicKernel } from "./kernel.ts";
 
 export interface Ask {
@@ -23,90 +28,91 @@ export interface Ask {
 
 export type SetupOutcome = { kind: "ready"; root: string; text: string } | { kind: "stopped"; text: string };
 
-type ConfigField = keyof ProjectConfigAnswers;
-type Kernel = Pick<CosmicKernel, "doctor" | "discover" | "initializeConfig" | "lookupUsers">;
+type Kernel = Pick<CosmicKernel, "doctor" | "discover" | "initializeConfig" | "lookupUsers" | "lookupAccounts">;
 
 /** 同一项填错这么多次就停下：问到天荒地老不如让人去改文件。 */
 const MAX_TRIES = 3;
 
 const DIRECT_USER_ID = /^id[:：]\s*(\S+)$/i;
-
-function fieldQuestion(field: ConfigField, declared: readonly string[]): [string, string] {
-	const modules = declared.join(", ");
-	const prompts: Record<ConfigField, [string, string]> = {
-		isv: ["ISV 标识", "例如 demo，小写字母和数字"],
-		debugModule: ["调试模块", modules ? `填一个；可选：${modules}` : "settings.gradle 中的模块名"],
-		codeModules: ["代码模块", modules ? `逗号分隔；可选：${modules}` : "逗号分隔的模块名"],
-		appClass: ["启动类", "全限定名，例如 com.example.DebugApplication"],
-		appMethod: ["配置方法", "只配置不启动的方法名，例如 devRemote；配置写在 main 里的填 main"],
-		account: ["账套", "账套编码或账套 ID"],
-		user: ["用户", "手机号（也认用户名或姓名）；已知 id 就写 id:1234567"],
-	};
-	return prompts[field];
-}
-
-/** settings.gradle 里照抄来的 `':demo-biz'` 和 `demo-biz` 是同一个模块。 */
-function moduleAnswer(item: string): string {
-	return item
-		.trim()
-		.replace(/^['"]|['"]$/g, "")
-		.replace(/^:+/, "");
-}
-
-export function oneAnswer(field: ConfigField, raw: string): ProjectConfigAnswers {
-	const value = raw.trim();
-	if (field === "codeModules")
-		return { codeModules: [...new Set(value.split(/[,，]/).map(moduleAnswer).filter(Boolean))] };
-	if (field === "debugModule") return { debugModule: moduleAnswer(value) };
-	return { [field]: value };
-}
+const TYPE_ACCOUNT = "手工输入账套编码";
+const RETRY_USER = "重新输入关键字";
 
 function errorLine(error: { message: string; remedy?: string }): string {
 	return error.remedy ? `${error.message}（${error.remedy}）` : error.message;
 }
 
-async function askField(
-	ask: Ask,
-	field: ConfigField,
-	declared: readonly string[],
-): Promise<ProjectConfigAnswers | undefined> {
-	const [question, hint] = fieldQuestion(field, declared);
-	let problem = "";
+/** 敲账套编码：列表拿不到，或人要的不在列表里。 */
+async function typeAccount(ask: Ask, problem: string): Promise<string | undefined> {
+	let hint = problem === "" ? "账套编码或账套 ID" : `${problem}\n账套编码或账套 ID`;
 	for (let tries = 0; tries < MAX_TRIES; tries += 1) {
-		const raw = await ask.text(`工程配置 · ${question}`, problem === "" ? hint : `${problem}\n${hint}`);
+		const raw = await ask.text("工程配置 · 账套（数据中心）", hint);
 		if (raw === undefined || raw.trim() === "") return undefined;
-		const candidate = oneAnswer(field, raw);
-		const problems = validateProjectConfigAnswers(candidate, declared);
-		if (problems.length === 0) return candidate;
-		problem = `上次填的「${raw.trim()}」不行：${problems.join("；")}`;
+		const problems = validateProjectConfigAnswers({ account: raw.trim() }, []);
+		if (problems.length === 0) return raw.trim();
+		hint = `${problems.join("；")}\n账套编码或账套 ID`;
 	}
 	return undefined;
+}
+
+/** 从环境列出的账套里选一个；写进配置的是账套编码。 */
+async function askAccount(
+	ask: Ask,
+	kernel: Kernel,
+	root: string,
+): Promise<{ account: string; note: string } | undefined> {
+	if (kernel.lookupAccounts === undefined) {
+		const typed = await typeAccount(ask, "");
+		return typed === undefined ? undefined : { account: typed, note: "" };
+	}
+	// 连真实环境：一次冷启动，约半分钟
+	const found = await kernel.lookupAccounts(root, {});
+	const candidates = found.ok ? found.value.candidates : [];
+	if (candidates.length === 0) {
+		const why = found.ok
+			? `这个环境没列出任何账套（探针原文：${found.value.outputFile}）`
+			: `列账套没做成：${errorLine(found.error)}`;
+		const typed = await typeAccount(ask, why);
+		return typed === undefined ? undefined : { account: typed, note: "" };
+	}
+	const labels = candidates.map((one) => `${one.number} · ${one.name || "(无名称)"} · id=${one.id}`);
+	const chosen = await ask.choose(
+		"工程配置 · 选一个账套（数据中心）",
+		"这个环境里的账套都在下面；选中的写进工程配置的 account，以后探针、真跑业务都连它",
+		[...labels, TYPE_ACCOUNT],
+	);
+	if (chosen === undefined) return undefined;
+	if (chosen === TYPE_ACCOUNT) {
+		const typed = await typeAccount(ask, "");
+		return typed === undefined ? undefined : { account: typed, note: "" };
+	}
+	const picked = candidates[labels.indexOf(chosen)];
+	if (picked === undefined) return undefined;
+	const account = picked.number || picked.id;
+	return { account, note: `account = ${picked.name || account}（${account}）` };
 }
 
 async function askUser(
 	ask: Ask,
 	kernel: Kernel,
 	root: string,
-	declared: readonly string[],
 	answers: ProjectConfigAnswers,
 ): Promise<{ id: string; note: string } | undefined> {
-	const [question, hint] = fieldQuestion("user", declared);
+	const hint = "手机号（也认用户名或姓名）；已知 id 就写 id:1234567";
 	let problem = "";
 	for (let tries = 0; tries < MAX_TRIES; tries += 1) {
-		const raw = await ask.text(`工程配置 · ${question}`, problem === "" ? hint : `${problem}\n${hint}`);
+		const raw = await ask.text("工程配置 · 用户", problem === "" ? hint : `${problem}\n${hint}`);
 		if (raw === undefined || raw.trim() === "") return undefined;
 		const keyword = raw.trim();
 		const direct = DIRECT_USER_ID.exec(keyword)?.[1];
 		if (direct !== undefined || kernel.lookupUsers === undefined) {
 			const id = direct ?? keyword;
-			const problems = validateProjectConfigAnswers({ user: id }, declared);
+			const problems = validateProjectConfigAnswers({ user: id }, []);
 			if (problems.length === 0) return { id, note: "" };
 			problem = problems.join("；");
 			continue;
 		}
-		// 这一步连真实环境，第一次是冷启动（约 30～40 秒）；账套和 ISV 还没落盘，作为本次查询的覆盖传进去
+		// 这一步连真实环境；账套还没落盘，作为本次查询的覆盖传进去
 		const found = await kernel.lookupUsers(root, keyword, {
-			...(answers.isv === undefined ? {} : { isv: answers.isv }),
 			...(answers.account === undefined ? {} : { account: answers.account }),
 		});
 		if (!found.ok) {
@@ -118,7 +124,6 @@ async function askUser(
 			problem = `没有匹配「${keyword}」的可用用户，换个关键字，或用 id:1234567 直接指定`;
 			continue;
 		}
-		const retry = "重新输入关键字";
 		const labels = candidates.map(
 			(one, index) =>
 				`${String(index + 1)}) ${one.name || "(无姓名)"} · ${one.username || one.number || "(无用户名)"} · ${one.phoneMask || "无手机号"} · id=${one.id}`,
@@ -126,24 +131,24 @@ async function askUser(
 		const chosen = await ask.choose(
 			"工程配置 · 选一个用户",
 			found.value.truncated
-				? "命中已达上限，还有没列出来的；换更准的关键字可缩小。选中的人写进 config.json 的 user"
-				: "选中的人写进 config.json 的 user，以后写入的修改人记在这个人名下",
-			[...labels, retry],
+				? "命中已达上限，还有没列出来的；换更准的关键字可缩小。选中的人写进工程配置的 user"
+				: "选中的人写进工程配置的 user，以后写入的修改人记在这个人名下",
+			[...labels, RETRY_USER],
 		);
 		if (chosen === undefined) return undefined;
 		const picked = candidates[labels.indexOf(chosen)];
-		if (chosen === retry || picked === undefined) {
+		if (chosen === RETRY_USER || picked === undefined) {
 			problem = "";
 			tries -= 1;
 			continue;
 		}
-		return { id: picked.id, note: `\n\nuser = ${picked.name || picked.number || picked.id}（${picked.id}）` };
+		return { id: picked.id, note: `user = ${picked.name || picked.number || picked.id}（${picked.id}）` };
 	}
 	return undefined;
 }
 
 /**
- * 认工程 → 诊断 → 缺什么问什么 → 确认 → 写 → 再诊断。
+ * 认工程 → 诊断 → 工程里认不出来的项交还给模型 → 账套、用户问人 → 写 → 再诊断。
  * 配置本来就齐的直接 ready，不问人。
  */
 export async function configureProject(kernel: Kernel, ask: Ask, cwd: string): Promise<SetupOutcome> {
@@ -162,29 +167,32 @@ export async function configureProject(kernel: Kernel, ask: Ask, cwd: string): P
 		};
 	if (report.ok) return { kind: "ready", root, text: "" };
 
-	const declared = report.modules.declared;
-	const missing = report.missingRequired.map((item) => item.field as ConfigField);
+	const missing = report.missingRequired.map((item) => item.field);
+	const fromProject = missing.filter((field) => !USER_ANSWERED_FIELDS.includes(field));
+	// 账套要起 JVM 去列，起 JVM 要先有启动类这些：工程里的先补齐，才轮到问人
+	if (fromProject.length > 0)
+		return {
+			kind: "stopped",
+			text:
+				`${fromProject.join("、")} 是从工程文件里认的，这个工程没认出来。` +
+				`在会话里让模型排查（它读工程文件，用 cosmic_doctor action=config 写进去），或手工写进 ${report.projectConfigFile}。`,
+		};
+
 	const answers: ProjectConfigAnswers = {};
-	for (const field of missing) {
-		if (field === "user") continue; // 放最后：查用户要用前面填的账套和 ISV 连环境
-		const answer = await askField(ask, field, declared);
-		if (answer === undefined)
-			return { kind: "stopped", text: `工程配置没填完（停在「${fieldQuestion(field, declared)[0]}」），没写。` };
-		Object.assign(answers, answer);
+	const notes: string[] = [];
+	if (missing.includes("account")) {
+		const picked = await askAccount(ask, kernel, root);
+		if (picked === undefined) return { kind: "stopped", text: "工程配置没填完（停在「账套」），没写。" };
+		answers.account = picked.account;
+		if (picked.note !== "") notes.push(picked.note);
 	}
-	let note = "";
 	if (missing.includes("user")) {
-		const picked = await askUser(ask, kernel, root, declared, answers);
+		const picked = await askUser(ask, kernel, root, answers);
 		if (picked === undefined) return { kind: "stopped", text: "工程配置没填完（停在「用户」），没写。" };
 		answers.user = picked.id;
-		note = picked.note;
+		if (picked.note !== "") notes.push(picked.note);
 	}
-	const confirmed = await ask.approve(
-		"写入工程配置？",
-		`${report.projectConfigFile}\n\n${JSON.stringify(answers, null, 2)}${note}\n\n只补空字段，并确保 /config.json 被 .gitignore 忽略。`,
-	);
-	if (!confirmed) return { kind: "stopped", text: "没确认，工程配置没写。" };
-	const written = await kernel.initializeConfig(root, answers, declared);
+	const written = await kernel.initializeConfig(root, answers, report.modules.declared);
 	if (!written.ok) return { kind: "stopped", text: `工程配置没写成：${errorLine(written.error)}` };
 	const again = await kernel.doctor(root);
 	if (!again.ok)
@@ -197,7 +205,7 @@ export async function configureProject(kernel: Kernel, ask: Ask, cwd: string): P
 	return {
 		kind: "ready",
 		root,
-		text: `工程配置已写入 ${written.value.file}（补了 ${written.value.writtenFields.join("、")}）`,
+		text: `工程配置已写入 ${written.value.file}（补了 ${written.value.writtenFields.join("、")}）${notes.length > 0 ? `：${notes.join("，")}` : ""}`,
 	};
 }
 

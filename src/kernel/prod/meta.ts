@@ -24,7 +24,7 @@ import { prodQuery } from "./reader.ts";
 export const META_COLUMNS = "fid, fnumber, fisv, fparentid, fmasterid, finheritpath, fmodifydate";
 
 export function metaDir(ctx: KernelContext, number: string, side: "prod" | "test"): string {
-	return join(ctx.layout.workDir, "prod", "meta", number, side);
+	return join(ctx.layout.prodWorkDir, "meta", number, side);
 }
 
 export function validNumber(number: string): boolean {
@@ -126,14 +126,38 @@ export interface SideSummary {
 	broken: string[];
 }
 
+/**
+ * 本单在实体、布局两张表里各是哪一行。编号只在一张表里有时（派生布局只有布局行，用的是父单的实体），
+ * 另一张顺着有的那一行自己的链找：同 fid、被扩展的那一层、父、再往根走，最近的一层先认。
+ * 不能拿文件里的第一行凑：两边库返回的行序不一样，生产碰巧排在前面的是本单，测试排在前面的是原厂模板，
+ * 测试一侧只合出模板，比对就报出几百个「只在生产有的字段」。
+ */
+export function selfRows(
+	rows: readonly MetaRow[],
+	number: string,
+): { entity: MetaRow | undefined; form: MetaRow | undefined } {
+	const named = (kind: MetaRow["kind"]) => rows.find((r) => r.kind === kind && r.fnumber === number);
+	const along = (from: MetaRow | undefined, kind: MetaRow["kind"]): MetaRow | undefined => {
+		if (from === undefined) return undefined;
+		const path = from.finheritpath
+			.split(",")
+			.map((id) => id.trim())
+			.reverse();
+		for (const id of [from.fid, from.fmasterid, from.fparentid, ...path]) {
+			if (id === "") continue;
+			const hit = rows.find((r) => r.kind === kind && r.fid === id);
+			if (hit !== undefined) return hit;
+		}
+		return undefined;
+	};
+	const entity = named("entity");
+	const form = named("form");
+	return { entity: entity ?? along(form, "entity"), form: form ?? along(entity, "form") };
+}
+
 export function summarizeSide(rows: readonly MetaRow[], number: string): SideSummary {
 	const broken: string[] = [];
-	const pick = (kind: MetaRow["kind"]): MetaRow | undefined =>
-		rows.find((r) => r.kind === kind && r.fnumber === number) ??
-		// 只给了扩展的编号也认：它的 fmasterid 指向被扩展的那一行，本身就在链里
-		rows.find((r) => r.kind === kind);
-	const entitySelf = pick("entity");
-	const formSelf = pick("form");
+	const { entity: entitySelf, form: formSelf } = selfRows(rows, number);
 	const entityOrder = entitySelf === undefined ? [] : mergeOrder(rows, entitySelf.fid, "entity");
 	const formOrder = formSelf === undefined ? [] : mergeOrder(rows, formSelf.fid, "form");
 	let entity: EntitySummary | null = null;
@@ -273,7 +297,7 @@ export function diffSides(
 	const changedRows: string[] = [];
 	for (const [key, row] of prodByKey) {
 		const other = testByKey.get(key);
-		if (other !== undefined && other.fdata.replace(/\s+/g, "") !== row.fdata.replace(/\s+/g, ""))
+		if (other !== undefined && sameXmlText(other.fdata) !== sameXmlText(row.fdata))
 			changedRows.push(`${key}（生产 ${row.fmodifydate || "?"}，测试 ${other.fmodifydate || "?"}）`);
 	}
 	const fieldKey = (f: { entityKey: string; key: string }): string =>
@@ -313,6 +337,18 @@ export function diffSides(
 		pluginsOnlyTest: only(testPlugins, prodPlugins),
 		pluginsEnabledDiffer,
 	};
+}
+
+/**
+ * 比「内容同不同」前抹掉只是写法不同的地方：两边库存的同一份 XML，一边缩进、空元素写成 `<a/>`，
+ * 另一边不缩进、写成 `<a></a>`（真机：同一时刻改的同一行，原文差 5 万字节，内容一样）。
+ */
+function sameXmlText(xml: string): string {
+	return xml
+		.replace(/^\uFEFF/, "")
+		.replace(/<\?xml[^>]*\?>/, "")
+		.replace(/<([A-Za-z_][\w.:-]*)((?:\s+[^\s=>/]+\s*=\s*"[^"]*")*)\s*\/>/g, "<$1$2></$1>")
+		.replace(/\s+/g, "");
 }
 
 /** 逐项报数，0 也报：漏一行，读的人会猜成「没有差别」 */

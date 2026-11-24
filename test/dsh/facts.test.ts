@@ -134,7 +134,28 @@ describe("cosmic_facts 报净差别", () => {
 		expect(runs).toHaveLength(2);
 		expect(runs[0]).toContain("之后又改过代码，验的不是现在的代码");
 		expect(runs[1]).not.toContain("之后又改过代码");
-		expect(lines).toContain("- 现在的代码：最后一次改代码之后还没编译过");
+		expect(lines).toContain("- 现在的代码：最后一次改代码（A.java）之后还没编译过");
+	});
+
+	it("断言通过之后只写了 Markdown 清单：断言仍算验的现在的代码，编译指纹不作废", () => {
+		const root = project();
+		const a = join(root, "A.java");
+		const notes = join(root, "验收清单.md");
+		writeFileSync(a, "v0\n");
+		writeFileSync(notes, "");
+		const store = new SessionStore<unknown>();
+		const session = store.of("s1");
+		edit(store, "s1", root, a, "v1\n");
+		// 改 Java → 编译 → 断言通过，都在写清单之前。
+		session.lastEditAt = "2000-01-01T00:00:00Z";
+		session.compiles.push({ at: "2000-01-01T00:00:01Z", ok: true, fresh: true, files: 1 });
+		session.runs.push(run("2000-01-01T00:00:02Z"));
+		session.freshness = { capturedAt: "t" } as NonNullable<typeof session.freshness>;
+		edit(store, "s1", root, notes, "- [ ] 联验提交\n");
+		const lines = factsText(session).split("\n");
+		expect(lines).toContain("- 现在的代码：最后一次改代码之后编译通过");
+		expect(lines.find((line) => line.includes("run op demo_bill save"))).not.toContain("验的不是现在的代码");
+		expect(session.freshness).toBeDefined();
 	});
 
 	it("带了 --expect 但断言之前就中断的，报没验成，不说成只看值", () => {

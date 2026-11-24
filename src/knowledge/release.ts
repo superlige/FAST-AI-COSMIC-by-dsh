@@ -13,7 +13,7 @@
  * snapshot id is the right identity here -- it changes exactly when the documents
  * change, which is the only thing that can invalidate this cache.
  */
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { sha256 } from "../runtime/fingerprint.ts";
 import type { KnowledgeSnapshot } from "./pack.ts";
@@ -107,6 +107,8 @@ export async function releaseKnowledge(
 
 	const stamp = await readStamp(layout);
 	if (stamp !== null && stamp.snapshotId === snapshotId && stamp.docCount === files.length) {
+		await markUsed(layout.root);
+		await reclaimSnapshots(dirname(layout.root), snapshotId);
 		return { layout, snapshotId, bundleVersion, docCount: files.length, reused: true, written: 0 };
 	}
 
@@ -135,6 +137,8 @@ export async function releaseKnowledge(
 		writtenAt: new Date().toISOString(),
 	};
 	await writeFile(layout.stampFile, `${JSON.stringify(next, null, 2)}\n`, "utf8");
+	await markUsed(layout.root);
+	await reclaimSnapshots(dirname(layout.root), snapshotId);
 
 	return { layout, snapshotId, bundleVersion, docCount: files.length, reused: false, written };
 }
@@ -161,4 +165,66 @@ export async function verifyKnowledgeRelease(
 		if (actual === null || sha256(actual) !== file.sha256) drifted.push(file.path);
 	}
 	return { ok: drifted.length === 0, checked: snapshot.header.files.length, drifted };
+}
+
+// ------------------------------------------------------------ 旧快照
+
+/**
+ * 文档每改一次就多一份快照目录，以前从来不删：开发机上一个月攒了 92 份、42 MB。
+ *
+ * 一份还有没有人用，看 `used` 记号：每次放出（包括直接沿用）都会刷新它，十分钟内刷过就不再写。
+ * 规则：本次这份不删；最近用过的留 `SNAPSHOT_KEEP` 份；其余 `SNAPSHOT_IDLE_MS` 没用过的删掉。
+ * 留得宽，是因为 pi 版共用这个缓存目录、却不刷新记号：它那份只看放出时刻，一个月没重装才可能被清。
+ * 只认带着合法 `snapshot.json` 的目录，人放进来的东西碰不到。一次清理之后六小时内不再扫。
+ */
+export const SNAPSHOT_KEEP = 5;
+export const SNAPSHOT_IDLE_MS = 30 * 24 * 60 * 60 * 1000;
+const USED_FILE = "used";
+const USED_REFRESH_MS = 10 * 60 * 1000;
+const SNAPSHOT_SWEEP_FILE = "reclaim-stamp.json";
+const SNAPSHOT_SWEEP_INTERVAL_MS = 6 * 60 * 60 * 1000;
+
+async function mtimeOf(path: string): Promise<number | null> {
+	return stat(path).then(
+		(info) => info.mtimeMs,
+		() => null,
+	);
+}
+
+async function markUsed(root: string, now = Date.now()): Promise<void> {
+	const file = join(root, USED_FILE);
+	const last = await mtimeOf(file);
+	if (last !== null && now - last >= 0 && now - last < USED_REFRESH_MS) return;
+	await writeFile(file, `${new Date(now).toISOString()}\n`, "utf8").catch(() => undefined);
+}
+
+/** 清掉一个命名空间（knowledge/、reference/）下很久没用的旧快照，返回删掉的目录名。 */
+export async function reclaimSnapshots(namespaceDir: string, currentId: string, now = Date.now()): Promise<string[]> {
+	const stampFile = join(namespaceDir, SNAPSHOT_SWEEP_FILE);
+	const last = await readFile(stampFile, "utf8").then(
+		(raw) => Date.parse(String((JSON.parse(raw) as { at?: unknown }).at)),
+		() => null,
+	);
+	if (last !== null && now - last >= 0 && now - last < SNAPSHOT_SWEEP_INTERVAL_MS) return [];
+	const entries = await readdir(namespaceDir, { withFileTypes: true }).catch(() => []);
+	const candidates: { name: string; used: number }[] = [];
+	for (const entry of entries) {
+		if (!entry.isDirectory() || entry.name === currentId) continue;
+		const root = join(namespaceDir, entry.name);
+		const stamp = await readStamp({ root, docsDir: root, stampFile: join(root, "snapshot.json") });
+		if (stamp === null || stamp.snapshotId !== entry.name) continue;
+		const used = Math.max((await mtimeOf(join(root, USED_FILE))) ?? 0, Date.parse(stamp.writtenAt) || 0);
+		candidates.push({ name: entry.name, used });
+	}
+	candidates.sort((a, b) => b.used - a.used);
+	const removed: string[] = [];
+	for (const candidate of candidates.slice(SNAPSHOT_KEEP)) {
+		if (now - candidate.used <= SNAPSHOT_IDLE_MS) continue;
+		await rm(join(namespaceDir, candidate.name), { recursive: true, force: true }).catch(() => undefined);
+		removed.push(candidate.name);
+	}
+	await writeFile(stampFile, `${JSON.stringify({ at: new Date(now).toISOString(), removed })}\n`, "utf8").catch(
+		() => undefined,
+	);
+	return removed;
 }

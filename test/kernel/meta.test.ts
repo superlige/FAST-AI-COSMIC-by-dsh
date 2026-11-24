@@ -407,13 +407,13 @@ describe("S5.4 meta command", () => {
 		const result = parseMeta(["ptpl", "dump"]);
 		expect(result.ok).toBe(false);
 		if (result.ok) return;
-		expect(result.error.remedy).toContain("ptpl dump  <模板编码> [--out 目录]");
+		expect(result.error.remedy).toContain("ptpl dump  <模板编码> [--out 名字]");
 		// 续行也带上：可选形态就住在那几行里。
 		expect(result.error.remedy).toContain("[--grid 表格id]");
 		expect(result.error.remedy).toBe(
 			[
 				"用法：",
-				"ptpl dump  <模板编码> [--out 目录]           设计 JSON + 多语言映射落本地，diff 的输入",
+				"ptpl dump  <模板编码> [--out 名字]           设计 JSON + 多语言映射存进本会话导出目录，diff 的输入",
 				"  [--audit [--control 控件] [--detail] [--strict]]   改成拓扑审计",
 				"  [--grid 表格id]                   改成网格摊平（行列下标表）",
 				"  [--overview]                      改成整张模板的结构概览：绑了哪些字段、每格绑什么（先看这个）",

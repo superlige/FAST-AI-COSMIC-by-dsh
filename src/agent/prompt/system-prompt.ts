@@ -10,7 +10,6 @@
  */
 
 import { PRODUCT_DISPLAY_NAME } from "../../brand.ts";
-import { type CosmicMode, toolsForMode } from "../state/prod-state.ts";
 import type { AgentReferenceSkills } from "../tools/kernel-adapter.ts";
 import { COSMIC_TOOL_NAMES } from "../tools/names.ts";
 import { probePolicyPrompt } from "./probe-policy.ts";
@@ -29,30 +28,19 @@ const PROTOCOL_HEAD = [
 	"需求本身有会改变实现路径的分歧（字段、实体、影响范围、取值口径）时，先用提问工具一次问清；分歧不真实就不问，也不替用户定。",
 ];
 
-/** 开发模式：报错要在测试环境跑出来、改完同一条命令再跑一遍 */
-const DEV_ERROR_LINES = [
+/** 报错先找到这一次本身，再在测试环境跑出来、改完同一条命令再跑一遍 */
+const ERROR_LINES = [
 	// 用户的话里常混着三样：报错原文、他判断的原因、他要的改法；原文是环境说的，后两样会错。
-	// 「用不着出错的那条数据」那半句：报错多半来自生产，测试环境没有那张单是常态。
+	// 报错多半来自生产：能直接看生产的日志和数据，就先找到「这一次」（时间、单据、traceId），不从调用栈猜。
+	// 「用不着出错的那条数据」那半句：测试环境没有生产那张单是常态。
 	"用户的话里带报错或调用栈时：报错原文和调用栈是事实，用户定的业务口径照做，用户说的原因和改法是待验证的线索。" +
-		"先顺着调用栈找到抛出的那一行，按认定的原因把同一句报错跑出来（造一张单、cosmic_run call 传那个值、只读探针，用不着出错的那条数据），" +
+		"报错出在生产时，先用 cosmic_prod 在生产日志和数据里找到这一次（时间、单据、traceId）。" +
+		"再顺着调用栈找到抛出的那一行，按认定的原因在测试环境把同一句报错跑出来（造一张单、cosmic_run call 传那个值、只读探针，用不着出错的那条数据），" +
 		"再改；改完同一条命令再跑一遍。查到的和用户说的对不上，先把证据和结论告诉用户，再动手。" +
 		"跑不出来时照实说：原因是推断的，到出错的环境里看什么能确认。",
 ];
 
-/**
- * 生产排障模式：报错多半来自生产，排障模式能直接看生产的日志和数据，所以先找到「这一次」本身；
- * 修复不在这个模式里做，没有「改完再跑」那半句。
- */
-const PROD_ERROR_LINES = [
-	"用户的话里带报错或调用栈时：报错原文和调用栈是事实，用户说的原因是待验证的线索。" +
-		"先在生产日志和数据里找到这一次报错本身（时间、单据、traceId），再顺着调用栈对本地源码；查到的和用户说的对不上，先把证据告诉用户。",
-];
-
-export const EXPENSIVE_TOOL_PROTOCOL = [...PROTOCOL_HEAD, ...DEV_ERROR_LINES].join("\n");
-// 排障模式不挂 cosmic_run，问用法的那一句不点它的名
-export const PROD_TOOL_PROTOCOL = [...PROTOCOL_HEAD, ...PROD_ERROR_LINES]
-	.join("\n")
-	.replace('cosmic_run argv=["help","<子命令>"]、', "");
+export const EXPENSIVE_TOOL_PROTOCOL = [...PROTOCOL_HEAD, ...ERROR_LINES].join("\n");
 
 // 后半句：一个现象出在插件里还是出在配的规则、操作校验、转换规则、流程里，读需求时就要两边都想到。
 const ROLE_METADATA_DRIVEN =
@@ -60,7 +48,7 @@ const ROLE_METADATA_DRIVEN =
 	"一个行为的原因可能在代码里，也可能在元数据的配置里：开发和排错都把两边对着看。查实体结构用已发布探针（MetaProbe 一族）。";
 
 // 实现取向：不写这句时，用户开头说了「能配映射的不要写代码」，模型仍把取值全写进插件、一条字段映射不配。
-// 取向要在读需求、定方案时就在，那时一个工具都还没调，所以放角色段（只给开发模式）；
+// 取向要在读需求、定方案时就在，那时一个工具都还没调，所以放角色段；
 // 各层配置能做什么是平台知识，在技能文档 metadata-or-code.md 里按需读，这里只留顺序。
 const ROLE_CONFIG_FIRST =
 	"实现业务功能先用元数据配置：按单据状态的显隐锁定用字段和控件属性，按字段值的显隐锁定用界面规则，字段间的计算和带值用业务规则，" +
@@ -71,7 +59,7 @@ const ROLE_EVIDENCE =
 	"API 签名、插件事件和运行行为，以当前 JAR、cosmic_knowledge 和 cosmic 工具返回的真实证据为准，不凭记忆猜测：" +
 	"类的真实签名用 cosmic_knowledge action=api 查（全限定类名，一次可给多个，带官方说明），只知道类名片段用 action=findclass 反查全名和所在 jar。";
 
-/** 开发模式的角色段，每个会话的系统提示都以它开头。 */
+/** 角色段，每个会话的系统提示都以它开头。 */
 export const ROLE_PROMPT = [
 	"## fast-ai-cosmic 角色",
 	"",
@@ -81,30 +69,16 @@ export const ROLE_PROMPT = [
 	ROLE_METADATA_DRIVEN,
 	ROLE_CONFIG_FIRST,
 	ROLE_EVIDENCE,
+	// 生产在跑哪一版代码：排查生产问题时拿本地源码对堆栈，靠的就是这个约定。
+	"cosmic_prod 只读查生产（数据库、元数据、monitor 日志）；本地工程源码按约定就是生产在跑的版本（今天以前最后一次提交），之后改过的文件它会标出来。",
 	// 管的是「这张单能不能用、这个报错追不追」，查数据、造数据、跑验证三处都用得上，写进哪一个工具的说明都会漏掉另外两处。
 	// 最后一句是反方向的护栏：用户问的就是「这条数据为什么不对」时，答案常常正是数据旧。
-	"连的是多人共用的测试环境：库里的单据缺字段、停在半截、自身报错都是常态，可以拿来跑、可以改。" +
+	"其余产品工具连的是多人共用的测试环境：库里的单据缺字段、停在半截、自身报错都是常态，可以拿来跑、可以改。" +
 		"验证只要一张走得到本次改动的单，现成的不合适就换一张或用造数探针造；和本次改动无关的既有报错记下来，完成时告诉用户。" +
 		"用户问的就是某条数据为什么不对时，数据本身是要查的对象。",
 	// 要不要新建一张单，是读需求时就定的，那时一个工具都还没调；放在探针段会在没开工程时漏掉。
 	"元数据写入改的是已有对象：新建单据、表单、基础资料这类对象本身由用户在开发平台建。" +
 		"需求要新建时，把要建什么（建议的标识、名称、照哪张建）直接列给用户，其余不依赖它的照常做。",
-].join("\n");
-
-/**
- * 生产排障模式的角色段：身份、元数据驱动、以真实证据为准三句和开发模式共用；
- * 换掉的是「职责是改代码并验证」「连的是测试环境、可以改」——在这个模式下它们不成立。
- */
-export const PROD_ROLE_PROMPT = [
-	"## fast-ai-cosmic 角色",
-	"",
-	"你是 fast-ai-cosmic，一名专业的金蝶云·苍穹二次开发助手。",
-	"这是生产只读排障会话：任务是查清生产环境里一个问题的原因，交付物是诊断报告；不改代码，修复由用户新开开发会话再做。",
-	ROLE_METADATA_DRIVEN,
-	ROLE_EVIDENCE,
-	"cosmic_prod 读生产（数据库、元数据、monitor 日志），只读；其余产品工具连的是测试环境，可以读来对照，" +
-		"改工程文件、写测试库、写元数据、部署在这个会话里会被拒。" +
-		"本地工程源码按约定就是生产在跑的版本（今天以前最后一次提交），之后改过的文件工具会标出来。",
 ].join("\n");
 
 /**
@@ -116,13 +90,9 @@ const ROUTE_LINE =
 	"常规路线：排查和动手前，先用 cosmic_impact 查要动的字段、类或单据在哪些类哪一行读写（经常量引用的也认）、挂在哪张单的哪个插件上；" +
 	"要看现状用 cosmic_run --show。之后改业务 Java → cosmic_fast → cosmic_run --expect 断言。" +
 	"写元数据：写调用（写探针 APPLY=1，或 cosmic_meta 写动作 apply=true）里附 report，工具预演、弹确认单，用户确认后落库并回读；" +
-	"本会话改过的 Java 要先编译新鲜，纯元数据改动不用编译。没有自动验证路线的改动，交用户验收并写清怎么验，不虚构断言。\n";
-
-/** 生产排障模式的路线：和开发模式的 ROUTE_LINE 同一个位置、同一个作用 */
-const PROD_ROUTE_LINE =
-	"排障路线：cosmic_prod action=status 看连到哪 → action=log 按 traceId、单据、时间段找到这次报错（堆栈已对到本地源码）→ " +
-	"action=sql、action=meta 看生产数据和元数据（meta 加 compare=true 和测试环境逐项比）→ 对照本地源码 → " +
-	"action=report 出诊断报告：每条结论引用结果上的证据编号（E1…），没引用的标成推断。\n";
+	"本会话改过的 Java 要先编译新鲜，纯元数据改动不用编译。没有自动验证路线的改动，交用户验收并写清怎么验，不虚构断言。\n" +
+	// 诊断报告只认 cosmic_prod 结果上的证据编号：查明之后先出报告，修复照上面的路线走
+	"查生产问题：cosmic_prod 先 log 找到这一次报错，再 sql、meta 看生产数据和元数据，查明后 report 出诊断报告；要修就接着走上面的路线。\n";
 
 /**
  * 做完一个需求（或按用户意见改完一轮）时给用户的完成情况，格式固定。
@@ -179,26 +149,21 @@ export interface CosmicPromptInput {
 	/** 每个已发布探针的必填入参，见 `ProbePolicyPromptInput.inputs`。 */
 	probeInputs?: Readonly<Record<string, readonly string[]>> | null;
 	referenceSkills: ReferenceSkillState;
-	mode: CosmicMode;
 }
 
 /** 固定的那段：整场会话不变。 */
 export function cosmicSystemPrompt(input: CosmicPromptInput): string {
-	const prod = input.mode === "prod";
-	const tools = toolsForMode(input.mode, COSMIC_TOOL_NAMES).length;
 	const route =
-		`产品工具 ${String(tools)} 个一直全部可用，先后顺序由你判断；缺前提的动作会被拒绝并说清缺什么。\n` +
-		(prod ? PROD_ROUTE_LINE : ROUTE_LINE) +
-		(prod
-			? "没有 Shell；文件工具只能写工程的 .cosmic-ai/ 下（临时探针放 .cosmic-ai/probes/），工程里其他文件只读。"
-			: "Shell 和文件工具照常可用。");
+		`产品工具 ${String(COSMIC_TOOL_NAMES.length)} 个一直全部可用，先后顺序由你判断；缺前提的动作会被拒绝并说清缺什么。\n` +
+		ROUTE_LINE +
+		"Shell 和文件工具照常可用。";
 	const probes = probePolicyPrompt({ released: input.releasedProbes, inputs: input.probeInputs ?? null });
 	return (
 		[
-			prod ? PROD_ROLE_PROMPT : ROLE_PROMPT,
-			prod ? PROD_TOOL_PROTOCOL : EXPENSIVE_TOOL_PROTOCOL,
+			ROLE_PROMPT,
+			EXPENSIVE_TOOL_PROTOCOL,
 			`## ${PRODUCT_DISPLAY_NAME} 路线\n\n${route}`,
-			...(prod ? [] : [COMPLETION_TEMPLATE]),
+			COMPLETION_TEMPLATE,
 			probes,
 		].join("\n\n") + referenceSkillsWarning(input.referenceSkills)
 	);
@@ -212,7 +177,7 @@ export interface StandingState {
 	javaEdited: number;
 	/** 上一次 cosmic_fast 之后工程新鲜、之后没再改。 */
 	compiledFresh: boolean;
-	/** 开发模式下，用户带过来的上一份诊断报告；排障模式下，本会话写出的诊断报告。 */
+	/** 本会话写出的诊断报告，没写过时是用户带过来的上一份。 */
 	lastReport?: string;
 }
 
@@ -263,7 +228,7 @@ function bytesOf(text: string): number {
 }
 
 /**
- * 量出本产品能产生的最长常驻文字：固定段加上最长的状态段，两种模式、两种知识出错形状都试，取最大的。
+ * 量出本产品能产生的最长常驻文字：固定段加上最长的状态段，两种知识出错形状都试，取最大的。
  * 量最大值而不是抽样：常见情况装得下、全发布探针加知识装坏时装不下，不叫上限。
  */
 export function measureL0Budget(
@@ -303,20 +268,14 @@ export function measureL0Budget(
 		lastReport: "R".repeat(STANDING_ROOT_MAX),
 	};
 	let best: L0Budget | null = null;
-	for (const knowledge of knowledgeStates.flatMap((k) => (["dev", "prod"] as const).map((mode) => ({ ...k, mode })))) {
-		const fixed = cosmicSystemPrompt({
-			releasedProbes: probes,
-			probeInputs,
-			referenceSkills: knowledge.state,
-			mode: knowledge.mode,
-		});
+	for (const knowledge of knowledgeStates) {
+		const fixed = cosmicSystemPrompt({ releasedProbes: probes, probeInputs, referenceSkills: knowledge.state });
 		const bytes = bytesOf(fixed) + bytesOf(standingContext(standing));
 		if (best !== null && bytes <= best.bytes) continue;
-		const prod = knowledge.mode === "prod";
 		const parts: L0Part[] = [
-			{ name: `角色与职责（${prod ? "生产排障" : "开发"}）`, bytes: bytesOf(prod ? PROD_ROLE_PROMPT : ROLE_PROMPT) },
-			{ name: "做事方式", bytes: bytesOf(prod ? PROD_TOOL_PROTOCOL : EXPENSIVE_TOOL_PROTOCOL) },
-			{ name: "完成情况模板", bytes: prod ? 0 : bytesOf(COMPLETION_TEMPLATE) },
+			{ name: "角色与职责", bytes: bytesOf(ROLE_PROMPT) },
+			{ name: "做事方式", bytes: bytesOf(EXPENSIVE_TOOL_PROTOCOL) },
+			{ name: "完成情况模板", bytes: bytesOf(COMPLETION_TEMPLATE) },
 			{ name: "探针边界与工具规矩", bytes: bytesOf(probePolicyPrompt({ released: probes, inputs: probeInputs })) },
 			{ name: `知识装载告警（${knowledge.name}）`, bytes: bytesOf(referenceSkillsWarning(knowledge.state)) },
 			{ name: "当前状态", bytes: bytesOf(standingContext(standing)) },
@@ -327,7 +286,7 @@ export function measureL0Budget(
 			over: bytes > L0_BUDGET_BYTES,
 			headroom: L0_BUDGET_BYTES - bytes,
 			parts,
-			worst: { probes: probes.length, knowledge: `${knowledge.name}，${prod ? "生产排障" : "开发"}模式` },
+			worst: { probes: probes.length, knowledge: knowledge.name },
 		};
 	}
 	return best as L0Budget;

@@ -50,7 +50,12 @@ import {
 	run,
 } from "../../kernel/commands/run.ts";
 import { resolveSources } from "../../kernel/commands/sources.ts";
-import { lookupUsers as runUserLookup, type UserLookupReport } from "../../kernel/commands/user-lookup.ts";
+import {
+	type AccountLookupReport,
+	lookupAccounts as runAccountLookup,
+	lookupUsers as runUserLookup,
+	type UserLookupReport,
+} from "../../kernel/commands/user-lookup.ts";
 import {
 	initializeProjectConfig,
 	type ProjectConfigAnswers,
@@ -58,10 +63,11 @@ import {
 } from "../../kernel/config/initialize.ts";
 import { loadConfig } from "../../kernel/config/load-config.ts";
 import { resolveProjectRoot } from "../../kernel/config/project-root.ts";
+import { type SetConfigReport, setProjectConfig } from "../../kernel/config/set-config.ts";
 import { KernelError, type KernelResult } from "../../kernel/errors.ts";
 import { captureFreshnessAsync, type FreshnessSnapshot } from "../../kernel/freshness.ts";
 import { metaCheckDue, metaPending } from "../../kernel/impact/meta-state.ts";
-import { knowledgeCapsulesFile } from "../../kernel/layout.ts";
+import { COSMIC_DIR, knowledgeCapsulesFile } from "../../kernel/layout.ts";
 import { type OpenProjectInput, openProject } from "../../kernel/open-project.ts";
 import { dataWriteEffectNotes } from "../../kernel/policy/external-effects.ts";
 import {
@@ -107,6 +113,7 @@ import {
 	readProdConfigDraft,
 	writeProdConfig,
 } from "../../kernel/prod/setup.ts";
+import { inventoryLines } from "../../kernel/project/cosmic-dirs.ts";
 import { writeProjectProfile } from "../../kernel/project/profile.ts";
 import { profileEnvironmentFrom } from "../../kernel/project/profile-environment.ts";
 import { artifactState } from "../../kernel/toolchain.ts";
@@ -186,6 +193,19 @@ export interface CosmicAgentKernel<ProjectHandle> {
 		keyword: string,
 		pending: PendingRuntimeAnswers,
 	): Promise<KernelResult<UserLookupReport>>;
+	/**
+	 * The account sets (数据中心) this environment offers, for the setup prompt to choose from.
+	 * Starts one cold JVM; needs every other required field, since the launch class connects.
+	 */
+	lookupAccounts?(projectRoot: string, pending: PendingRuntimeAnswers): Promise<KernelResult<AccountLookupReport>>;
+	/**
+	 * The model's door to the project config (cosmic_doctor action=config): checks each value
+	 * against the project, writes, and returns the diagnosis as it stands after the write.
+	 */
+	setConfig?(
+		projectRoot: string,
+		changes: Readonly<Record<string, unknown>>,
+	): Promise<KernelResult<{ set: SetConfigReport; doctor: DoctorReport }>>;
 	/** TUI startup only: merge confirmed missing values into the project-local config. */
 	initializeConfig?(
 		projectRoot: string,
@@ -198,7 +218,7 @@ export interface CosmicAgentKernel<ProjectHandle> {
 	 */
 	open(
 		projectRoot: string,
-		options?: { rescanRuntime?: boolean },
+		options?: { rescanRuntime?: boolean; sessionId?: string },
 	): Promise<KernelResult<OpenedAgentProject<ProjectHandle>>>;
 	lint(project: ProjectHandle, sources: readonly string[]): Promise<KernelResult<LintReport>>;
 	fast(
@@ -323,7 +343,7 @@ export interface CosmicAgentKernel<ProjectHandle> {
 	 * Project diagnosis. Takes a root rather than an opened project on purpose:
 	 * doctor is the command for the case where the project cannot be opened.
 	 */
-	doctor(projectRoot: string): Promise<KernelResult<DoctorReport>>;
+	doctor(projectRoot: string): Promise<KernelResult<DoctorReport & { cosmicDir?: string[] }>>;
 	/**
 	 * Read-only knowledge queries. The project root is optional because the
 	 * knowledge base ships with the product (D13); it only decides whether a
@@ -421,6 +441,8 @@ type RealProject = Awaited<ReturnType<typeof openProject>>;
 
 /** administrator。只在查用户这条只读路上顶一次 RequestContext，见 lookupUsers。 */
 const LOOKUP_USER_ID = "1";
+/** 列账套时顶一次的账套：不会是任何真账套的编码或 id，探针宿主对不上就列出可选的。 */
+const ACCOUNT_LIST_PLACEHOLDER = "?";
 
 function kernelFailure<T>(error: unknown): KernelResult<T> {
 	if (error instanceof KernelError) return { ok: false, error };
@@ -736,6 +758,67 @@ export function createKernelAdapter(options: KernelAdapterOptions): CosmicAgentK
 				return kernelFailure(error);
 			}
 		},
+		async lookupAccounts(projectRoot, pending) {
+			try {
+				const base = options.env ?? process.env;
+				const env: Record<string, string | undefined> = {
+					...base,
+					...(pending.isv === undefined ? {} : { COSMIC_ISV: pending.isv }),
+					// 谁都不是的账套：探针宿主对不上就把可选的列出来再退出，见 lookupAccounts
+					COSMIC_ACCOUNT: ACCOUNT_LIST_PLACEHOLDER,
+					COSMIC_USER: (base.COSMIC_USER ?? "").trim() === "" ? LOOKUP_USER_ID : base.COSMIC_USER,
+				};
+				const opened = await openProject({ ...openInput, projectRoot, env });
+				return await runAccountLookup(opened.ctx);
+			} catch (error) {
+				return kernelFailure(error);
+			}
+		},
+		async setConfig(projectRoot, changes) {
+			try {
+				const env = options.env ?? process.env;
+				const root = resolveProjectRoot(
+					{ explicit: projectRoot, cwd: null, entryFile: null, legacyRoot: null },
+					(path) => nodePorts.fs.exists(path),
+				).root;
+				const before = loadConfig({ root, agentConfigDir: options.agentConfigDir, env }, nodePorts.fs);
+				// The launch method is checked against the launch class in force AFTER this call.
+				const pickString = (
+					key: "debugModule" | "appClass" | "appMethod",
+					current: string | null,
+				): string | null => {
+					const value = changes[key];
+					if (value === undefined) return current;
+					if (value === null) return before.auto[key];
+					return typeof value === "string" ? value.trim().replace(/^:+/, "") : current;
+				};
+				const set = setProjectConfig(
+					{
+						root,
+						changes,
+						auto: before.auto,
+						currentDebugModule: pickString("debugModule", before.debugModule),
+						currentAppClass: pickString("appClass", before.appClass),
+						currentAppMethod: pickString("appMethod", before.appMethod),
+						platform: process.platform,
+					},
+					nodePorts.fs,
+				);
+				if (!set.ok) return set;
+				const after = loadConfig({ root, agentConfigDir: options.agentConfigDir, env }, nodePorts.fs);
+				doctorConfigSnapshots.set(root, {
+					text: nodePorts.fs.read(after.projectConfigFile),
+					exists: after.projectConfigExists,
+				});
+				const knowledge = await resolveKnowledge(root).catch(() => null);
+				return {
+					ok: true,
+					value: { set: set.value, doctor: doctor({ config: after, knowledge: knowledge?.status ?? null }) },
+				};
+			} catch (error) {
+				return kernelFailure(error);
+			}
+		},
 		async initializeConfig(projectRoot, answers, declaredModules) {
 			try {
 				const file = loadConfig(
@@ -778,7 +861,11 @@ export function createKernelAdapter(options: KernelAdapterOptions): CosmicAgentK
 		async open(projectRoot, openOptions) {
 			try {
 				if (openOptions?.rescanRuntime === true) runtimeScans.clear();
-				const opened = await openProject({ ...openInput, projectRoot });
+				const opened = await openProject({
+					...openInput,
+					projectRoot,
+					...(openOptions?.sessionId === undefined ? {} : { sessionId: openOptions.sessionId }),
+				});
 				const profile = writeProjectProfile(opened.ctx, opened.key);
 				return {
 					ok: true,
@@ -1119,7 +1206,9 @@ export function createKernelAdapter(options: KernelAdapterOptions): CosmicAgentK
 				// Knowledge state never makes doctor fail: an unreadable snapshot is
 				// one more line in the report, not a reason to withhold the config.
 				const knowledge = await resolveKnowledge(root).catch(() => null);
-				return { ok: true, value: doctor({ config, knowledge: knowledge?.status ?? null }) };
+				const report = doctor({ config, knowledge: knowledge?.status ?? null });
+				// .cosmic-ai 里每一项多少文件、多大、留多久，表外的东西逐项列
+				return { ok: true, value: { ...report, cosmicDir: inventoryLines(join(root, COSMIC_DIR), nodePorts.fs) } };
 			} catch (error) {
 				return kernelFailure(error);
 			}

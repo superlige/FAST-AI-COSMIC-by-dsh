@@ -1,10 +1,9 @@
 /**
  * fast-ai-cosmic 接到 dsh 的那一层：插件入口。
  *
- * 一个插件、两种模式（配置里的 `mode`），开发和生产排障共用同一份「按模式挂工具」的代码：
- *   - dev：12 个产品工具里除 cosmic_prod 外都挂；
- *   - prod：不挂编译、真跑业务的工具，挂 cosmic_prod；写工程文件在执行前门槛里拒（`.cosmic-ai/` 下自己的东西不拦）。
- * 模式在会话开始时定（桌面/网页选预设，命令行选 profile），会话里不切换，模型也没有参数能切。
+ * 一个插件、一种会话：12 个产品工具全部挂上。开发（改代码、编译、真跑业务、写元数据）和查生产
+ * （cosmic_prod 只读查生产库、生产元数据、monitor 日志）在同一个会话里接着做，不用换会话交接。
+ * 生产只读靠 cosmic_prod 这条通道自己的闸，其余工具连的都是测试环境。
  *
  * 所有会变的状态都在每个会话一份的 `CosmicSession` 里，键是 dsh 的会话编号；模块顶层只有进程级的内核单例。
  */
@@ -22,8 +21,6 @@ import type { ToolDefinition, ToolExecution } from "@deepseek-ai/dsh-tools";
 import type { UserQuestionService } from "@deepseek-ai/dsh-user-questions";
 import type {} from "@deepseek-ai/dsh-working-directory";
 import { cosmicSystemPrompt, type ReferenceSkillState, standingContext } from "../agent/prompt/system-prompt.ts";
-import { type CosmicMode, toolsForMode } from "../agent/state/prod-state.ts";
-import { COSMIC_TOOL_NAMES } from "../agent/tools/names.ts";
 import { askText, cosmicCommands, questionAsk } from "./commands.ts";
 import { type CosmicToolSpec, checkArgs, toDshSchema } from "./define.ts";
 import { cosmicToolSpecs } from "./fixed-text.ts";
@@ -32,6 +29,8 @@ import { type CallContext, CosmicHost, now } from "./host.ts";
 import { cosmicJvmBoard } from "./kernel.ts";
 import { presentCosmicCall } from "./present.ts";
 import { releasedProbes } from "./probes.ts";
+import { COSMIC_AGENT_DIR } from "./prod-secrets.ts";
+import { askProdConsentVia } from "./prod-setup.ts";
 import type { Confirm } from "./write.ts";
 
 export { cosmicPackFiles } from "./kernel.ts";
@@ -40,9 +39,8 @@ export { releasedProbes } from "./probes.ts";
 export const name = "fast-ai-cosmic";
 export const inject = ["tools", "systemPrompt", "workingDirectory"];
 
-export interface Config {
-	mode?: CosmicMode;
-}
+/** 没有配置项；旧配置里留着的 `mode` 不再读。 */
+export type Config = Record<string, unknown>;
 
 /** 写元数据确认单上的两个选项。 */
 export const APPROVE_LABEL = "确认写入";
@@ -109,9 +107,8 @@ function toolDefinition(host: CosmicHost, spec: CosmicToolSpec<never>, cwdOf: Ho
 	};
 }
 
-export function apply(ctx: Context, config: Config = {}): void {
-	const mode: CosmicMode = config.mode === "prod" ? "prod" : "dev";
-	const host = new CosmicHost(mode);
+export function apply(ctx: Context, _config: Config = {}): void {
+	const host = new CosmicHost();
 	let questions: UserQuestionService | undefined;
 	let authorization: AuthorizationService | undefined;
 	let referenceSkills: ReferenceSkillState = { ok: null };
@@ -152,20 +149,23 @@ export function apply(ctx: Context, config: Config = {}): void {
 			? undefined
 			: questionAsk({ questions: () => questions }, call.agent as Agent | undefined, call.signal, header);
 
+	// 本会话第一次查生产前问人（怎么解读回答见 prod-setup.ts 的 askProdConsentVia）
+	host.askProdConsent = (call) => () => askProdConsentVia(questions, call.agent as Agent | undefined, call.signal);
+
 	const specs = cosmicToolSpecs(
 		host,
 		confirm,
 		(call) => (question, detail) =>
 			askText(questions, call.agent as Agent | undefined, call.signal, question, detail),
 	);
-	const mounted = new Set(toolsForMode(mode, COSMIC_TOOL_NAMES));
 	const byName = new Map(specs.map((spec) => [spec.name as string, spec]));
-	for (const spec of specs) if (mounted.has(spec.name)) ctx.tools.register(toolDefinition(host, spec, cwdOf));
+	for (const spec of specs) ctx.tools.register(toolDefinition(host, spec, cwdOf));
 
 	const deps: HookDeps = {
 		host,
 		cwdOf,
 		ungated: (toolName, args) => byName.get(toolName)?.ungated?.(args as never) === true,
+		agentDir: COSMIC_AGENT_DIR,
 	};
 
 	ctx.on("tools/pre-execute", async (exec: ToolExecution, next) => {
@@ -185,39 +185,35 @@ export function apply(ctx: Context, config: Config = {}): void {
 		return { ...decided, content };
 	});
 
-	// 开发会话登记进 JVM 状态板：界面进到这个会话时据此认工程、在后台起 JVM（见 jvm-board.ts）。
-	// 排障会话不登记，界面上就不画 JVM 小标签。这里的事件只收本预设自己的会话。
-	const board = mode === "dev" ? cosmicJvmBoard() : undefined;
-	if (board !== undefined) {
-		ctx.on("agent/created", ({ agent }) => {
-			void ctx.workingDirectory.ensure(agent).then(
-				(cwd) => board.track(String(agent.id), cwd),
-				() => {},
-			);
-			return undefined;
-		});
-	}
+	// 会话登记进 JVM 状态板：界面进到这个会话时据此认工程、在后台起 JVM（见 jvm-board.ts）。这里的事件只收本预设自己的会话。
+	const board = cosmicJvmBoard();
+	ctx.on("agent/created", ({ agent }) => {
+		void ctx.workingDirectory.ensure(agent).then(
+			(cwd) => board.track(String(agent.id), cwd),
+			() => {},
+		);
+		return undefined;
+	});
 
 	ctx.on("session/event", (session, event) => {
 		const type = String(event.type);
 		if (type === "compaction/summary" || type === "compaction/prune")
 			host.sessions.peek(String(session.id))?.forgetSaid();
-		if (type === "working-directory/change" && board !== undefined) {
+		if (type === "working-directory/change") {
 			const cwd = (event as { data?: { cwd?: unknown } }).data?.cwd;
 			if (typeof cwd === "string" && cwd !== "") board.track(String(session.id), cwd);
 		}
 	});
 	ctx.on("session/disposed", (session) => {
 		host.sessions.drop(String(session.id));
-		board?.forget(String(session.id));
+		board.forget(String(session.id));
 	});
 
 	const probes = releasedProbes();
 	ctx.systemPrompt.section({
 		name: "fast-ai-cosmic",
 		order: ctx.systemPrompt.getSectionOrder("DEPLOYMENT_PERSONA_PREFIX") + 10,
-		text: () =>
-			cosmicSystemPrompt({ releasedProbes: probes.names, probeInputs: probes.inputs, referenceSkills, mode }),
+		text: () => cosmicSystemPrompt({ releasedProbes: probes.names, probeInputs: probes.inputs, referenceSkills }),
 	});
 	ctx.systemPrompt.context({
 		name: "fast-ai-cosmic-state",

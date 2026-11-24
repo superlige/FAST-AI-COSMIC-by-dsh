@@ -54,20 +54,20 @@ export const META_HELP = `用法：cosmic_meta argv=["<botp|ptpl|wf|formula>", "
 BOTP 转换规则（cosmic_knowledge action=show path=metadata-botp.md）
   botp list  [源单通配] [--target 目标单] [--rule 关键字|id] [--plugin 类名关键字]
   botp dump  <规则id|名称关键字> [--fields]   规则内容：插件/条件/分录映射，--fields 再加字段映射
-  botp backup <目录> (--rule id,… | --source 源单 [--target 目标单] [--name 关键字] [--enabled 0|1|*])
-                                              每条规则一个 <id>.xml，只读，不需要 apply
-  botp restore <目录>                         把目录里的 xml 写回；apply=true 才落库
-  botp diff  <目录A> <目录B>                  离线比两次 backup
+  botp backup [名字] (--rule id,… | --source 源单 [--target 目标单] [--name 关键字] [--enabled 0|1|*])
+                                              每条规则一个 <id>.xml 存进备份目录，只读，不需要 apply
+  botp restore <备份目录>                     把备份目录里的 xml 写回；apply=true 才落库
+  botp diff  <A> <B>                          离线比两次 backup
 
 打印模板（cosmic_knowledge action=show path=print-template.md）
   ptpl list  (--form 单据标识 | --numbers 编码,编码)
-  ptpl dump  <模板编码> [--out 目录]           设计 JSON + 多语言映射落本地，diff 的输入
+  ptpl dump  <模板编码> [--out 名字]           设计 JSON + 多语言映射存进本会话导出目录，diff 的输入
              [--audit [--control 控件] [--detail] [--strict]]   改成拓扑审计
              [--grid 表格id]                   改成网格摊平（行列下标表）
              [--overview]                      改成整张模板的结构概览：绑了哪些字段、每格绑什么（先看这个）
   ptpl locate <模板编码> <控件key>             只读定位；返回节点路径、类型、绑定字段和 formulaData
-  ptpl backup <模板编码> [目录]                官方导出链的 ZIP 备份
-  ptpl edit  <候选目录> --open <dump目录>        开一份候选：dump 的产物复制进来，之后全在本地改
+  ptpl backup <模板编码> [名字]                官方导出链的 ZIP 备份，存进备份目录
+  ptpl edit  <候选名> --open <dump名>          开一份候选：dump 的产物复制进来，之后全在本地改
              [--status] [--reset] [--overview [--grid 表格]]
              [--formula 控件 --line "表达式" … [--blank 兜底文字]]   字段写成 <字段标识>，多给一行就是上下换行
              [--bind 控件=字段] [--text 控件=文字]
@@ -78,30 +78,32 @@ BOTP 转换规则（cosmic_knowledge action=show path=metadata-botp.md）
              [--plugin 类全名 [--desc 说明]] [--remove-plugin 类全名]
                                               登记 / 撤掉打印插件：接在已有插件后面，已有的原样保留；--overview 列出登记着哪些
                                               **本地改，不落库**：改完用 ptpl apply --file 整份交回
-  ptpl apply <模板编码> --set <控件>.<属性>=<值> … --backup 目录
+  ptpl apply <模板编码> --set <控件>.<属性>=<值> …
                                               改设计属性（只能改已存在的标量：字号、宽度、是否显示）
-  ptpl apply <模板编码> --file <设计数据json> [--locale <多语言json>] [--pk 单据ID] --backup 目录
+  ptpl apply <模板编码> --file <设计数据json> [--locale <多语言json>] [--pk 单据ID]
                                               整份提交：加控件、加表格、改公式走这条。
                                               文件就是 ptpl dump 出来的 *.meta.json，本地改完整份交回。
                                               落库前程序自己比差异、改过的公式当场试算、过平台解析和拓扑审计；
                                               给 --pk 再用候选在那张单上出一次预览（不落库）；apply=true 才落库，落库后回读核对
-  ptpl restore <模板编码> <备份目录> --backup 目录
-                                              整份恢复：把 --backup 目录里那份原样写回去。
+  ptpl restore <模板编码> <备份目录>
+                                              整份恢复：把那个备份目录里那份原样写回去。
                                               和整份提交同一条路：照样比差异、照样核版本，不覆盖别人后来的改动；
                                               apply=true 才落库
-  ptpl measure <模板编码> --bill id,… [--text] [--pages 1,2] [--png 路径] [--pdf 路径]
+  ptpl measure <模板编码> --bill id,… [--text] [--pages 1,2] [--png 名字] [--pdf 名字]
                                               出一次 PDF 量排版（约 30 秒，可选）。格子文字对 ≠ 分页排版对
   ptpl diff  <目录A> <目录B>                  离线比两次 dump（按控件 id 对齐，不是文本 diff）
 
 工作流模型（只读）
   wf list  [--bill 单据标识] [--key 关键字] [--max N]
-  wf dump  <模型key|id> [--out 目录]
-  wf backup <目录> [--bill 单据标识] [--key 关键字] [--max N]
-  wf diff  <目录A> <目录B>
+  wf dump  <模型key|id> [--out 名字]
+  wf backup [名字] [--bill 单据标识] [--key 关键字] [--max N]
+  wf diff  <A> <B>
 
 写通道（botp restore / ptpl apply / ptpl restore）默认 dry-run。apply=true 要附 report：工具先预演、弹确认单，
 用户确认后才写，写入范围就是确认单上的范围。写在常驻进程里执行，写完同一进程马上读得到新的。
-原厂和别家 ISV 的对象由 IsvGuard 拦在探针里。`;
+原厂和别家 ISV 的对象由 IsvGuard 拦在探针里。
+本机输出位置由工具定，目录参数只给名字（返回里有完整路径）：备份进 .cosmic-ai/evidence/backups/<时间>-<名字>/，一直留，
+写通道落库前自动把改前原文存一份进去；dump、候选、测量的图进本会话目录，跟会话一起清。diff、--open 给名字或返回里的路径都认。`;
 
 export type MetaPlan =
 	| { kind: "help"; text: string }
@@ -373,8 +375,8 @@ function botp(action: string, rest: readonly string[], opts: SplitArgs["opts"]):
 		});
 	}
 	if (action === "backup") {
-		if (!rest[0]) return { ok: false, error: fail("meta botp backup 要给备份目录") };
-		const env: Record<string, string> = { SYNC_BACKUP: rest[0], SYNC_BACKUP_ONLY: "1" };
+		const env: Record<string, string> = { SYNC_BACKUP_ONLY: "1" };
+		if (rest[0]) env.SYNC_BACKUP = rest[0];
 		if (text(opts.rule)) env.SYNC_TARGETS = text(opts.rule);
 		if (text(opts.source)) env.SYNC_SOURCE_ENTITY = text(opts.source);
 		if (text(opts.target)) env.SYNC_TARGET_ENTITY = text(opts.target);
@@ -644,8 +646,7 @@ function wf(action: string, rest: readonly string[], opts: SplitArgs["opts"]): P
 		if (text(opts.out)) env.WF_OUT = text(opts.out);
 		return probePlan("wf", action, "WfModelProbe", env);
 	}
-	// backup
-	if (!rest[0]) return { ok: false, error: fail("meta wf backup 要给备份目录") };
-	env.WF_OUT = rest[0];
+	// backup：目录可以不给，工具放进备份目录
+	if (rest[0]) env.WF_OUT = rest[0];
 	return probePlan("wf", action, "WfModelProbe", env);
 }

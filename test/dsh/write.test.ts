@@ -47,7 +47,7 @@ const REPORT: ReportInput = {
 type Authorization = Parameters<WriteDoor["apply"]>[0];
 
 function setup(answer: ConfirmAnswer) {
-	const host = new CosmicHost("dev", {} as CosmicKernel);
+	const host = new CosmicHost({} as CosmicKernel);
 	const session = new CosmicSession<ProjectHandle>();
 	const call: CallContext = {
 		tool: "cosmic_probe",
@@ -62,7 +62,6 @@ function setup(answer: ConfirmAnswer) {
 		probe: "FormRuleProbe",
 		env: ENV,
 		label: "FormRuleProbe RULE_FORM=demo_bill_lay",
-		backupHint: "env 里加 <备份目录入参>=<目录>",
 		async preview() {
 			seen.previews += 1;
 			return PREVIEW;

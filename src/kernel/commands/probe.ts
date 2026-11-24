@@ -26,7 +26,15 @@
 import { basename, isAbsolute, relative, resolve } from "node:path";
 import type { ProbeApiPreflight } from "../../knowledge/probe-api-preflight.ts";
 import { sha256 } from "../../runtime/fingerprint.ts";
-import { baseChildEnv, childEnv, jvmProps, KEEP_EXCEPTION_STACKS, type KernelContext, poolProps } from "../context.ts";
+import {
+	baseChildEnv,
+	childEnv,
+	jvmProps,
+	KEEP_EXCEPTION_STACKS,
+	type KernelContext,
+	poolProps,
+	userJvmArgs,
+} from "../context.ts";
 import { err, KernelError, type KernelResult, ok } from "../errors.ts";
 import { markMetaPending } from "../impact/meta-state.ts";
 import { entryAsEntityBlockers, loadFieldRows } from "../meta/entity-role.ts";
@@ -70,6 +78,7 @@ import {
 	takeServerStale,
 } from "../probe/server.ts";
 import { stashProbeOutput } from "../probe/stash.ts";
+import { type PlacedOutput, placedNote, placeProbeOutputs } from "../project/output-paths.ts";
 import { classpathOf, ensureBuilt, refreshLaunchClasses, runJava, runJavac } from "../toolchain.ts";
 import { type FastHooks, fast } from "./fast.ts";
 import { moduleOf, stalePackages, staleSources, staleSourcesAsync } from "./sources.ts";
@@ -282,6 +291,8 @@ export interface ProbeOutcome {
 	 * 缺了看得见，而不是被某张表悄悄编出一句话。
 	 */
 	usage?: ProbeUsageCard;
+	/** 这次运行由工具定了位置的本机输出（备份、导出）。 */
+	placed?: PlacedOutput[];
 	notes: string[];
 }
 
@@ -1079,6 +1090,7 @@ async function coldProbe(
 			...jvmProps(ctx.config),
 			...poolProps(ctx.config),
 			...extraProps,
+			...userJvmArgs(ctx.config),
 			"-cp",
 			classpathOf(ctx.layout.probeClasses, ctx.layout.pathingJar),
 			"CosmicProbe",
@@ -1383,6 +1395,11 @@ export async function probe(
 	const { src, cls, adHoc } = planned.target;
 	const sourceText = planned.sourceText;
 	const overlay = planned.overlay;
+	// 本机输出位置（备份、导出）由工具定；重复提问的账、写入授权照调用方给的入参算，跑的时候用定好的
+	const placement = placeProbeOutputs(ctx.layout, cls, adHoc, overlay, ctx.ports.clock.now());
+	const runEnv = placement.env;
+	const placed = placement.placed.length === 0 ? {} : { placed: placement.placed };
+	const placedLine = placedNote(ctx.layout, placement.placed);
 
 	const gate = await staleGate(ctx, options.hooks ?? {}, freshnessLane(ctx, cls, adHoc, sourceText, options), {
 		cls,
@@ -1423,7 +1440,11 @@ export async function probe(
 	const schedule = options.schedule === true;
 	if (schedule && coldReason !== null) return err(scheduleColdRefusal(ctx, cls, coldReason));
 	const writeProps = schedule ? [...targets.value.props, "-Dcosmic.schedule=1"] : targets.value.props;
-	const targetNotes = [...(launch.value === null ? [] : [launch.value.note]), ...targets.value.notes];
+	const targetNotes = [
+		...(launch.value === null ? [] : [launch.value.note]),
+		...targets.value.notes,
+		...(placedLine === null ? [] : [placedLine]),
+	];
 	// 冷进程写了元数据，常驻那份就过期了：下次用它之前先重起。退出码非 0 也标：可能已写了一半；
 	// 只有写之前就被门禁拦下的（打了「未落库」）不标。
 	const afterColdWrite = (run: KernelResult<{ exitCode: number; output: string }>) => {
@@ -1446,7 +1467,7 @@ export async function probe(
 
 	if (coldReason !== null) {
 		const execute = async (): Promise<KernelResult<ProbeOutcome>> => {
-			const run = await coldProbe(ctx, src, cls, overlay, writeProps, options.onProgress);
+			const run = await coldProbe(ctx, src, cls, runEnv, writeProps, options.onProgress);
 			afterColdWrite(run);
 			if (!run.ok) return err(run.error);
 			return ok(
@@ -1461,6 +1482,7 @@ export async function probe(
 						exitCode: run.value.exitCode,
 						output: run.value.output,
 						stale: gate.value,
+						...placed,
 						notes: [...prepared.value.warnings, ...targetNotes],
 					},
 					repeat,
@@ -1480,7 +1502,7 @@ export async function probe(
 			return sendProbe(ctx, {
 				src,
 				cls,
-				env: overlay,
+				env: runEnv,
 				...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
 				...(writeProps.length === 0 ? {} : { props: writeProps }),
 			});
@@ -1488,7 +1510,7 @@ export async function probe(
 		const fallBackCold = async (coldReason: string): Promise<KernelResult<ProbeOutcome>> => {
 			if (options.coldFallback === false) return err(residentOnlyRefusal(ctx, cls, notes));
 			if (schedule) return err(scheduleColdRefusal(ctx, cls, coldReason, notes));
-			const run = await coldProbe(ctx, src, cls, overlay, writeProps, options.onProgress);
+			const run = await coldProbe(ctx, src, cls, runEnv, writeProps, options.onProgress);
 			afterColdWrite(run);
 			if (!run.ok) return err(run.error);
 			return ok(
@@ -1503,6 +1525,7 @@ export async function probe(
 						exitCode: run.value.exitCode,
 						output: run.value.output,
 						stale: gate.value,
+						...placed,
 						notes,
 					},
 					repeat,
@@ -1678,6 +1701,7 @@ export async function probe(
 					exitCode: response.exitCode,
 					output: response.body,
 					stale: gate.value,
+					...placed,
 					notes,
 				},
 				repeat,

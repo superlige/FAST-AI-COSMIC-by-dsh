@@ -32,14 +32,17 @@ meta formula print|form|biz              ← 只读：打印公式 / 界面规�
 ```bash
 meta ptpl list --form demo_yfrygstj_yd            # 这张单据有哪些模板
 meta ptpl dump demo_yfrygstj_yd_prtpl --overview            # 先一屏看全：绑了哪些字段、每格的 key 和内容
-meta ptpl dump demo_yfrygstj_yd_prtpl --out outputs/before   # 设计 JSON + 多语言映射
-# 控件的 id / key 从 --overview 里抄；要改的属性不在概览里再 grep outputs/before/*.meta.json
+meta ptpl dump demo_yfrygstj_yd_prtpl --out before   # 设计 JSON + 多语言映射，返回里给出存在哪
+# 控件的 id / key 从 --overview 里抄；要改的属性不在概览里再 grep 返回路径下的 *.meta.json
 meta ptpl apply demo_yfrygstj_yd_prtpl --set DataColumn20.columnWidth=40.5   # dry-run
-APPLY=1 meta ptpl apply demo_yfrygstj_yd_prtpl --set DataColumn20.columnWidth=40.5 \
-        --backup outputs/before
-meta ptpl dump demo_yfrygstj_yd_prtpl --out outputs/after
-meta ptpl diff outputs/before outputs/after       # 复核：只该有那一处
+APPLY=1 meta ptpl apply demo_yfrygstj_yd_prtpl --set DataColumn20.columnWidth=40.5   # 落库前自动存改前备份
+meta ptpl dump demo_yfrygstj_yd_prtpl --out after
+meta ptpl diff before after                       # 复核：只该有那一处
 ```
+
+目录参数只给名字，位置由工具定，返回里有完整路径：dump、候选、测量的图进本会话目录，跟会话一起清；
+备份（`backup` 动作、写通道落库前自动存的改前原文）进 `.cosmic-ai/evidence/backups/<时间>-<名字>/`，一直留。
+`diff`、`--open` 给名字或返回里的路径都认。
 
 `--set` 可以给多个。控件写 id 或 key 都行，重名时探针会把候选列出来让你用 id 重来。
 排版效果自查用 `meta ptpl measure`（出 PDF 量坐标，见 [print-template.md](print-template.md)）。
@@ -49,8 +52,8 @@ meta ptpl diff outputs/before outputs/after       # 复核：只该有那一处
 `--set` 表达不了这些。改法是**在本地候选上改，再整份交回**：读一次模板、提交一次，中间全在本地。
 
 ```bash
-meta ptpl dump <编码> --out .cosmic-ai/work/tpl_dump                     # 进一次 Java 进程
-meta ptpl edit .cosmic-ai/work/tpl_cand --open .cosmic-ai/work/tpl_dump  # 开候选，顺带报结构概览
+meta ptpl dump <编码> --out tpl_dump                     # 进一次 Java 进程
+meta ptpl edit tpl_cand --open tpl_dump                  # 开候选，顺带报结构概览和候选的完整路径
 # 下面每条都在本地改候选，各回一句话说改了什么
 meta ptpl edit <候选> --formula LayoutCell31 --line "<demo_ypph>" --line "<demo_lch>" --blank /
 meta ptpl edit <候选> --grid LayoutGrid3 --insert-row 2
@@ -58,8 +61,8 @@ meta ptpl edit <候选> --bind LayoutCell43=demo_bgbh
 meta ptpl edit <候选> --clone LayoutCell5 --row 2 --col 3
 meta ptpl edit <候选> --plugin demo.print.DemoPrintPlugin --desc 隐藏未选列  # 登记打印插件，已有的原样保留
 meta ptpl edit <候选> --status                                            # 总账：这次改了哪几处
-meta ptpl apply <编码> --file <候选>/<编码>.meta.json --locale <候选>/<编码>.locale.json \
-        --backup .cosmic-ai/evidence/ptpl-before                          # dry-run；apply=true 才落库
+meta ptpl apply <编码> --file <候选路径>/<编码>.meta.json --locale <候选路径>/<编码>.locale.json
+                                                         # dry-run；apply=true 才落库。候选路径照 edit 返回的抄
 ```
 
 公式里字段写成 `<字段标识>`，**多给一行 `--line` 就是上下换行**，`--blank` 是所有字段都空时第一行显示的兜底文字。
@@ -93,15 +96,15 @@ meta ptpl apply <编码> --file <候选>/<编码>.meta.json --locale <候选>/<�
 ### 打印模板：退回改前那一份
 
 ```bash
-meta ptpl restore <编码> <改前的备份目录> --backup outputs/ptpl-now   # dry-run
-APPLY=1 meta ptpl restore <编码> <改前的备份目录> --backup outputs/ptpl-now
+meta ptpl restore <编码> <改前的备份目录>   # dry-run
+APPLY=1 meta ptpl restore <编码> <改前的备份目录>
 ```
 
-备份目录就是 `ptpl apply --backup` 落下的那个（`ptpl dump --out` 的产物也行），
+备份目录就是 `ptpl apply` 落库时返回里报的那个（`ptpl dump` 的产物也行），
 里面按模板编码找 `<编码>.meta.json` 和 `<编码>.locale.json`。
 
 **恢复也是一次写，一道关都不少**：核是不是同一张模板、由程序比差异、试算公式、过平台解析和拓扑审计、
-核改前快照（中间有人在设计器里保存过就不写）、另给一个 `--backup`（恢复本身也会盖掉现在那份）。
+核改前快照（中间有人在设计器里保存过就不写）、落库前照样先存一份改前备份（恢复本身也会盖掉现在那份）。
 和库里那份一模一样时不落库。
 
 ### BOTP 规则：批量改之前先存档
@@ -109,20 +112,20 @@ APPLY=1 meta ptpl restore <编码> <改前的备份目录> --backup outputs/ptpl
 ```bash
 meta botp list demo_accident_deal                          # 这张单据下推到哪些单
 meta botp dump 2213888868707518464 --fields                # 规则内容：插件/条件/字段映射
-meta botp backup outputs/botp-before --source demo_accident_deal   # 每条一个 <id>.xml，只读
+meta botp backup botp-before --source demo_accident_deal   # 每条一个 <id>.xml，只读
 # …改（BotpRuleSyncProbe，见 metadata-botp-write.md）
-meta botp backup outputs/botp-after --source demo_accident_deal
-meta botp diff outputs/botp-before outputs/botp-after
-APPLY=1 meta botp restore outputs/botp-before               # 要回滚时
+meta botp backup botp-after --source demo_accident_deal
+meta botp diff botp-before botp-after                      # 按名字认最新那份备份
+APPLY=1 meta botp restore <botp-before 返回的备份路径>     # 要回滚时
 ```
 
 ### 工作流：导出与比对（全程零写入）
 
 ```bash
 meta wf list --bill demo_apply_detail
-meta wf dump Proc_demo_apply_detail_audit_1 --out outputs/wf-before
-meta wf backup outputs/wf-all --bill demo_ --max 200        # 批量存档
-meta wf diff outputs/wf-before outputs/wf-after
+meta wf dump Proc_demo_apply_detail_audit_1 --out wf-before
+meta wf backup wf-all --bill demo_ --max 200        # 批量存档
+meta wf diff wf-before wf-after
 ```
 
 ## 事实

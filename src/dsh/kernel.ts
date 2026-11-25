@@ -21,6 +21,7 @@ import { CacheBoard } from "./cache-board.ts";
 import { JvmBoard } from "./jvm-board.ts";
 import { MentionService } from "./mention.ts";
 import { COSMIC_AGENT_DIR } from "./prod-secrets.ts";
+import { onProjectConfigured } from "./setup.ts";
 
 export type CosmicKernel = ReturnType<typeof createKernelAdapter>;
 export type ProjectHandle = CosmicKernel extends CosmicAgentKernel<infer H> ? H : never;
@@ -83,7 +84,11 @@ export function cosmicKernel(): CosmicKernel {
 let board: JvmBoard<ProjectHandle> | undefined;
 
 export function cosmicJvmBoard(): JvmBoard<ProjectHandle> {
-	board ??= new JvmBoard<ProjectHandle>(cosmicKernel());
+	if (board === undefined) {
+		const created = new JvmBoard<ProjectHandle>(cosmicKernel());
+		onProjectConfigured(() => created.configChanged());
+		board = created;
+	}
 	return board;
 }
 

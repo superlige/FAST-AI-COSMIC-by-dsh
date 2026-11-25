@@ -48,7 +48,7 @@ function fakeKernel(options: FakeOptions = {}) {
 						root,
 						runtimeKeyId: "key-1",
 						built: options.built ?? true,
-						identity: { user: "cfg_user", account: "cfg_acct" },
+						identity: { user: "cfg_user", account: "cfg_acct", isv: "demox" },
 					},
 				},
 			};
@@ -114,6 +114,8 @@ describe("JVM 状态板", () => {
 			keyId: "key-1",
 			user: "demo_user",
 			account: "demo_acct",
+			// 首页工程卡片要写 ISV：来自工程配置，不等开机核对环境
+			isv: "demox",
 		});
 		expect(view.boot?.phase).toBe("ready");
 		expect(view.boot?.done).toBe(true);
@@ -221,13 +223,47 @@ describe("JVM 状态板", () => {
 			const view = await board.view("s1");
 			expect(view.boot?.phase).toBe(phase);
 			if (phase === "no-project")
-				expect(view.boot?.detail).toBe("这个目录不是 Gradle 工程（往上都没有 settings.gradle）：D:/somewhere");
+				expect(view.boot?.detail).toBe("该目录不是 Gradle 工程（向上未找到 settings.gradle）：D:/somewhere");
 			// 没起成：后面几步是没走到，不是用不着做
 			expect(view.boot?.steps.slice(1).every((step) => step.state === "wait")).toBe(true);
 			expect(view.project).toBeNull();
 			expect(view.live).toBeNull();
 			expect(fake.calls.probe).toBe(0);
 		}
+	});
+
+	it("配置不全：报缺哪几项和文件夹名；向导填好后清掉那一趟，再 ensure 从认工程起重新走", async () => {
+		const options: FakeOptions = { openError: "CONFIG_INCOMPLETE" };
+		const fake = fakeKernel(options);
+		const open = fake.kernel.open;
+		fake.kernel.open = (async (...args: Parameters<typeof open>) => {
+			const result = (await open(...args)) as { ok: boolean; error?: Record<string, unknown> };
+			if (!result.ok && result.error) result.error.detail = { askUser: ["account", "user"], fromProject: [] };
+			return result;
+		}) as typeof open;
+		const board = new JvmBoard(fake.kernel, fake.now);
+		board.track("s1", "D:/work/demo_proj/");
+		await board.act("s1", "ensure");
+		await settle();
+		let view = await board.view("s1");
+		expect(view.folder).toBe("demo_proj");
+		expect(view.boot).toMatchObject({ phase: "config", missing: ["account", "user"], done: true });
+		// 没填完之前 ensure 不重来
+		await board.act("s1", "ensure");
+		await settle();
+		expect(fake.calls.open).toBe(1);
+
+		options.openError = undefined;
+		board.configChanged();
+		view = await board.view("s1");
+		expect([view.project, view.boot]).toEqual([null, null]);
+		await board.act("s1", "ensure");
+		await settle();
+		await settle();
+		view = await board.view("s1");
+		expect(fake.calls.open).toBe(2);
+		expect(view.boot).toMatchObject({ phase: "ready", missing: [] });
+		expect(view.project).toMatchObject({ name: "demo_proj", user: "demo_user", account: "demo_acct" });
 	});
 
 	it("没起成：照实报原因；再进会话不自动重来，人点「启动」才重来", async () => {
@@ -282,7 +318,7 @@ describe("JVM 状态板", () => {
 		await board.act("s1", "ensure");
 		await settle();
 		await settle();
-		expect(await board.act("s1", "stop")).toEqual({ ok: true, text: "已停" });
+		expect(await board.act("s1", "stop")).toEqual({ ok: true, text: "已停止" });
 		expect((await board.act("s1", "restart")).ok).toBe(true);
 		await settle();
 		await settle();
@@ -324,7 +360,7 @@ describe("JVM 状态板", () => {
 		await settle();
 		const stopped = await board.act("s1", "stop");
 		expect(stopped.ok).toBe(false);
-		expect(stopped.text).toContain("没停");
+		expect(stopped.text).toContain("未停止");
 		expect((await board.act("s1", "restart")).ok).toBe(false);
 		expect(fake.calls.probe).toBe(1);
 	});
@@ -370,6 +406,6 @@ describe("请求路径", () => {
 		const fake = fakeKernel();
 		const board = new JvmBoard(fake.kernel, fake.now);
 		const answer = await (await handleJvmBoard(board, post({ action: "stop-pid", pid: 1 }))).json();
-		expect(answer.result).toEqual({ ok: false, text: "这个宿主看不了本机进程" });
+		expect(answer.result).toEqual({ ok: false, text: "当前宿主无法读取本机进程" });
 	});
 });

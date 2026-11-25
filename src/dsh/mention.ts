@@ -124,7 +124,7 @@ export class MentionService<H> {
 
 	async candidates(sessionId: string, query: string): Promise<MentionAnswer> {
 		const project = this.deps.project(sessionId);
-		if (project === null) return { items: [], note: "还没认出这个会话的苍穹工程" };
+		if (project === null) return { items: [], note: "尚未识别当前会话的苍穹工程" };
 		const ctx = this.deps.ctxOf(project.handle);
 		this.refreshForms(project.root, project.handle, ctx);
 		let catalog = this.catalogOf(project.root, ctx);
@@ -142,15 +142,15 @@ export class MentionService<H> {
 			drill: item.kind === "bill" || item.kind === "form" || item.kind === "entry",
 		}));
 		const gaps: string[] = [];
-		if (catalog.forms === 0) gaps.push("表单目录还没建（常驻 JVM 起来后自动建）");
-		if (catalog.index === null) gaps.push("代码关系表还没建，字段只能往单据里钻着找");
+		if (catalog.forms === 0) gaps.push("表单目录尚未建立（常驻 JVM 启动后自动建立）");
+		if (catalog.index === null) gaps.push("代码关系表尚未建立，字段需进入单据后查找");
 		return gaps.length === 0 ? { items } : { items, note: gaps.join("；") };
 	}
 
 	/** 选中的引用换成发给模型的那段。单据上的东西先补一次运行态，拿到类型和继承来的字段。 */
 	async resolve(sessionId: string, id: string): Promise<{ text: string } | { error: string }> {
 		const project = this.deps.project(sessionId);
-		if (project === null) return { error: "还没认出这个会话的苍穹工程" };
+		if (project === null) return { error: "尚未识别当前会话的苍穹工程" };
 		const ctx = this.deps.ctxOf(project.handle);
 		let catalog = this.catalogOf(project.root, ctx);
 		const entity = catalog.byId.get(id)?.entity ?? id.split(".")[0] ?? "";

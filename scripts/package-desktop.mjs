@@ -288,30 +288,21 @@ edit("欢迎页", "apps/desktop/src/welcome-api.ts", [
 	],
 ]);
 
-// 图标：终端 + iOS。深色圆角方块里一个终端提示符「❯▌」：银白的箭头、发青绿光的块状光标（pi 版首页那个光标），
+// 图标：pi 版方块字的「C」放进 iOS 图标。深色圆角方块，青绿渐变的实心格、细线阴影，底上淡淡几道扫描线，字后面一团青绿的光。
 // 和界面侧栏的标志同一个图形（client/brand.js 的 LogoSvg，改一边要改另一边）。
-// 底上淡淡几道扫描线；高光只在上下两条边，外沿一圈很淡的暗边。圆角取边长的 22.37%。
+// 高光只在上下两条边，外沿一圈很淡的暗边。圆角取边长的 22.37%。
 // sharp 用 dsh 检出目录装好的那份，副本这时还没装依赖
 const sharp = createRequire(join(checkout, "apps/desktop/package.json"))("sharp");
-const SCANLINES = Array.from(
-	{ length: 14 },
-	(_, at) =>
-		`<rect x="0" y="${(2.2 + at * 1.5).toFixed(1)}" width="24" height="0.35" fill="#ffffff" fill-opacity="0.025"/>`,
-).join("");
 const MARK = `<defs>
     <linearGradient id="cx-bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2B2F33"/><stop offset="0.6" stop-color="#121518"/><stop offset="1" stop-color="#090B0C"/></linearGradient>
-    <radialGradient id="cx-bloom" cx="63%" cy="50%" r="40%"><stop offset="0" stop-color="#70E2D0" stop-opacity="0.38"/><stop offset="1" stop-color="#70E2D0" stop-opacity="0"/></radialGradient>
-    <linearGradient id="cx-chevron" gradientUnits="userSpaceOnUse" x1="0" y1="7" x2="0" y2="17"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#BFC8C6"/></linearGradient>
-    <linearGradient id="cx-cursor" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#C8FFF5"/><stop offset="1" stop-color="#46C7B2"/></linearGradient>
+    <radialGradient id="cx-bloom" cx="50%" cy="50%" r="46%"><stop offset="0" stop-color="#70E2D0" stop-opacity="0.36"/><stop offset="1" stop-color="#70E2D0" stop-opacity="0"/></radialGradient>
+    <linearGradient id="cx-ink" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#C8FFF5"/><stop offset="1" stop-color="#46C7B2"/></linearGradient>
     <linearGradient id="cx-edge" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff" stop-opacity="0.32"/><stop offset="0.05" stop-color="#ffffff" stop-opacity="0"/><stop offset="0.96" stop-color="#ffffff" stop-opacity="0"/><stop offset="1" stop-color="#ffffff" stop-opacity="0.12"/></linearGradient>
   </defs>
   <rect width="24" height="24" rx="5.37" fill="url(#cx-bg)"/>
-  ${SCANLINES}
+  <rect y="2.2" width="24" height="0.35" fill="#ffffff" fill-opacity="0.025"/><rect y="3.7" width="24" height="0.35" fill="#ffffff" fill-opacity="0.025"/><rect y="5.2" width="24" height="0.35" fill="#ffffff" fill-opacity="0.025"/><rect y="6.7" width="24" height="0.35" fill="#ffffff" fill-opacity="0.025"/><rect y="8.2" width="24" height="0.35" fill="#ffffff" fill-opacity="0.025"/><rect y="9.7" width="24" height="0.35" fill="#ffffff" fill-opacity="0.025"/><rect y="11.2" width="24" height="0.35" fill="#ffffff" fill-opacity="0.025"/><rect y="12.7" width="24" height="0.35" fill="#ffffff" fill-opacity="0.025"/><rect y="14.2" width="24" height="0.35" fill="#ffffff" fill-opacity="0.025"/><rect y="15.7" width="24" height="0.35" fill="#ffffff" fill-opacity="0.025"/><rect y="17.2" width="24" height="0.35" fill="#ffffff" fill-opacity="0.025"/><rect y="18.7" width="24" height="0.35" fill="#ffffff" fill-opacity="0.025"/><rect y="20.2" width="24" height="0.35" fill="#ffffff" fill-opacity="0.025"/><rect y="21.7" width="24" height="0.35" fill="#ffffff" fill-opacity="0.025"/>
   <rect width="24" height="24" rx="5.37" fill="url(#cx-bloom)"/>
-  <path d="M7.2 8.4 10.8 12l-3.6 3.6" fill="none" stroke="#000000" stroke-opacity="0.45" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" transform="translate(0 0.4)"/>
-  <path d="M7.2 8.4 10.8 12l-3.6 3.6" fill="none" stroke="url(#cx-chevron)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-  <rect x="13.2" y="8.3" width="3.8" height="7.4" rx="0.8" fill="url(#cx-cursor)"/>
-  <rect x="13.6" y="8.55" width="3" height="0.35" rx="0.17" fill="#ffffff" fill-opacity="0.7"/>
+  <g transform="translate(7 4.5) scale(1.35)"><path d="M7 1H7.5V3H2.5V8M.5 8V9H1M7 9H7.5V11H1.5V10" fill="none" stroke="#70E2D0" stroke-opacity="0.45" stroke-width="0.24" stroke-linecap="square"/><path d="M1 0h6v2h-6zM0 2h2v6h-2zM1 8h6v2h-6z" fill="url(#cx-ink)"/></g>
   <rect width="24" height="24" rx="5.37" fill="url(#cx-edge)"/>
   <rect x="0.125" y="0.125" width="23.75" height="23.75" rx="5.27" fill="none" stroke="#000000" stroke-opacity="0.3" stroke-width="0.25"/>`;
 const svg = (size) =>

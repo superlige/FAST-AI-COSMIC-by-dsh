@@ -31,6 +31,7 @@ import { presentCosmicCall } from "./present.ts";
 import { releasedProbes } from "./probes.ts";
 import { COSMIC_AGENT_DIR } from "./prod-secrets.ts";
 import { askProdConsentVia } from "./prod-setup.ts";
+import { RefTitleFixer } from "./session-title.ts";
 import type { Confirm } from "./write.ts";
 
 export { cosmicPackFiles } from "./kernel.ts";
@@ -195,7 +196,10 @@ export function apply(ctx: Context, _config: Config = {}): void {
 		return undefined;
 	});
 
+	// 第一句话以 @ 引用开头时，会话标题不留引用块的标签（见 session-title.ts）
+	const titles = new RefTitleFixer();
 	ctx.on("session/event", (session, event) => {
+		titles.onEvent(session as unknown as Parameters<RefTitleFixer["onEvent"]>[0], event);
 		const type = String(event.type);
 		if (type === "compaction/summary" || type === "compaction/prune")
 			host.sessions.peek(String(session.id))?.forgetSaid();
@@ -207,6 +211,7 @@ export function apply(ctx: Context, _config: Config = {}): void {
 	ctx.on("session/disposed", (session) => {
 		host.sessions.drop(String(session.id));
 		board.forget(String(session.id));
+		titles.forget(String(session.id));
 	});
 
 	const probes = releasedProbes();

@@ -488,19 +488,29 @@ export function searchMentions(catalog: MentionCatalog, raw: string, limit?: num
 	const touched = touchedCache.get(catalog) ?? touchedBills(catalog);
 	touchedCache.set(catalog, touched);
 	const inner = query.path?.[query.path.length - 1];
-	// 钻进分录：只在这条分录下找；整张单敲了词：整张单里找，没敲词：只列这一层
+	// 钻进分录：只在这条分录下找；整张单敲了词：整张单里找，没敲词：只列这一层。
+	// 单据这一层也列它的布局：布局是这张单的另一份界面，人往单里钻就是想看它有哪些
 	const members = (catalog.members.get(query.scope ?? "") ?? []).filter(
 		(item) => (inner === undefined && q !== "") || inLayer(item, inner),
 	);
+	if (query.scope !== undefined && inner === undefined) members.push(...(catalog.layouts.get(query.scope) ?? []));
 	const pool: { item: MentionItem; low: Low }[] =
 		query.scope === undefined
 			? catalog.items.map((item, i) => ({ item, low: catalog.low[i] as Low }))
 			: members.map((item) => ({ item, low: lowOf(item) }));
 	// 钻进去还没敲字：这一层整个列出来（表头几百个字段的单也不截在分录后面），按单据里本来的顺序；
-	// 分录在前，平台为关联关系生成的「关联子实体」分录、没有中文名的内部属性（id、外键列）放最后
+	// 分录在前、布局其次，平台为关联关系生成的「关联子实体」分录、没有中文名的内部属性（id、外键列）放最后
 	if (q === "") {
 		const order = (item: MentionItem) =>
-			item.kind === "entry" ? (item.key.endsWith("_lk") ? 3 : 0) : item.name === "" ? 2 : 1;
+			item.kind === "entry"
+				? item.key.endsWith("_lk")
+					? 4
+					: 0
+				: item.kind === "layout"
+					? 1
+					: item.name === ""
+						? 3
+						: 2;
 		return pool
 			.map((x, i) => ({ item: x.item, i }))
 			.sort((a, b) => order(a.item) - order(b.item) || a.i - b.i)
@@ -518,20 +528,44 @@ export function searchMentions(catalog: MentionCatalog, raw: string, limit?: num
 	scored.sort(
 		(a, b) => a.score - b.score || a.item.id.length - b.item.id.length || a.item.id.localeCompare(b.item.id),
 	);
-	return scored.slice(0, limit).map((x) => x.item);
+	if (query.scope !== undefined) return scored.slice(0, limit).map((x) => x.item);
+	// 全库找：布局不和字段抢那十几个位置（一张单常有几十份布局，名字都带单据名，抢起来要么挤掉字段、要么只剩一两份）。
+	// 列出来的单据把它的布局全带上，名字对上的别的布局跟在后面
+	const main = scored.filter((x) => x.item.kind !== "layout").slice(0, limit);
+	const layouts = new Map<string, MentionItem>();
+	for (const { item } of main)
+		if (item.kind === "bill" || item.kind === "form")
+			for (const layout of catalog.layouts.get(item.id) ?? []) layouts.set(layout.id, layout);
+	for (const { item } of scored) if (item.kind === "layout") layouts.set(item.id, item);
+	return [...main.map((x) => x.item), ...[...layouts.values()].slice(0, LAYOUT_CAP)];
 }
+
+/** 全库找时最多带几份布局：实测一张单 31 份布局 */
+const LAYOUT_CAP = 80;
 
 export function mentionLabel(item: MentionItem, catalog: MentionCatalog): string {
 	if (item.kind === "field" || item.kind === "entry") {
 		const bill = catalog.byId.get(item.entity);
-		// 子分录带上它挂在哪条分录下：同一张单上几条子分录常常同名（「关联子实体」「结果值」）
-		const parent =
-			item.kind === "entry" && item.parentEntry
-				? `${catalog.byId.get(`${item.entity}.${item.parentEntry}`)?.name || item.parentEntry}.`
-				: "";
-		return `${bill?.name || item.entity}.${parent}${item.name || item.key}`;
+		// 写出从单据到它的每一层分录：同一张单上几条分录、子分录常常同名（「关联子实体」「结果值」），
+		// 少一层人就分不清是哪条分录上的字段
+		const holder = item.kind === "entry" ? item.parentEntry : item.level === "unknown" ? undefined : item.entry;
+		const chain = holder ? entryChain(catalog, item.entity, holder) : [];
+		return [bill?.name || item.entity, ...chain, item.name || item.key].join(".");
 	}
 	return item.name || item.key;
+}
+
+/** 从第一层分录到 `entry` 这一条，每层的中文名（没名字用标识）；沿父分录往上找，认不出的那层就停。 */
+function entryChain(catalog: MentionCatalog, entity: string, entry: string): string[] {
+	const entries = new Map<string, MentionItem>();
+	for (const m of catalog.members.get(entity) ?? []) if (m.kind === "entry") entries.set(m.key, m);
+	const chain: string[] = [];
+	const seen = new Set<string>();
+	for (let key: string | undefined = entry; key && !seen.has(key); key = entries.get(key)?.parentEntry) {
+		seen.add(key);
+		chain.unshift(entries.get(key)?.name || key);
+	}
+	return chain;
 }
 
 /** 菜单里一行的说明：编号、在哪、什么类型。 */
@@ -719,6 +753,23 @@ export const MENTION_TAG = "cosmic-ref";
 export function mentionBlock(label: string, id: string, body: string): string {
 	const attr = (text: string) => text.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
 	return `<${MENTION_TAG} id="${attr(id)}" label="${attr(label)}">\n${body}\n</${MENTION_TAG}>`;
+}
+
+const MENTION_BLOCK = new RegExp(`<${MENTION_TAG} id="[^"]*" label="([^"]*)">\\n[\\s\\S]*?\\n</${MENTION_TAG}>`, "g");
+
+/**
+ * `mentionBlock` 的反向：每个引用块换回人敲的那枚 `@名字`，正文去掉，其余原样。
+ * 给会话标题这类只该显示人写的话的地方用；没有引用块回 null。
+ */
+export function mentionPlainText(text: string): string | null {
+	if (!text.includes(`<${MENTION_TAG} `)) return null;
+	const unattr = (s: string) =>
+		s
+			.replace(/&lt;/g, "<")
+			.replace(/&quot;/g, '"')
+			.replace(/&amp;/g, "&");
+	const plain = text.replace(MENTION_BLOCK, (_all, label: string) => `@${unattr(label)}`);
+	return plain === text ? null : plain;
 }
 
 /** 这张单的字段是不是都在了：运行态查过就是；否则只有快照里本 ISV 设计里的那些。 */

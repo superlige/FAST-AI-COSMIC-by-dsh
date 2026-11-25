@@ -64,7 +64,7 @@ function setup(options: { jvm?: boolean; formsOnDisk?: boolean } = {}) {
 describe("候选", () => {
 	it("没认出工程：不报错，说一句为什么是空的", async () => {
 		const { service } = setup();
-		expect(await service.candidates("other", "演示")).toEqual({ items: [], note: "还没认出这个会话的苍穹工程" });
+		expect(await service.candidates("other", "演示")).toEqual({ items: [], note: "尚未识别当前会话的苍穹工程" });
 	});
 
 	it("分录能往里钻", async () => {
@@ -139,7 +139,7 @@ describe("候选", () => {
 		const { service, calls } = setup({ formsOnDisk: false });
 		const answer = await service.candidates("s1", "数量");
 		expect(answer.items.map((it) => it.id)).toEqual(["demo_bill.demox_qty"]);
-		expect(answer.note).toContain("表单目录还没建");
+		expect(answer.note).toContain("表单目录尚未建立");
 		expect(calls.some((c) => c.name === "FormCatalogProbe")).toBe(true);
 	});
 });

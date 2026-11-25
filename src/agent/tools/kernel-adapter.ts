@@ -150,7 +150,7 @@ export interface AgentProjectSummary {
 	release: { released: number; reused: number; repaired: number };
 	notes: string[];
 	profile?: { file: string; at: string; changed: boolean };
-	identity: { user: string | null; account: string | null };
+	identity: { user: string | null; account: string | null; isv: string | null };
 	/**
 	 * 工程的 Gradle 产物（pathing jar + javac argfile）在不在、是不是列着全部代码模块。
 	 *
@@ -881,7 +881,11 @@ export function createKernelAdapter(options: KernelAdapterOptions): CosmicAgentK
 							release: opened.release,
 							notes: [...opened.notes],
 							profile,
-							identity: { user: opened.ctx.config.user, account: opened.ctx.config.account },
+							identity: {
+								user: opened.ctx.config.user,
+								account: opened.ctx.config.account,
+								isv: opened.ctx.config.isv || null,
+							},
 						},
 					},
 				};

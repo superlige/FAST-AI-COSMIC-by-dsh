@@ -9,7 +9,7 @@ import { type CallContext, CosmicHost } from "../../src/dsh/host.ts";
 import type { CosmicKernel, ProjectHandle } from "../../src/dsh/kernel.ts";
 import { CosmicToolFailure } from "../../src/dsh/result.ts";
 import { CosmicSession } from "../../src/dsh/session.ts";
-import { type Ask, configureProject } from "../../src/dsh/setup.ts";
+import { type Ask, configureProject, onProjectConfigured } from "../../src/dsh/setup.ts";
 import type { DoctorReport } from "../../src/kernel/commands/doctor.ts";
 import type { ProjectConfigAnswers } from "../../src/kernel/config/initialize.ts";
 import { USER_ANSWERED_FIELDS } from "../../src/kernel/config/load-config.ts";
@@ -113,6 +113,19 @@ describe("工程配置向导", () => {
 		expect(asked).toEqual([]);
 	});
 
+	it("配置齐了才通知（JVM 状态板据此重新走一趟）；中途不填不通知", async () => {
+		const heard: string[] = [];
+		const stop = onProjectConfigured((root) => heard.push(root));
+		try {
+			await configureProject(fakeKernel(["account", "user"]).kernel, scripted([""], [0]).ask, ROOT);
+			expect(heard).toEqual([]);
+			await configureProject(fakeKernel(["account", "user"]).kernel, scripted(["13800000000"], [1, 0]).ask, ROOT);
+			expect(heard).toEqual([ROOT]);
+		} finally {
+			stop();
+		}
+	});
+
 	it("只有账套和用户是问人的", () => {
 		expect([...USER_ANSWERED_FIELDS].sort()).toEqual(["account", "user"]);
 	});
@@ -122,7 +135,7 @@ describe("工程配置向导", () => {
 		const { ask, asked } = scripted(["13800000000"], [1, 0]);
 		const outcome = await configureProject(kernel, ask, ROOT);
 		expect(outcome.kind).toBe("ready");
-		expect(asked).toEqual(["工程配置 · 选一个账套（数据中心）", "工程配置 · 用户", "工程配置 · 选一个用户"]);
+		expect(asked).toEqual(["工程配置 · 选择账套（数据中心）", "工程配置 · 用户", "工程配置 · 选择用户"]);
 		expect(lookups).toEqual(["13800000000"]);
 		expect(userLookupAccounts).toEqual(["demo_uat"]);
 		expect(written).toEqual([{ account: "demo_uat", user: "1001" }]);
@@ -169,7 +182,7 @@ describe("工程配置向导", () => {
 	it("中途不填就停，说清停在哪，什么都不写", async () => {
 		const quit = fakeKernel(["account", "user"]);
 		const outcome = await configureProject(quit.kernel, scripted([""], [0]).ask, ROOT);
-		expect(outcome).toEqual({ kind: "stopped", text: "工程配置没填完（停在「用户」），没写。" });
+		expect(outcome).toEqual({ kind: "stopped", text: "工程配置未完成（停在「用户」），未写入。" });
 		expect(quit.written).toEqual([]);
 	});
 
@@ -228,7 +241,7 @@ describe("工具第一次要打开工程、配置不全：在这次调用里弹�
 		expect(a.root).toBe(ROOT);
 		expect(b.root).toBe(ROOT);
 		expect(written).toEqual([{ account: "demo_dev" }]);
-		expect(asked.filter((q) => q === "工程配置 · 选一个账套（数据中心）")).toHaveLength(1);
+		expect(asked.filter((q) => q === "工程配置 · 选择账套（数据中心）")).toHaveLength(1);
 	});
 
 	it("缺的是工程里认得出的项：一个框都不弹，内核的报错（叫模型自己补）原样交回", async () => {

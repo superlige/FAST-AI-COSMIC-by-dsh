@@ -68,11 +68,15 @@ interface Boot {
 	/** 环境核对报回来的用户、账套；没核对成功就是配置里写的。 */
 	user: string | null;
 	account: string | null;
+	/** 配置不全时缺的那几项（`account`、`user` 是人要选的，别的是工程文件里该认出来的）；别的时候是空的。 */
+	missing: string[];
 }
 
 interface Runtime<H> {
 	root: string;
 	keyId: string;
+	/** 工程配置里的 ISV：工程属性，不随某一趟开机变 */
+	isv: string | null;
 	handle: H;
 	boot: Boot | null;
 	work: Promise<void> | null;
@@ -98,16 +102,21 @@ export interface BootStepView {
 export interface JvmView {
 	/** `untracked`：不是本插件的会话（别的预设的、还没登记的），界面什么都不画。 */
 	tracked: boolean;
+	/** 会话工作目录的文件夹名：还没认出工程（配置不全）时界面拿它当工程名。 */
+	folder: string | null;
 	project: {
 		root: string;
 		name: string;
 		keyId: string | null;
 		user: string | null;
 		account: string | null;
+		isv: string | null;
 	} | null;
 	boot: {
 		phase: BootPhase;
 		detail: string | null;
+		/** 配置不全时缺的那几项，界面据此画「等人填」的那几格。 */
+		missing: string[];
 		steps: BootStepView[];
 		beganAt: number;
 		/** 整趟用时；还在走时是已等的秒数。 */
@@ -145,7 +154,16 @@ function emptySteps(): Record<BootStepKey, Step> {
 }
 
 function newBoot(now: number, user: string | null = null, account: string | null = null): Boot {
-	return { phase: "starting", detail: null, steps: emptySteps(), beganAt: now, endedAt: null, user, account };
+	return {
+		phase: "starting",
+		detail: null,
+		steps: emptySteps(),
+		beganAt: now,
+		endedAt: null,
+		user,
+		account,
+		missing: [],
+	};
 }
 
 /**
@@ -219,7 +237,7 @@ export function envDiagVerdict(outcome: { exitCode: number; json: { records: Rec
 	const account = record === undefined ? null : nonBlank(record, "account_number");
 	if (outcome.exitCode !== 0)
 		return { phase: "failed", detail: `环境诊断探针退出码 ${String(outcome.exitCode)}`, user, account };
-	if (record === undefined) return { phase: "failed", detail: "环境诊断探针没报环境记录", user, account };
+	if (record === undefined) return { phase: "failed", detail: "环境诊断探针未返回环境记录", user, account };
 	const count = (key: string): number | null => {
 		const value = record[key];
 		return typeof value === "number" && Number.isFinite(value) ? value : null;
@@ -228,7 +246,7 @@ export function envDiagVerdict(outcome: { exitCode: number; json: { records: Rec
 	const accounts = count("accounts");
 	if (accounts === null || accounts <= 0 || nonBlank(record, "account_id") === null || account === null)
 		problems.push("账套不可见");
-	if (nonBlank(record, "db") === null) problems.push("数据库没解析出来");
+	if (nonBlank(record, "db") === null) problems.push("未能解析数据库");
 	const metas = count("meta_count");
 	if (metas === null || metas <= 0) problems.push("本 ISV 元数据为零");
 	return problems.length > 0
@@ -246,6 +264,14 @@ function openFailure(code: string): Exclude<BootPhase, "starting"> {
 	return "failed";
 }
 
+/** 配置不全的报错里缺的那几项：人要选的排前面。 */
+function missingFields(error: unknown): string[] {
+	const detail = (error as { detail?: { askUser?: unknown; fromProject?: unknown } }).detail;
+	const list = (value: unknown) =>
+		Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+	return [...list(detail?.askUser), ...list(detail?.fromProject)];
+}
+
 function errorText(error: unknown): string {
 	return error instanceof Error ? error.message : String(error);
 }
@@ -259,11 +285,11 @@ function samePath(a: string | null, b: string): boolean {
 export type BoardAction = "ensure" | "start" | "restart" | "stop";
 
 const STOP_TEXT = {
-	graceful: { ok: true, text: "已停" },
-	forced: { ok: true, text: "已停（它自己没退，强制结束的）" },
-	absent: { ok: true, text: "本来就没在跑" },
-	foreign: { ok: false, text: "端口上那个 JVM 属于别的工程或版本，没停" },
-	unverified: { ok: false, text: "它没回应，本机进程清单也查不了，认不准是不是它，没停" },
+	graceful: { ok: true, text: "已停止" },
+	forced: { ok: true, text: "已停止（未正常退出，已强制结束）" },
+	absent: { ok: true, text: "JVM 原本未运行" },
+	foreign: { ok: false, text: "端口上的 JVM 属于其他工程或版本，未停止" },
+	unverified: { ok: false, text: "JVM 无响应，且无法读取本机进程清单，无法确认身份，未停止" },
 } as const;
 
 export class JvmBoard<H> {
@@ -286,6 +312,15 @@ export class JvmBoard<H> {
 
 	forget(sessionId: string): void {
 		this.sessions.delete(sessionId);
+	}
+
+	/**
+	 * 工程配置刚填好（配置向导走完）：停在「配置不全」的会话清掉那一趟，界面下一次来问时看到「还没认过」，
+	 * 照进会话那样叫 ensure，从认工程起重新走。不清的话 ensure 不重来，首页会一直停在等初始化。
+	 */
+	configChanged(): void {
+		for (const entry of this.sessions.values())
+			if (entry.runtime === null && entry.boot?.phase === "config" && entry.boot.endedAt !== null) entry.boot = null;
 	}
 
 	tracks(sessionId: string): boolean {
@@ -319,7 +354,7 @@ export class JvmBoard<H> {
 			void this.boot(sessionId, entry, { build: true });
 			return { ok: true, text: "开始启动" };
 		}
-		if (runtime === undefined) return { ok: false, text: "还没认出这个会话的工程，先点「启动」" };
+		if (runtime === undefined) return { ok: false, text: "尚未识别当前会话的工程，请先点击「启动」" };
 		if (action === "stop") {
 			const stopped = await this.kernel.probeServer(runtime.handle, "stop");
 			if (!stopped.ok) return { ok: false, text: stopped.error.message };
@@ -328,7 +363,7 @@ export class JvmBoard<H> {
 		const stopped = await this.kernel.probeServer(runtime.handle, "stop");
 		if (!stopped.ok) return { ok: false, text: stopped.error.message };
 		if (stopped.value.stopped === "foreign" || stopped.value.stopped === "unverified")
-			return { ok: false, text: "端口上的 JVM 认不准是不是本工程的，没停，也就没重启" };
+			return { ok: false, text: "无法确认端口上的 JVM 属于本工程，未停止，也未重启" };
 		void this.boot(sessionId, entry, { build: true });
 		return { ok: true, text: "已停，正在重新启动" };
 	}
@@ -336,12 +371,12 @@ export class JvmBoard<H> {
 	/** 停本机清单里的一个 cosmic JVM（详情面板里「别的进程」那一栏）。 */
 	async stopPid(pid: number): Promise<{ ok: boolean; text: string }> {
 		if (this.kernel.localJvms === undefined || this.kernel.stopLocalJvm === undefined)
-			return { ok: false, text: "这个宿主看不了本机进程" };
+			return { ok: false, text: "当前宿主无法读取本机进程" };
 		const scan = await this.kernel.localJvms({ listProcesses: true, clean: false });
 		const target = scan.jvms.find((one) => one.pid === pid);
-		if (target === undefined) return { ok: false, text: `本机 cosmic 进程里没有 pid ${String(pid)}，没停` };
+		if (target === undefined) return { ok: false, text: `本机 cosmic 进程中没有 pid ${String(pid)}，未停止` };
 		const stopped = await this.kernel.stopLocalJvm(target);
-		return { ok: stopped.stopped, text: stopped.stopped ? "已停" : `没停：${stopped.how}` };
+		return { ok: stopped.stopped, text: stopped.stopped ? "已停止" : `未停止：${stopped.how}` };
 	}
 
 	private async boot(sessionId: string, entry: SessionEntry, options: { build: boolean }): Promise<void> {
@@ -356,9 +391,10 @@ export class JvmBoard<H> {
 		if (!opened.ok) {
 			entry.runtime = null;
 			const phase = openFailure(opened.error.code);
+			if (phase === "config") pending.missing = missingFields(opened.error);
 			const detail =
 				phase === "no-project"
-					? `这个目录不是 Gradle 工程（往上都没有 settings.gradle）：${entry.cwd}`
+					? `该目录不是 Gradle 工程（向上未找到 settings.gradle）：${entry.cwd}`
 					: opened.error.message;
 			finishBoot(pending, phase, detail, this.now());
 			return;
@@ -369,9 +405,19 @@ export class JvmBoard<H> {
 		entry.boot = null;
 		let runtime = this.runtimes.get(key);
 		if (runtime === undefined) {
-			runtime = { root: summary.root, keyId: summary.runtimeKeyId, handle, boot: null, work: null };
+			runtime = {
+				root: summary.root,
+				keyId: summary.runtimeKeyId,
+				isv: summary.identity.isv,
+				handle,
+				boot: null,
+				work: null,
+			};
 			this.runtimes.set(key, runtime);
-		} else runtime.handle = handle;
+		} else {
+			runtime.handle = handle;
+			runtime.isv = summary.identity.isv;
+		}
 		// 同一个工程别的会话已经起过（或正在起）：搭那一趟，不重来；人点了「启动」「重启」才重来。
 		if (runtime.work !== null) return;
 		if (runtime.boot !== null && !options.build && runtime.boot.phase !== "not-built") return;
@@ -383,7 +429,7 @@ export class JvmBoard<H> {
 			finishBoot(
 				boot,
 				"not-built",
-				"工程还没构建（缺编译参数）。构建要几分钟，没有自动做；点「启动」会先构建再起",
+				"工程尚未构建（缺少编译参数）。构建需要几分钟，未自动执行；点击「启动」将先构建再启动 JVM",
 				this.now(),
 			);
 			return;
@@ -426,12 +472,14 @@ export class JvmBoard<H> {
 	async view(sessionId: string, options: { detail?: boolean } = {}): Promise<JvmView> {
 		const now = this.now();
 		const entry = this.sessions.get(sessionId);
-		if (entry === undefined) return { tracked: false, project: null, boot: null, live: null, sharedWith: 0 };
+		if (entry === undefined)
+			return { tracked: false, folder: null, project: null, boot: null, live: null, sharedWith: 0 };
 		const runtime = entry.runtime === null ? undefined : this.runtimes.get(entry.runtime);
 		// 正在认工程（或认失败了）的那一趟记在会话上，优先于这个运行时上一趟的结果：点「启动」后头几秒不该还显示旧的
 		const boot = entry.boot ?? runtime?.boot ?? null;
 		const view: JvmView = {
 			tracked: true,
+			folder: basename(entry.cwd.replace(/[\\/]+$/, "")) || null,
 			project:
 				runtime === undefined
 					? null
@@ -441,6 +489,7 @@ export class JvmBoard<H> {
 							keyId: runtime.keyId,
 							user: boot?.user ?? null,
 							account: boot?.account ?? null,
+							isv: runtime.isv,
 						},
 			boot:
 				boot === null
@@ -448,6 +497,7 @@ export class JvmBoard<H> {
 					: {
 							phase: boot.phase,
 							detail: boot.detail,
+							missing: [...boot.missing],
 							steps: stepViews(boot, now),
 							beganAt: boot.beganAt,
 							seconds: Math.round(((boot.endedAt ?? now) - boot.beganAt) / 1000),
@@ -528,7 +578,7 @@ export async function handleJvmBoard<H>(board: JvmBoard<H>, request: Request): P
 	if (request.method === "GET" || request.method === "HEAD") {
 		const query = new URL(request.url).searchParams;
 		const session = query.get("session");
-		if (session === null || session === "") return json({ error: "要带 session" }, 400);
+		if (session === null || session === "") return json({ error: "缺少 session 参数" }, 400);
 		return json(await board.view(session, { detail: query.get("detail") === "1" }));
 	}
 	let body: { session?: unknown; action?: unknown; pid?: unknown };
@@ -541,7 +591,7 @@ export async function handleJvmBoard<H>(board: JvmBoard<H>, request: Request): P
 		if (typeof body.pid !== "number" || !Number.isInteger(body.pid)) return json({ error: "pid 要是整数" }, 400);
 		return json({ result: await board.stopPid(body.pid) });
 	}
-	if (typeof body.session !== "string" || body.session === "") return json({ error: "要带 session" }, 400);
+	if (typeof body.session !== "string" || body.session === "") return json({ error: "缺少 session 参数" }, 400);
 	if (!ACTIONS.includes(body.action as BoardAction))
 		return json({ error: "action 只认 ensure、start、restart、stop、stop-pid" }, 400);
 	const result = await board.act(body.session, body.action as BoardAction);

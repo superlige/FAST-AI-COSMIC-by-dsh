@@ -39,15 +39,15 @@ const DB_QUESTIONS: Record<Exclude<ProdDbField, "driver">, [string, string]> = {
 	host: ["生产库主机", "IP 或域名"],
 	port: ["生产库端口", "数字，例如 8000"],
 	database: ["生产库库名", "数据库名"],
-	user: ["生产库只读账号", "只读账号；写权限的账号不要填"],
-	password: ["生产库密码", "提问框里看得见明文；只写到本机这个文件，不进工程目录，也不发给模型"],
+	user: ["生产库只读账号", "只读账号；请勿填写有写权限的账号"],
+	password: ["生产库密码", "提问框中以明文显示；仅写入本机此文件，不进入工程目录，也不发送给模型"],
 };
 
 const RETRY = "重填数据库连接";
-const WRITE_ANYWAY = "照样写入";
-const GIVE_UP = "不写了";
-const MONITOR_NOW = "现在配";
-const MONITOR_LATER = "先不配";
+const WRITE_ANYWAY = "仍然写入";
+const GIVE_UP = "放弃写入";
+const MONITOR_NOW = "现在配置";
+const MONITOR_LATER = "暂不配置";
 
 /** 问一段文字，按 problem 校验，错了带上原因再问；人不填了是 undefined */
 async function askValid(
@@ -63,14 +63,14 @@ async function askValid(
 		if (raw === undefined || raw === "") return undefined;
 		const why = problemOf(raw);
 		if (why === null) return raw;
-		problem = secret ? `上次填的不行：${why}` : `上次填的「${raw.trim()}」不行：${why}`;
+		problem = secret ? `上次填写的内容无效：${why}` : `上次填写的「${raw.trim()}」无效：${why}`;
 	}
 	return undefined;
 }
 
 function nowIs(draft: ProdConfigDraft, field: ProdDbField): string {
 	const value = draft.current[field];
-	return value === undefined ? "" : `（现在是 ${value}）`;
+	return value === undefined ? "" : `（当前值 ${value}）`;
 }
 
 async function askDb(
@@ -83,7 +83,7 @@ async function askDb(
 		if (field === "driver") {
 			const chosen = await ask.choose(
 				"生产排障配置 · 生产库类型",
-				`苍穹自带高斯库选 opengauss；华为 GaussDB 选 gaussdb；PostgreSQL 选 postgresql${nowIs(draft, field)}`,
+				`苍穹自带的高斯库选择 opengauss；华为 GaussDB 选择 gaussdb；PostgreSQL 选择 postgresql${nowIs(draft, field)}`,
 				PROD_DRIVERS,
 			);
 			if (chosen === undefined) return undefined;
@@ -105,7 +105,7 @@ async function askDb(
 }
 
 async function askMonitor(ask: Ask, draft: ProdConfigDraft): Promise<ProdSetupAnswers["monitor"] | undefined> {
-	const was = (value: string | undefined) => (value === undefined ? "" : `（现在是 ${value}）`);
+	const was = (value: string | undefined) => (value === undefined ? "" : `（当前值 ${value}）`);
 	const url = await askValid(
 		ask,
 		"monitor 地址",
@@ -123,7 +123,7 @@ async function askMonitor(ask: Ask, draft: ProdConfigDraft): Promise<ProdSetupAn
 	const password = await askValid(
 		ask,
 		"monitor 密码",
-		"提问框里看得见明文；只写到本机这个文件",
+		"提问框中以明文显示；仅写入本机此文件",
 		(raw) => (raw === "" ? "不能为空" : null),
 		true,
 	);
@@ -147,24 +147,28 @@ export async function configureProd(
 	options: { revise: boolean; askMonitor: boolean },
 ): Promise<ProdSetupOutcome> {
 	if (kernel.prodSetupDraft === undefined || kernel.prodSetupWrite === undefined)
-		return stopped("这个宿主不支持生产排障配置向导");
+		return stopped("当前宿主不支持生产排障配置向导");
 	const draft = kernel.prodSetupDraft();
 	if (draft.parseError !== null)
-		return stopped(`生产排障配置不是合法 JSON，没有覆盖：${draft.file}\n${draft.parseError}`);
+		return stopped(`生产排障配置不是合法 JSON，未覆盖：${draft.file}\n${draft.parseError}`);
 
 	let dbFields: readonly ProdDbField[] = draft.badDb;
 	let monitorWanted = options.askMonitor && !draft.monitorConfigured && draft.badDb.length > 0;
 	if (draft.badDb.length === 0) {
 		const choices = options.revise
-			? [RETRY, draft.monitorConfigured ? "重填 monitor 账号" : "配 monitor 账号", "不改"]
+			? [RETRY, draft.monitorConfigured ? "重新填写 monitor 账号" : "配置 monitor 账号", "不修改"]
 			: [];
 		if (choices.length === 0) {
 			if (!options.askMonitor || draft.monitorConfigured) return { kind: "ready", text: "" };
 			monitorWanted = true;
 		} else {
-			const chosen = await ask.choose("生产排障配置已齐，要改哪部分？", `${draft.summary ?? draft.file}`, choices);
-			if (chosen === undefined || chosen === "不改")
-				return { kind: "ready", text: `没改。\n${draft.summary ?? ""}` };
+			const chosen = await ask.choose(
+				"生产排障配置已完整，需要修改哪一部分？",
+				`${draft.summary ?? draft.file}`,
+				choices,
+			);
+			if (chosen === undefined || chosen === "不修改")
+				return { kind: "ready", text: `未修改。\n${draft.summary ?? ""}` };
 			if (chosen === RETRY) dbFields = PROD_DB_FIELDS;
 			else monitorWanted = true;
 		}
@@ -175,10 +179,10 @@ export async function configureProd(
 	if (dbFields.length > 0) {
 		for (let round = 0; ; round += 1) {
 			const db = await askDb(ask, draft, dbFields);
-			if (db === undefined) return stopped("生产排障配置没填完，没写。");
+			if (db === undefined) return stopped("生产排障配置未填写完整，未写入。");
 			answers.db = db;
 			if (check === undefined) {
-				checkLine = "没试连（还没打开工程，连接要用工程类路径里的驱动）";
+				checkLine = "未试连（尚未打开工程，连接需要使用工程类路径中的驱动）";
 				break;
 			}
 			const tried = await check(draft, answers);
@@ -188,12 +192,12 @@ export async function configureProd(
 			}
 			const why = `${tried.error.message}${tried.error.remedy ? `（${tried.error.remedy}）` : ""}`;
 			const next = round + 1 < MAX_TRIES ? [RETRY, WRITE_ANYWAY, GIVE_UP] : [WRITE_ANYWAY, GIVE_UP];
-			const chosen = await ask.choose("生产排障配置 · 试连没连上", why, next);
+			const chosen = await ask.choose("生产排障配置 · 试连失败", why, next);
 			if (chosen === WRITE_ANYWAY) {
-				checkLine = `试连没连上：${why}`;
+				checkLine = `试连失败：${why}`;
 				break;
 			}
-			if (chosen !== RETRY) return stopped(`试连没连上，没写：${why}`);
+			if (chosen !== RETRY) return stopped(`试连失败，未写入：${why}`);
 			dbFields = PROD_DB_FIELDS;
 		}
 	}
@@ -203,18 +207,18 @@ export async function configureProd(
 			options.revise && draft.badDb.length === 0
 				? MONITOR_NOW
 				: await ask.choose(
-						"生产排障配置 · 要不要配 monitor 账号？",
-						"查生产日志要用；不配也能查库和元数据，以后输入 /cosmic-prod-setup 再配",
+						"生产排障配置 · 是否配置 monitor 账号？",
+						"查询生产日志时需要；不配置也可以查询数据库和元数据，之后可输入 /cosmic-prod-setup 再配置",
 						[MONITOR_NOW, MONITOR_LATER],
 					);
-		if (chosen === undefined) return stopped("生产排障配置没填完，没写。");
+		if (chosen === undefined) return stopped("生产排障配置未填写完整，未写入。");
 		if (chosen === MONITOR_NOW) {
 			const monitor = await askMonitor(ask, draft);
-			if (monitor === undefined) return stopped("monitor 账号没填完，没写。");
+			if (monitor === undefined) return stopped("monitor 账号未填写完整，未写入。");
 			answers.monitor = monitor;
 		}
 	}
-	if (answers.db === undefined && answers.monitor === undefined) return { kind: "ready", text: "没改。" };
+	if (answers.db === undefined && answers.monitor === undefined) return { kind: "ready", text: "未修改。" };
 
 	const shown: string[] = [draft.file, ""];
 	for (const [field, value] of Object.entries(answers.db ?? {}))
@@ -224,13 +228,13 @@ export async function configureProd(
 			`monitor = ${answers.monitor.url.trim()}（账号 ${answers.monitor.username.trim()}，密码已填，不显示）`,
 		);
 	if (checkLine !== "") shown.push("", checkLine);
-	shown.push("", "只改上面这几项，文件里别的内容原样留着。这个文件只在本机，不进工程目录。");
+	shown.push("", "仅修改以上几项，文件中的其他内容保持不变。此文件仅保存在本机，不进入工程目录。");
 	const confirmed = await ask.approve("写入生产排障配置？", shown.join("\n"));
-	if (!confirmed) return stopped("没确认，生产排障配置没写。");
+	if (!confirmed) return stopped("未确认，生产排障配置未写入。");
 	const written = kernel.prodSetupWrite(draft, answers);
 	if (!written.ok)
 		return stopped(
-			`生产排障配置没写成：${written.error.message}${written.error.remedy ? `（${written.error.remedy}）` : ""}`,
+			`生产排障配置写入失败：${written.error.message}${written.error.remedy ? `（${written.error.remedy}）` : ""}`,
 		);
 	return {
 		kind: "ready",

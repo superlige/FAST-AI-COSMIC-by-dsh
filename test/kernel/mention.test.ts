@@ -7,6 +7,7 @@ import {
 	buildMentionCatalog,
 	describeMention,
 	type FormCatalog,
+	type FormRow,
 	formCatalogOf,
 	MENTION_TAG,
 	mentionBlock,
@@ -109,6 +110,43 @@ describe("目录", () => {
 		expect(catalog.byId.get("demox_pick")?.kind).toBe("form");
 	});
 
+	it("全库找：布局不和字段抢位置，列出来的单据带上它的全部布局", () => {
+		// 真机 zlgd_sys_test_bill：31 份布局、名字都带「实验室检测单」，曾经被同名字段挤得只剩 1 份
+		const rows: FormRow[] = [{ n: "demo_testbill", m: "BillFormModel", i: "demox", name: "检测单" }];
+		for (let i = 0; i < 30; i++)
+			rows.push({
+				n: `demo_test_l${i}`,
+				m: "BillFormModel",
+				i: "demox",
+				e: "demo_testbill",
+				name: `检测单_试验${i}`,
+			});
+		// 名字里不带单据名的布局也算这张单的
+		rows.push({ n: "demo_test_hard", m: "BillFormModel", i: "demox", e: "demo_testbill", name: "布氏硬度" });
+		rows.push({ n: "demo_other", m: "BillFormModel", i: "demox", name: "委托单" });
+		rows.push({ n: "demo_other_l", m: "BillFormModel", i: "demox", e: "demo_other", name: "委托单_检测单视图" });
+		const records: Record<string, unknown>[] = [{ t: "entity", key: "demo_other", name: "委托单" }];
+		for (let i = 0; i < 20; i++)
+			records.push({ t: "field", key: `demo_f${i}`, name: `检测单字段${i}`, type: "TextProp", level: "header" });
+		const runtime = runtimeFieldsOf(records, "t");
+		const catalog = buildMentionCatalog({
+			index: null,
+			forms: { ...forms, forms: rows },
+			runtime: runtime ? [runtime] : [],
+		});
+		const found = searchMentions(catalog, "检测单");
+		// 单据和字段照旧给十几个
+		expect(found.filter((it) => it.kind !== "layout")).toHaveLength(12);
+		expect(found[0]?.id).toBe("demo_testbill");
+		const layouts = found.filter((it) => it.kind === "layout").map((it) => it.id);
+		expect(layouts.filter((id) => id.startsWith("demo_test_"))).toHaveLength(31);
+		expect(layouts).toContain("demo_test_hard");
+		// 别的单上名字对上的布局跟在后面
+		expect(layouts.at(-1)).toBe("demo_other_l");
+		// 只搜布局的名字，单据不在候选里也找得到
+		expect(searchMentions(catalog, "布氏").map((it) => it.id)).toEqual(["demo_test_hard"]);
+	});
+
 	it("按中文名找：一个字也找；本工程碰过的单据排在前面", () => {
 		const catalog = buildMentionCatalog({ index: index(), forms, runtime: [] });
 		const ids = searchMentions(catalog, "销售出库").map((it) => it.id);
@@ -126,9 +164,14 @@ describe("目录", () => {
 	it("「单据.」只在这张单里找；同名的单不止一张就先列单，不替人挑", () => {
 		const catalog = buildMentionCatalog({ index: index(), forms, runtime: [] });
 		expect(parseMentionQuery(catalog, "销售出库单.批").scope).toBe("demo_saloutbill");
-		// 没敲词只列这一层：表头字段和第一层分录；分录里的字段要再钻
+		// 没敲词只列这一层：第一层分录、这张单的布局、表头字段；分录里的字段要再钻
 		const inBill = searchMentions(catalog, "demo_saloutbill.");
-		expect(inBill.map((it) => it.id)).toEqual(["demo_saloutbill.billentry", "demo_saloutbill.demox_dept"]);
+		expect(inBill.map((it) => it.id)).toEqual([
+			"demo_saloutbill.billentry",
+			"demox_saloutbill_mob",
+			"demo_saloutbill.demox_dept",
+		]);
+		expect(searchMentions(catalog, "demo_saloutbill.移动").map((it) => it.id)).toEqual(["demox_saloutbill_mob"]);
 		// 敲了词就整张单里找，分录里的字段也找得到
 		expect(searchMentions(catalog, "demo_saloutbill.批").map((it) => it.id)).toEqual([
 			"demo_saloutbill.billentry.demox_batch",
@@ -298,6 +341,7 @@ describe("探针旁路", () => {
 		expect(ids("demo_saloutbill.")).toEqual([
 			"demo_saloutbill.billentry",
 			"demo_saloutbill.costentry",
+			"demox_saloutbill_mob",
 			"demo_saloutbill.billno",
 		]);
 		expect(parseMentionQuery(catalog, "销售出库单.物料明细.物").path).toEqual(["billentry"]);
@@ -329,6 +373,7 @@ describe("探针旁路", () => {
 			entry: "demo_sub",
 			parentEntry: "demo_e1",
 		});
+		records.push({ t: "field", key: "demo_w", name: "长度", type: "DecimalProp", level: "entry", entry: "demo_e2" });
 		const runtime = runtimeFieldsOf(records, "t");
 		const catalog = buildMentionCatalog({ index: null, forms, runtime: runtime ? [runtime] : [] });
 		const top = searchMentions(catalog, "demo_testbill.");
@@ -338,6 +383,13 @@ describe("探针旁路", () => {
 		expect(top.at(-1)?.key).toBe("billhead_lk");
 		const sub = catalog.byId.get("demo_testbill.demo_e1.demo_sub");
 		expect(sub && mentionLabel(sub, catalog)).toBe("检测单.分录1.结果值");
+		// 字段的名字写出它上面的每一层分录，不只是单据（曾经显示成「检测单.值」，看不出在哪条分录上）
+		const v = catalog.byId.get("demo_testbill.demo_e1.demo_sub.demo_v");
+		expect(v && mentionLabel(v, catalog)).toBe("检测单.分录1.结果值.值");
+		const w = catalog.byId.get("demo_testbill.demo_e2.demo_w");
+		expect(w && mentionLabel(w, catalog)).toBe("检测单.分录2.长度");
+		const h = catalog.byId.get("demo_testbill.demo_h0");
+		expect(h && mentionLabel(h, catalog)).toBe("检测单.表头0");
 		expect(sub && mentionHint(sub, catalog)).toBe(
 			"demo_testbill.demo_e1.demo_sub · 分录 demo_e1「分录1」 下的子分录 · 字段 1 个",
 		);
@@ -362,6 +414,7 @@ describe("探针旁路", () => {
 		const catalog = buildMentionCatalog({ index: null, forms, runtime: runtime ? [runtime] : [] });
 		expect(searchMentions(catalog, "demo_saloutbill.").map((it) => it.key)).toEqual([
 			"billentry",
+			"demox_saloutbill_mob",
 			"org",
 			"billno",
 			"id",

@@ -173,7 +173,7 @@ window.__ModuleLoader__.load({
 			"--cosmic-fill-3": pair("rgba(118, 118, 128, 0.12)", "rgba(118, 118, 128, 0.24)"),
 			"--cosmic-fill-4": pair("rgba(116, 116, 128, 0.08)", "rgba(118, 118, 128, 0.18)"),
 			"--cosmic-separator": pair("rgba(0, 0, 0, 0.12)", "rgba(255, 255, 255, 0.17)"),
-			// 首页壁纸：底色上四团柔和的光（终端青绿、靛紫、粉、杏），深色版压暗、收饱和
+			// 首页壁纸：底色上四团柔和的光（青绿、靛紫、粉、杏），深色版压暗、收饱和
 			"--cosmic-wall-base": pair("#eef2fb", "#07080f"),
 			"--cosmic-wall-a": pair("rgba(72, 206, 190, 0.5)", "rgba(0, 150, 138, 0.42)"),
 			"--cosmic-wall-b": pair("rgba(146, 128, 255, 0.5)", "rgba(112, 70, 255, 0.48)"),
@@ -183,17 +183,11 @@ window.__ModuleLoader__.load({
 			"--cosmic-widget-bg": pair("rgba(255, 255, 255, 0.55)", "rgba(28, 28, 34, 0.5)"),
 			"--cosmic-widget-rim": pair("rgba(255, 255, 255, 0.75)", "rgba(255, 255, 255, 0.1)"),
 			"--cosmic-widget-shadow": pair("0 6px 24px rgba(20, 30, 80, 0.08)", "0 6px 24px rgba(0, 0, 0, 0.35)"),
-			// 终端青绿（pi 版首页的品牌色）：方块字由亮到暗三档、阴影线、提示符
-			"--cosmic-term-hi": pair("rgb(38, 150, 138)", "rgb(186, 250, 238)"),
-			"--cosmic-term": pair("rgb(22, 122, 112)", "rgb(112, 226, 208)"),
-			"--cosmic-term-lo": pair("rgb(12, 88, 82)", "rgb(58, 172, 156)"),
-			"--cosmic-term-shade": pair("rgba(22, 110, 102, 0.42)", "rgba(112, 226, 208, 0.34)"),
-			// 工程卡片里的代码：Xcode 默认主题（浅色 / 深色）的语法配色
-			"--cosmic-code-kw": pair("rgb(155, 35, 147)", "rgb(255, 122, 178)"),
-			"--cosmic-code-decl": pair("rgb(15, 104, 160)", "rgb(78, 176, 204)"),
-			"--cosmic-code-prop": pair("rgb(50, 109, 116)", "rgb(103, 183, 164)"),
-			"--cosmic-code-str": pair("rgb(196, 26, 22)", "rgb(255, 129, 112)"),
-			"--cosmic-code-com": pair("rgb(93, 108, 121)", "rgb(127, 140, 152)"),
+			// pi 版的品牌青绿（src/agent/ui/palette.ts 那一套）：首页方块大字、状态卡、名牌。浅色取深一档，白底上读得清
+			"--cosmic-pi-accent": pair("rgb(90, 128, 128)", "rgb(138, 190, 183)"),
+			"--cosmic-pi-glow": pair("rgb(32, 128, 118)", "rgb(112, 226, 208)"),
+			"--cosmic-pi-hi": pair("rgb(20, 64, 60)", "rgb(228, 255, 250)"),
+			"--cosmic-pi-line": pair("rgb(160, 190, 186)", "rgb(56, 92, 87)"),
 			// 玻璃边上那圈高光细线：左上、右下两个角最亮，中段几乎看不见
 			"--cosmic-rim-hot": pair("rgba(255, 255, 255, 0.95)", "rgba(255, 255, 255, 0.32)"),
 			"--cosmic-rim-cool": pair("rgba(255, 255, 255, 0.18)", "rgba(255, 255, 255, 0.04)"),
@@ -239,14 +233,16 @@ window.__ModuleLoader__.load({
 		const C = (key) => `var(--cosmic-${key})`;
 		const tint = (color, percent) => `color-mix(in srgb, ${color} ${percent}%, transparent)`;
 
-		// ── 标志：终端 + iOS ──
-		// 深色圆角方块里一个终端提示符「❯▌」：银白的箭头、发青绿光的块状光标（pi 版首页提示行末尾那个光标），
-		// 底上淡淡几道扫描线、光标周围一团青绿的光。高光只在上下两条边、不随设备晃动，外沿一圈很淡的暗边（iOS 图标规范）。
+		// ── 标志：pi 版的方块字 + iOS 图标 ──
+		// 深色圆角方块里一个 pi 版方块字的「C」：青绿渐变的实心格、细线阴影（字形和首页大字同一套），
+		// 底上淡淡几道扫描线、字后面一团青绿的光。高光只在上下两条边，外沿一圈很淡的暗边（iOS 图标规范）。
 		// 安装包图标（scripts/package-desktop.mjs 的 MARK）画的是同一个图形，改这里要一起改那边。
 		/** 圆角取边长的 22.37%，iOS 图标那条连续曲线在网页上的近似。 */
 		const ICON_RX = 5.37;
-		const CHEVRON = "M7.2 8.4 10.8 12l-3.6 3.6";
 		const SCANLINES = Array.from({ length: 14 }, (_unused, at) => +(2.2 + at * 1.5).toFixed(1));
+		/** 方块字「C」（格宽 1、高 2，8×12）：实心格并成三块，阴影一笔画完。 */
+		const ICON_C_BLOCKS = "M1 0h6v2h-6zM0 2h2v6h-2zM1 8h6v2h-6z";
+		const ICON_C_SHADE = "M7 1H7.5V3H2.5V8M.5 8V9H1M7 9H7.5V11H1.5V10";
 
 		/** SVG 里的渐变按 id 引用；同一页上有好几个标志，各用各的 id。 */
 		let svgSerial = 0;
@@ -268,7 +264,6 @@ window.__ModuleLoader__.load({
 			const id = useSvgId();
 			const ref = (name) => `url(#${id}-${name})`;
 			const tile = { x: 0, y: 0, width: 24, height: 24, rx: ICON_RX };
-			const chevron = { d: CHEVRON, fill: "none", strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round" };
 			return h(
 				"svg",
 				{
@@ -287,16 +282,11 @@ window.__ModuleLoader__.load({
 						stop("0.6", "#121518"),
 						stop("1", "#090B0C"),
 					]),
-					h("radialGradient", { id: `${id}-bloom`, cx: "63%", cy: "50%", r: "40%" }, [
-						stop("0", "#70E2D0", 0.38),
+					h("radialGradient", { id: `${id}-bloom`, cx: "50%", cy: "50%", r: "46%" }, [
+						stop("0", "#70E2D0", 0.36),
 						stop("1", "#70E2D0", 0),
 					]),
-					h(
-						"linearGradient",
-						{ id: `${id}-chevron`, gradientUnits: "userSpaceOnUse", x1: 0, y1: 7, x2: 0, y2: 17 },
-						[stop("0", "#ffffff"), stop("1", "#BFC8C6")],
-					),
-					h("linearGradient", { id: `${id}-cursor`, x1: 0, y1: 0, x2: 0, y2: 1 }, [
+					h("linearGradient", { id: `${id}-ink`, x1: 0, y1: 0, x2: 0, y2: 1 }, [
 						stop("0", "#C8FFF5"),
 						stop("1", "#46C7B2"),
 					]),
@@ -313,10 +303,19 @@ window.__ModuleLoader__.load({
 					h("rect", { key: y, x: 0, y, width: 24, height: 0.35, fill: "#ffffff", fillOpacity: 0.025 }),
 				),
 				h("rect", { ...tile, fill: ref("bloom") }),
-				h("path", { ...chevron, stroke: "#000000", strokeOpacity: 0.45, transform: "translate(0 0.4)" }),
-				h("path", { ...chevron, stroke: ref("chevron") }),
-				h("rect", { x: 13.2, y: 8.3, width: 3.8, height: 7.4, rx: 0.8, fill: ref("cursor") }),
-				h("rect", { x: 13.6, y: 8.55, width: 3, height: 0.35, rx: 0.17, fill: "#ffffff", fillOpacity: 0.7 }),
+				h(
+					"g",
+					{ transform: "translate(7 4.5) scale(1.35)" },
+					h("path", {
+						d: ICON_C_SHADE,
+						fill: "none",
+						stroke: "#70E2D0",
+						strokeOpacity: 0.45,
+						strokeWidth: 0.24,
+						strokeLinecap: "square",
+					}),
+					h("path", { d: ICON_C_BLOCKS, fill: ref("ink") }),
+				),
 				h("rect", { ...tile, fill: ref("edge") }),
 				h("rect", {
 					x: 0.125,
@@ -335,6 +334,7 @@ window.__ModuleLoader__.load({
 		// ── 首页的方块字：pi 版终端首页那个带阴影的「COSMIC」──
 		// 字形照 pi 版 src/agent/ui/banner.ts 的 GLYPHS：每个字六行，█ 是实心格，╗║═╚╝╔ 是阴影。
 		// 这里不靠字体排（等宽字体里方框线常对不齐），逐格画成 SVG：一格宽 1、高 2，█ 画方块，阴影画成细线。
+		// 按列分组，每列带上它的列号和一点抖动：开场的逐列解码、开机时的呼吸波、就绪点火都按列错开。
 		const WORD_GLYPHS = {
 			C: [" ██████╗", "██╔════╝", "██║     ", "██║     ", "╚██████╗", " ╚═════╝"],
 			O: [" ██████╗ ", "██╔═══██╗", "██║   ██║", "██║   ██║", "╚██████╔╝", " ╚═════╝ "],
@@ -351,21 +351,6 @@ window.__ModuleLoader__.load({
 			"╚": "M.5 0V1H1",
 			"╝": "M.5 0V1H0",
 		};
-		const WORDMARK = (() => {
-			const blocks = [];
-			let left = 0;
-			for (const letter of PRODUCT_LOGO_MARK) {
-				const rows = WORD_GLYPHS[letter];
-				if (!rows) continue;
-				rows.forEach((row, y) => {
-					[...row].forEach((char, x) => {
-						if (char === "█") blocks.push({ x: left + x, y: y * 2 });
-					});
-				});
-				left += rows[0].length;
-			}
-			return { width: left, blocks };
-		})();
 		/** 阴影一格的折线，平移到 (x, y) 那一格。 */
 		function shadeAt(char, x, y) {
 			return SHADE_PATHS[char].replace(/([MHV])([\d.]+)(?: ([\d.]+))?/g, (_whole, op, a, b) => {
@@ -374,31 +359,51 @@ window.__ModuleLoader__.load({
 				return `M${+a + x} ${+b + y}`;
 			});
 		}
-		const WORDMARK_SHADES = (() => {
-			const paths = [];
+		/** 固定的伪随机（0～1）：解码的乱码、每列的抖动每次都一样，不闪来闪去。 */
+		function hash01(a, b) {
+			let n = Math.imul(a + 1, 0x27d4eb2d) ^ Math.imul(b + 7, 0x165667b1);
+			n ^= n >>> 15;
+			n = Math.imul(n, 0x2c1b3c6d);
+			n ^= n >>> 12;
+			return (n >>> 0) / 4294967296;
+		}
+		/** 解码时这一列多久锁定成真字（毫秒）：从左往右扫，带一点抖动。 */
+		const lockMs = (x) => Math.round(140 + x * 22 + hash01(x, 2) * 140);
+		const WORDMARK = (() => {
+			const columns = [];
 			let left = 0;
 			for (const letter of PRODUCT_LOGO_MARK) {
 				const rows = WORD_GLYPHS[letter];
 				if (!rows) continue;
 				rows.forEach((row, y) => {
-					[...row].forEach((char, x) => {
-						if (SHADE_PATHS[char]) paths.push(shadeAt(char, left + x, y * 2));
+					[...row].forEach((char, dx) => {
+						const x = left + dx;
+						columns[x] ??= { x, blocks: "", shades: "", noise: "" };
+						if (char === "█") columns[x].blocks += `M${x} ${y * 2}h1v2h-1z`;
+						else if (SHADE_PATHS[char]) columns[x].shades += shadeAt(char, x, y * 2);
 					});
 				});
 				left += rows[0].length;
 			}
-			return paths.join("");
+			// 解码时的乱码：每列随机几格画成小一号的块，锁定前一明一暗
+			for (const column of columns)
+				for (let y = 0; y < 6; y += 1)
+					if (hash01(column.x, y + 11) < 0.42) column.noise += `M${column.x + 0.15} ${y * 2 + 0.35}h.7v1.3h-.7z`;
+			return { width: left, columns: columns.filter(Boolean) };
 		})();
-
-		/** 实心格合成一条路径：一格一个小方块各画各的，相邻处抗锯齿会留下细缝。 */
-		const WORDMARK_BLOCKS = WORDMARK.blocks.map((cell) => `M${cell.x} ${cell.y}h1v2h-1z`).join("");
+		const WORDMARK_BLOCKS = WORDMARK.columns.map((column) => column.blocks).join("");
+		/** 故障闪一下的那两条：第几行、往哪边错一格、多久闪一次。 */
+		const GLITCH_BANDS = [
+			{ row: 1, shift: 1 },
+			{ row: 3, shift: -1 },
+		];
 
 		/**
-		 * 方块字本体。开场一块遮罩按格往右揭开（像 pi 版开场的逐列解码），阴影随后淡入；
-		 * 一道光（只照在实心格上）扫过去，开场、就绪那一刻各扫一遍，平时隔一阵扫一遍。
-		 * 颜色全走 --cosmic-term-* 变量，深浅两套。
+		 * 方块字本体（pi 版首页的大字）。开场逐列解码：先是乱码一明一暗，到点锁定成实心格、闪一下白再落成青绿，
+		 * 阴影随后淡入；定下来以后隔一阵有一行错开一格闪一下（pi 版的故障闪），一道光不时扫过。
+		 * 开机还在走时整块暗着、从左往右一波波呼吸；就绪那一刻从左到右点火。这些都在样式表里，按 data-* 切。
 		 */
-		function Wordmark({ height = 44 }) {
+		function Wordmark({ height = 72 }) {
 			const id = useSvgId();
 			const { width } = WORDMARK;
 			return h(
@@ -416,8 +421,8 @@ window.__ModuleLoader__.load({
 					h(
 						"linearGradient",
 						{ id: `${id}-ink`, gradientUnits: "userSpaceOnUse", x1: 0, y1: 0, x2: 0, y2: 12 },
-						h("stop", { offset: 0, style: { stopColor: "var(--cosmic-term-hi)" } }),
-						h("stop", { offset: 1, style: { stopColor: "var(--cosmic-term-lo)" } }),
+						h("stop", { offset: 0, style: { stopColor: "var(--cosmic-pi-glow)" } }),
+						h("stop", { offset: 1, style: { stopColor: "var(--cosmic-pi-accent)" } }),
 					),
 					h(
 						"linearGradient",
@@ -426,25 +431,55 @@ window.__ModuleLoader__.load({
 						stop("0.5", "#ffffff", 0.85),
 						stop("1", "#ffffff", 0),
 					),
+					h("mask", { id: `${id}-cells` }, h("path", { d: WORDMARK_BLOCKS, fill: "#ffffff" })),
+					// 故障闪的那一瞬，原地那一行挖掉，换成错开一格的那一份
 					h(
 						"mask",
-						{ id: `${id}-reveal`, maskUnits: "userSpaceOnUse", x: -1, y: -1, width: width + 2, height: 14 },
-						h("rect", {
-							className: "cx-wm-reveal",
-							x: -0.5,
-							y: -0.5,
-							width: width + 1,
-							height: 13,
-							fill: "#ffffff",
-						}),
+						{ id: `${id}-hole`, maskUnits: "userSpaceOnUse", x: -2, y: -2, width: width + 4, height: 17 },
+						h("rect", { x: -2, y: -2, width: width + 4, height: 17, fill: "#ffffff" }),
+						...GLITCH_BANDS.map((band, at) =>
+							h("rect", {
+								key: at,
+								className: `cx-wm-hole cx-wm-g${at}`,
+								x: -2,
+								y: band.row * 2,
+								width: width + 4,
+								height: 2,
+								fill: "#000000",
+							}),
+						),
 					),
-					h("mask", { id: `${id}-cells` }, h("path", { d: WORDMARK_BLOCKS, fill: "#ffffff" })),
+					...GLITCH_BANDS.map((band, at) =>
+						h(
+							"clipPath",
+							{ key: at, id: `${id}-band${at}` },
+							h("rect", { x: -2, y: band.row * 2, width: width + 4, height: 2 }),
+						),
+					),
 				),
 				h(
 					"g",
-					{ mask: `url(#${id}-reveal)` },
-					h("path", { className: "cx-wm-shade", d: WORDMARK_SHADES }),
-					h("path", { className: "cx-wm-blocks", d: WORDMARK_BLOCKS, fill: `url(#${id}-ink)` }),
+					{ mask: `url(#${id}-hole)` },
+					h(
+						"g",
+						{ id: `${id}-body` },
+						...WORDMARK.columns.map((column) =>
+							h(
+								"g",
+								{ key: column.x, style: { "--x": column.x, "--t": `${lockMs(column.x)}ms` } },
+								h("path", { className: "cx-wm-noise", d: column.noise }),
+								h("path", { className: "cx-wm-shade", d: column.shades }),
+								h("path", { className: "cx-wm-blocks", d: column.blocks, fill: `url(#${id}-ink)` }),
+							),
+						),
+					),
+				),
+				...GLITCH_BANDS.map((band, at) =>
+					h(
+						"g",
+						{ key: at, className: `cx-wm-glitch cx-wm-g${at}`, clipPath: `url(#${id}-band${at})` },
+						h("use", { href: `#${id}-body`, transform: `translate(${band.shift} 0)` }),
+					),
 				),
 				h(
 					"g",
@@ -534,8 +569,8 @@ window.__ModuleLoader__.load({
 						h(
 							"p",
 							{ key: "u", style: muted },
-							"浏览器没打开的话，",
-							h("a", { href: view.url, target: "_blank", rel: "noreferrer" }, "点这里打开登录页"),
+							"浏览器未自动打开时，",
+							h("a", { href: view.url, target: "_blank", rel: "noreferrer" }, "点击此处打开登录页"),
 						),
 					);
 				if (view.code) rows.push(h("p", { key: "c", style: muted }, `登录页要的代码：${view.code}`));
@@ -552,7 +587,7 @@ window.__ModuleLoader__.load({
 									setAnswer("");
 								},
 							},
-							h("span", { style: muted }, `${view.question.message}（浏览器登录完没自动回来时填）`),
+							h("span", { style: muted }, `${view.question.message}（浏览器登录完成后未自动返回时填写）`),
 							h("input", {
 								type: view.question.secret ? "password" : "text",
 								value: answer,
@@ -569,14 +604,14 @@ window.__ModuleLoader__.load({
 					h(
 						"p",
 						{ key: "e", style: { ...muted, color: "var(--dsw-alias-state-danger, #d33)" } },
-						`登录没做成：${view.error}`,
+						`登录失败：${view.error}`,
 					),
 				);
 			} else if (view.phase === "cancelled") {
 				rows.push(h("p", { key: "x", style: muted }, "登录已取消。"));
 			}
 
-			const status = view.signedIn ? "已登录 ChatGPT 账号" : "还没登录 ChatGPT 账号，codex 的模型用不了";
+			const status = view.signedIn ? "已登录 ChatGPT 账号" : "未登录 ChatGPT 账号，无法使用 Codex 模型";
 			const actions = waiting
 				? [
 						h(
@@ -626,7 +661,7 @@ window.__ModuleLoader__.load({
 					...actions,
 				),
 				...rows,
-				failure === null ? null : h("p", { style: muted }, `刚才那一步没发出去：${failure}`),
+				failure === null ? null : h("p", { style: muted }, `上一步提交失败：${failure}`),
 			);
 		}
 
@@ -689,29 +724,29 @@ window.__ModuleLoader__.load({
 			idle: C("label"),
 		};
 		const LIVE_TEXT = {
-			stopped: "没在跑",
-			stopping: "正在停",
+			stopped: "未运行",
+			stopping: "停止中",
 			starting: "启动中",
 			warming: "预热中",
 			ready: "就绪",
-			executing: "正在跑探针",
-			"pending-sync": "就绪（等换类）",
+			executing: "执行探针中",
+			"pending-sync": "就绪（待加载新代码）",
 			syncing: "同步代码中",
-			"restart-needed": "要重启才能用新代码",
+			"restart-needed": "需重启以加载新代码",
 			restarting: "重启中",
-			unresponsive: "进程在、心跳不答",
-			unhealthy: "不健康",
-			foreign: "端口被别的 JVM 占着",
+			unresponsive: "进程存在，心跳无响应",
+			unhealthy: "运行异常",
+			foreign: "端口被其他 JVM 占用",
 			checking: "检查中",
 		};
 		const MACHINE_STATE = {
 			ready: "空闲",
-			executing: "正在跑",
+			executing: "执行中",
 			starting: "启动中",
 			warming: "预热中",
 			syncing: "同步代码中",
-			unhealthy: "不健康",
-			unresponsive: "心跳不答",
+			unhealthy: "运行异常",
+			unresponsive: "心跳无响应",
 		};
 		const MACHINE_TAG = {
 			ready: "ok",
@@ -738,18 +773,18 @@ window.__ModuleLoader__.load({
 					`苍穹 JVM ${step ? step.label : "准备中"}… ${span(boot.seconds)}`,
 				);
 			}
-			if (boot?.phase === "no-project") return say("idle", "不是苍穹工程", "不是苍穹工程");
-			if (boot?.phase === "config") return say("warn", "配置不全", "苍穹工程配置不全");
+			if (boot?.phase === "no-project") return say("idle", "非苍穹工程", "当前工作区不是苍穹工程");
+			if (boot?.phase === "config") return say("warn", "待配置", "苍穹工程配置不完整");
 			if (!live) {
-				if (boot?.phase === "failed") return say("bad", "JVM 没起成", "苍穹 JVM 没起成");
+				if (boot?.phase === "failed") return say("bad", "JVM 启动失败", "苍穹 JVM 启动失败");
 				return say("idle", "JVM", "苍穹 JVM");
 			}
-			const since = live.startedAt ? ` · ${clockShort(live.startedAt)} 起` : "";
+			const since = live.startedAt ? ` · ${clockShort(live.startedAt)} 启动` : "";
 			switch (live.kind) {
 				case "ready":
 				case "pending-sync":
 					return boot?.phase === "degraded"
-						? say("warn", "JVM 环境有问题", `苍穹 JVM 已起，环境有问题${since}`)
+						? say("warn", "JVM 环境异常", `苍穹 JVM 已启动，环境异常${since}`)
 						: say("ok", "JVM 就绪", `本地苍穹 就绪 · ${name}${since}`);
 				case "executing":
 					return say("run", "JVM 执行中", `本地苍穹 执行中 · ${name}${since}`);
@@ -761,9 +796,9 @@ window.__ModuleLoader__.load({
 				case "checking":
 					return say("busy", `JVM ${LIVE_TEXT[live.kind]}…`, `苍穹 JVM ${LIVE_TEXT[live.kind]}…`);
 				case "stopped":
-					if (boot?.phase === "failed") return say("bad", "JVM 没起成", "苍穹 JVM 没起成");
-					if (boot?.phase === "not-built") return say("warn", "工程未构建", "工程还没构建，JVM 没起");
-					return say("idle", "JVM 没在跑", "苍穹 JVM 没在跑");
+					if (boot?.phase === "failed") return say("bad", "JVM 启动失败", "苍穹 JVM 启动失败");
+					if (boot?.phase === "not-built") return say("warn", "工程未构建", "工程尚未构建，JVM 未启动");
+					return say("idle", "JVM 未运行", "苍穹 JVM 未运行");
 				default:
 					return say(
 						"warn",
@@ -814,32 +849,64 @@ window.__ModuleLoader__.load({
 		const bootShared = createShared(null);
 		const publishBoot = bootShared.set;
 		const useBootState = bootShared.use;
-		/** 首页 JVM、工程两块小组件要的：状态色、大字、小字、开机进度（0~1，不在开机是 null）、工程、打开详情。 */
+		/** 首页状态卡要的（jvmHome 的样子）；首页拿不到会话，由输入框里的 JVM 小标签报过来。 */
 		const jvmShared = createShared(null);
 		/** 输入框的动作（dsh 给会话插槽的 inputActions）：首页应用图标用它填起手句。 */
 		const composerShared = createShared(null);
+		/**
+		 * 首页状态卡要的样子。stage 是卡片画哪一种：
+		 *   boot 开机还在走（或 JVM 在重启、同步这类）；ready 就绪；run 正在跑探针；
+		 *   config 配置不全、等人填（missing 是缺的那几项）；warn 起了但有问题、工程没构建；bad 没起成；
+		 *   down 没在跑、不是苍穹工程。首页拿不到会话（没选工作区）时整个是 null，卡片画等选工作区。
+		 * headline 是 JVM 那头的大字，note 是它下面那行小字；steps 是开机六步（名字、状态）。
+		 */
 		function jvmHome(view, open) {
 			const chip = jvmChip(view);
 			const boot = view.boot;
 			const live = view.live;
-			const name = view.project?.name ?? "";
-			// 开机步骤原样带上（名字、状态、秒数），首页的 JVM 卡片照它排一段启动日志
-			const steps = (boot?.steps ?? []).map(({ key, label, state, seconds }) => ({ key, label, state, seconds }));
-			const base = { tone: chip.tone, progress: null, steps, project: view.project ?? null, open };
+			const steps = (boot?.steps ?? []).map(({ key, label, state }) => ({ key, label, state }));
+			const base = {
+				tone: chip.tone,
+				steps,
+				project: view.project ?? null,
+				folder: view.folder ?? null,
+				missing: [],
+				open,
+			};
 			if (boot && !boot.done) {
 				const done = steps.filter((step) => step.state === "ok" || step.state === "skip").length;
+				const at = Math.min(done + 1, steps.length);
+				const step = steps.find((one) => one.state === "run");
 				return {
 					...base,
+					stage: "boot",
 					headline: "启动中",
-					note: `第 ${Math.min(done + 1, steps.length)}/${steps.length} 步`,
-					progress: steps.length ? done / steps.length : 0,
+					note: `${step ? `${step.label} · ` : ""}${at}/${steps.length}`,
 				};
 			}
+			if (boot?.phase === "config")
+				return {
+					...base,
+					stage: "config",
+					missing: boot.missing ?? [],
+					headline: "待配置",
+					note: "完成工程配置后自动启动",
+				};
+			if (boot?.phase === "no-project")
+				return { ...base, stage: "down", headline: "非苍穹工程", note: "请切换到苍穹工程所在的工作区" };
 			if (chip.tone === "ok")
-				return { ...base, headline: "就绪", note: live?.startedAt ? `${clockShort(live.startedAt)} 起` : name };
-			if (chip.tone === "run") return { ...base, headline: "执行中", note: name };
-			const headline = chip.text.replace(/^(苍穹 JVM|本地苍穹)\s*/, "").replace(/…$/, "") || "没在跑";
-			return { ...base, headline, note: chip.tone === "bad" || chip.tone === "warn" ? "点开看原因" : name };
+				return {
+					...base,
+					stage: "ready",
+					headline: "就绪",
+					note: live?.startedAt ? `${clockShort(live.startedAt)} 启动` : "",
+				};
+			if (chip.tone === "run") return { ...base, stage: "run", headline: "执行中", note: "正在执行探针" };
+			const headline = chip.short.replace(/^JVM\s*/, "").replace(/…$/, "") || "未运行";
+			// JVM 在重启、同步、预热这类：没有这一趟的步骤可列，线上的光跑满全程
+			if (chip.tone === "busy") return { ...base, steps: [], stage: "boot", headline, note: "" };
+			const stage = chip.tone === "bad" ? "bad" : chip.tone === "warn" ? "warn" : "down";
+			return { ...base, stage, headline, note: stage === "down" ? "点击启动" : "点击查看原因" };
 		}
 
 		// ── 样式表：挂在 <head> 上一份，类名带 cx- / cjvm- / cw- 前缀 ──
@@ -934,31 +1001,42 @@ div:has(> span [data-cosmic-hero]) > span:not(:has([data-cosmic-hero])) { displa
   background: radial-gradient(24% 26% at 60% 64%, var(--cosmic-wall-c), transparent 72%),
     radial-gradient(22% 24% at 40% 66%, var(--cosmic-wall-d), transparent 72%); }
 
-/* ── 首页：一排小组件 + 一排应用图标，像 iPhone 主屏 ── */
-/* 方块字逐列「解码」：遮罩按格跳着往右揭开，字在这期间闪两下再定住，像 pi 版开场的乱码落定 */
-@keyframes cx-reveal { from { transform: scaleX(0); } }
-@keyframes cx-decode { 0% { opacity: .3; } 30% { opacity: 1; } 45% { opacity: .5; } 70%, 100% { opacity: 1; } }
+/* ── 首页：pi 版的品牌（方块大字、名牌、青绿）放进 iOS 的玻璃卡片里；下面两张状态卡、一排应用图标 ── */
+@keyframes cx-zoom { from { opacity: 0; transform: scale(1.08); } to { opacity: 1; transform: none; } }
+@keyframes cx-rise { from { opacity: 0; transform: translateY(6px); } }
 @keyframes cx-fade { from { opacity: 0; } }
-/* 一道光从左扫到右（只照在实心格上）；平时那一遍放在长周期的开头，其余时间不动 */
-@keyframes cx-beam { from { transform: translateX(-10px); } to { transform: translateX(60px); } }
-@keyframes cx-beam-idle { 0% { transform: translateX(-10px); } 14%, 100% { transform: translateX(60px); } }
-@keyframes cx-breathe { 0%, 100% { opacity: .42; } 50% { opacity: .9; } }
-@keyframes cx-blink { 50% { opacity: 0; } }
-/* 一行字像打出来：从左往右一格一格露出来 */
-@keyframes cx-type { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
-/* 终端里转圈的盲文点 */
+@keyframes cx-turn { to { transform: rotate(360deg); } }
+@keyframes cx-pop { 40% { transform: scale(1.16); } }
+@keyframes cx-breathe { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
+/* 方块字：锁定前是乱码一明一暗；到点锁定，闪一下白再落成青绿 */
+@keyframes cx-noise { 0% { opacity: 0; } 12% { opacity: .5; } 26% { opacity: .2; } 40% { opacity: .6; } 55% { opacity: .25; } 70% { opacity: .55; } 85% { opacity: .3; } 100% { opacity: 0; } }
+@keyframes cx-lock { from { opacity: 1; filter: brightness(2.6); } to { opacity: 1; filter: none; } }
+@keyframes cx-gone { from, to { opacity: 0; } }
+/* 开机还在走：暗着呼吸，波从左往右差着半拍 */
+@keyframes cx-breath { 0%, 100% { opacity: .3; } 50% { opacity: .8; } }
+/* 就绪点火：每列闪一下白 */
+@keyframes cx-ignite { 30% { filter: brightness(2.6); } }
+/* 一道光从左扫到右（只照在实心格上）；平时那一遍放在长周期的开头 */
+@keyframes cx-beam { from { transform: translateX(-10px); } to { transform: translateX(56px); } }
+@keyframes cx-beam-idle { 0% { transform: translateX(-10px); } 14%, 100% { transform: translateX(56px); } }
+/* 故障闪：一个周期里只亮一小下（约 150ms），这一行错开一格 */
+@keyframes cx-glitch { 0%, 66% { opacity: 0; } 66.1%, 70% { opacity: 1; } 70.1%, 100% { opacity: 0; } }
+/* 光标：闪两下就收（输入框里也有光标，一直闪着人分不清往哪打字） */
+@keyframes cx-caret { 0%, 49.9% { opacity: 1; } 50%, 100% { opacity: 0; } }
 @keyframes cx-braille { 0% { content: "⠋"; } 10% { content: "⠙"; } 20% { content: "⠹"; } 30% { content: "⠸"; } 40% { content: "⠼"; }
   50% { content: "⠴"; } 60% { content: "⠦"; } 70% { content: "⠧"; } 80% { content: "⠇"; } 90% { content: "⠏"; } }
-@keyframes cx-out-flash { 40% { filter: brightness(1.5); transform: translateX(3px); } }
-@keyframes cx-glow { 0% { filter: none; } 35% { filter: brightness(1.6) drop-shadow(0 0 6px var(--cosmic-term)); } 100% { filter: none; } }
-@keyframes cx-zoom { from { opacity: 0; transform: scale(1.12); } to { opacity: 1; transform: none; } }
-@keyframes cx-turn { to { transform: rotate(360deg); } }
+/* 状态卡 */
+@keyframes cx-core { 0%, 100% { box-shadow: 0 0 10px 0 ${tint("var(--cx-tone)", 55)}, inset 0 0 0 1px ${tint("var(--cx-tone)", 50)}; }
+  50% { box-shadow: 0 0 24px 4px ${tint("var(--cx-tone)", 45)}, inset 0 0 0 1px ${tint("var(--cx-tone)", 80)}; } }
+@keyframes cx-ping { from { box-shadow: 0 0 0 0 ${tint("var(--cx-tone)", 60)}; } to { box-shadow: 0 0 0 8px transparent; } }
+@keyframes cx-wait { 0%, 55%, 100% { opacity: .35; } 22% { opacity: 1; background-color: ${tint("var(--cx-tone)", 60)}; } }
+@keyframes cx-shimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
 .cx-home { container-type: inline-size; display: flex; flex-direction: column; gap: 22px; width: 100%; padding-bottom: 12px; text-align: left;
   font-size: 13px; line-height: 18px; font-weight: 400; color: ${LABEL1}; user-select: none; }
-.cx-widgets { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.cx-widgets { display: flex; flex-direction: column; gap: 14px; }
 /* 小组件：壁纸上的一层轻玻璃，圆角 24；彼此不叠 */
-.cx-widget { position: relative; display: flex; flex-direction: column; min-width: 0; height: 160px; box-sizing: border-box;
-  margin: 0; padding: 14px 16px; border: 0; border-radius: 24px; background: var(--cosmic-widget-bg);
+.cx-widget { position: relative; display: flex; min-width: 0; box-sizing: border-box;
+  margin: 0; padding: 16px 18px; border: 0; border-radius: 24px; background: var(--cosmic-widget-bg);
   backdrop-filter: blur(24px) saturate(1.8); -webkit-backdrop-filter: blur(24px) saturate(1.8);
   box-shadow: var(--cosmic-widget-shadow), inset 0 0 0 0.5px var(--cosmic-widget-rim);
   color: ${LABEL1}; font: inherit; text-align: left; overflow: hidden; }
@@ -968,68 +1046,100 @@ div:has(> span [data-cosmic-hero]) > span:not(:has([data-cosmic-hero])) { displa
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor;
   mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); }
 button.cx-widget { cursor: pointer; transition: transform .35s ${SNAPPY}; }
-button.cx-widget:hover { transform: scale(1.02); }
-button.cx-widget:active { transform: scale(.97); }
-.cx-w-brand { grid-column: 1 / -1; height: 176px; padding: 18px 22px; }
-.cx-w-jvm, .cx-w-project { height: 150px; }
-.cx-w-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; min-width: 0; }
-.cx-w-date { flex: none; font-size: 12px; line-height: 16px; color: ${LABEL2}; white-space: nowrap; }
-/* 方块字：实心格是青绿渐变，阴影是细线；svg 自己不收缩，窄了整体按比例缩 */
-.cx-wm { display: block; max-width: 100%; height: auto; overflow: visible; }
-.cx-wm-shade { fill: none; stroke: var(--cosmic-term-shade); stroke-width: .22; stroke-linecap: square; }
+button.cx-widget:hover { transform: scale(1.015); }
+button.cx-widget:active { transform: scale(.98); }
+button.cx-widget:focus-visible { outline: none; box-shadow: 0 0 0 3px ${tint(C("glow"), 60)}, var(--cosmic-widget-shadow); }
+
+/* 品牌卡：左边方块大字，右边 pi 版的名牌（字标、副标题、提示符标语、就绪） */
+.cx-w-brand { align-items: center; gap: 28px; padding: 22px 26px; }
+.cx-wm { flex: none; display: block; max-width: 100%; height: auto; overflow: visible; }
+.cx-wm-shade { fill: none; stroke: var(--cosmic-pi-line); stroke-width: .22; stroke-linecap: square; }
+/* 格子对齐到整像素画：缩放到小数像素时相邻两格之间不露缝（叠一点也不行，变暗时叠的地方会深一道） */
+.cx-wm-blocks, .cx-wm-noise { shape-rendering: crispEdges; }
+.cx-wm-noise { fill: var(--cosmic-pi-glow); opacity: 0; }
 .cx-wm-beam { transform: translateX(-10px); }
-.cx-wm-reveal { transform-box: fill-box; transform-origin: left center; }
-.cx-w-meta { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; margin-top: 8px; font-size: 13px; color: ${LABEL2}; }
-.cx-w-tag { font-family: ${MONO_FONT}; font-size: 11px; font-weight: 600; letter-spacing: 0.08em; color: var(--cosmic-term); white-space: nowrap; }
-/* 提示行：等宽字，像终端里光标停着的那一行 */
-.cx-prompt { display: flex; align-items: center; gap: 8px; min-width: 0; margin-top: auto; font-family: ${MONO_FONT}; font-size: 13px; line-height: 18px; font-weight: 400; color: ${LABEL2}; }
-.cx-prompt-mark { flex: none; color: var(--cosmic-term); font-weight: 700; }
-.cx-prompt-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cx-prompt-text > b { font-weight: 500; color: ${LABEL1}; }
-.cx-caret { flex: none; width: 8px; height: 16px; margin-left: -4px; border-radius: 1.5px; background: var(--cosmic-term);
-  box-shadow: 0 0 8px ${tint("var(--cosmic-term)", 55)}; animation: cx-blink 1.1s steps(1) infinite; }
-.cx-w-cap { font-size: 12px; line-height: 16px; font-weight: 500; letter-spacing: 0.04em; color: var(--cx-tone); white-space: nowrap; }
-.cx-w-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
-.cx-w-project .cx-w-cap { color: ${LABEL2}; }
-.cx-w-file { font-family: ${MONO_FONT}; font-size: 11px; line-height: 18px; padding: 0 7px; border-radius: 6px; background: ${C("fill-4")}; color: ${LABEL3}; }
-/* JVM：终端输出。一行命令、一段启动日志、一行结果 */
-.cx-term-cmd { margin-top: 10px; font-family: ${MONO_FONT}; font-size: 12px; line-height: 16px; color: ${LABEL2}; }
-.cx-term-cmd i { font-style: normal; font-weight: 700; color: var(--cosmic-term); }
-.cx-type { display: inline-block; white-space: pre; }
-/* 日志窗口：固定三行高，里面整列往上推（新的一步出来，旧的滚走），新出来的那行像打字一样露出来 */
-.cx-log { display: block; height: 51px; margin-top: 8px; overflow: hidden; font-family: ${MONO_FONT}; font-size: 12px; line-height: 17px; }
-.cx-log-roll { display: flex; flex-direction: column; transition: transform .45s ${GENTLE}; }
-.cx-log-line { display: flex; align-items: baseline; gap: 8px; min-width: 0; color: ${LABEL2}; }
-.cx-log-line[data-new] { animation: cx-type .4s steps(12) both; }
-.cx-log-mark { flex: none; width: 12px; text-align: center; font-weight: 700; }
-.cx-log-line[data-state="ok"] .cx-log-mark { color: ${C("ready")}; }
-.cx-log-line[data-state="fail"] .cx-log-mark, .cx-log-line[data-state="fail"] .cx-log-label { color: ${C("bad")}; }
-.cx-log-line[data-state="skip"], .cx-log-line[data-state="wait"] { color: ${LABEL3}; }
-.cx-log-line[data-state="run"] { color: ${LABEL1}; }
-.cx-log-line[data-state="run"] .cx-log-mark { color: ${C("glow")}; }
-.cx-log-line[data-state="run"] .cx-log-mark::before { content: "⠋"; animation: cx-braille .8s linear infinite; }
-.cx-log-label { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cx-log-time { flex: none; color: ${LABEL3}; font-variant-numeric: tabular-nums; }
-/* 结果行：箭头和状态字跟状态同色，中等字重；开机还在走时末尾一个小光标在闪 */
-.cx-log-out { display: flex; align-items: center; min-width: 0; margin-top: auto; padding-top: 4px; font-family: ${MONO_FONT}; font-size: 13px; line-height: 18px; color: ${LABEL2}; white-space: nowrap; }
-.cx-log-out > i { flex: none; margin-right: 8px; font-style: normal; font-weight: 700; color: var(--cx-tone); }
-.cx-log-out > b { flex: none; font-weight: 500; color: var(--cx-tone); }
-.cx-log-out > span:not(.cx-caret) { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: pre; }
-.cx-caret.cx-caret-sm { width: 7px; height: 14px; margin-left: 6px; background: var(--cx-tone); box-shadow: none; animation-duration: .6s; }
-/* 工程：一段代码，左边行号；当前行带一条淡底、行号变青绿，一行一行往下走 */
-.cx-code { display: flex; flex-direction: column; margin-top: 10px; font-family: ${MONO_FONT}; font-size: 12px; line-height: 18px; font-weight: 400; }
-.cx-code-line { display: flex; gap: 12px; min-width: 0; margin: 0 -8px; padding: 0 8px; border-radius: 6px; transition: background-color .5s ${GENTLE}; }
-.cx-code-line[data-on] { background: ${C("fill-4")}; }
-.cx-code-no { flex: none; width: 10px; text-align: right; color: ${LABEL3}; transition: color .5s ${GENTLE}; }
-.cx-code-line[data-on] .cx-code-no { color: var(--cosmic-term); }
-.cx-code-text { min-width: 0; white-space: pre; overflow: hidden; text-overflow: ellipsis; color: ${LABEL2}; }
-/* 语法配色照 Xcode：关键字粉紫、声明的名字蓝、属性名青、字符串红、注释灰；全用常规字重 */
-.cx-c-k { color: var(--cosmic-code-kw); font-weight: 500; }
-.cx-c-v { color: var(--cosmic-code-decl); }
-.cx-c-f { color: var(--cosmic-code-prop); }
-.cx-c-s { color: var(--cosmic-code-str); }
-.cx-c-p { color: ${LABEL3}; }
-.cx-c-c { color: var(--cosmic-code-com); font-style: italic; }
+.cx-wm-hole, .cx-wm-glitch { opacity: 0; }
+.cx-wm-glitch { filter: brightness(1.5); }
+.cx-plate { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; padding-left: 22px; border-left: 1px solid var(--cosmic-pi-line); }
+.cx-plate-tag { font-size: 11px; line-height: 14px; font-weight: 700; letter-spacing: .08em; color: var(--cosmic-pi-glow); white-space: nowrap; }
+.cx-plate-sub { font-size: 15px; line-height: 20px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cx-plate-line { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 13px; line-height: 18px; color: ${LABEL2}; white-space: nowrap; }
+.cx-plate-line > i { font-style: normal; font-weight: 700; color: var(--cosmic-pi-glow); }
+.cx-plate-line > b { font-weight: 600; color: var(--cosmic-pi-hi); }
+.cx-caret { flex: none; width: 7px; height: 15px; margin-left: -2px; border-radius: 1.5px; background: var(--cosmic-pi-glow); opacity: 0;
+  box-shadow: 0 0 8px ${tint("var(--cosmic-pi-glow)", 55)}; animation: cx-caret 1.06s 1.3s steps(1) 2 both; }
+.cx-plate-ready { display: flex; align-items: center; gap: 6px; font-size: 12px; line-height: 16px; color: ${LABEL2}; animation: cx-rise .45s ${SNAPPY} both; }
+.cx-plate-ready > b { font-weight: 600; color: ${C("ready")}; }
+
+/* 品牌卡下面并排两张：左边苍穹 JVM（开机动画、就绪），右边工程信息；配色是 pi 的青绿，好坏用系统绿、红 */
+.cx-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; }
+.cx-card-title { font-size: 12px; line-height: 16px; font-weight: 600; letter-spacing: .04em; color: ${LABEL2}; white-space: nowrap; }
+/* 图块和侧栏标志一个做法：深色圆角方块、青绿的图形、背后一团光 */
+.cx-jvm-core, .cx-proj-tile { position: relative; flex: none; display: grid; place-items: center; box-sizing: border-box; overflow: hidden;
+  border-radius: 22.37%; color: #70E2D0;
+  background: radial-gradient(circle at 50% 50%, rgba(112, 226, 208, .22), transparent 62%), linear-gradient(#2B2F33, #121518 60%, #090B0C);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, .18), inset 0 0 0 0.5px rgba(255, 255, 255, .12); }
+.cx-proj-tile::after { content: ""; position: absolute; inset: -20%; transform: translateX(-80%);
+  background: linear-gradient(110deg, transparent 40%, rgba(255, 255, 255, .18) 50%, transparent 60%); animation: cx-sheen 7s 1.5s ${GENTLE} infinite; }
+@keyframes cx-sheen { 0% { transform: translateX(-80%); } 22%, 100% { transform: translateX(80%); } }
+
+/* JVM 卡：上面核心 + 状态大字，中间开机六格，下面一行这一步的名字或启动时刻 */
+.cx-jvm { flex-direction: column; gap: 14px; padding: 18px 20px; }
+.cx-jvm-top { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.cx-jvm-core { width: 52px; height: 52px; color: var(--cx-tone); transition: color .4s ${GENTLE}; }
+.cx-jvm-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.cx-jvm-state { font-size: 20px; line-height: 26px; font-weight: 700; color: var(--cx-tone); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  animation: cx-rise .4s ${SNAPPY} both; }
+.cx-jvm[data-stage="down"] .cx-jvm-state, .cx-jvm[data-stage="idle"] .cx-jvm-state { color: ${LABEL2}; }
+.cx-jvm-note { min-height: 16px; font-size: 12px; line-height: 16px; color: ${LABEL2}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  animation: cx-rise .4s ${SNAPPY} both; }
+/* 核心：就绪时一呼一吸地亮，执行中呼吸加快；开机时图形换成 pi 的盲文转圈，外面一圈光绕着转；等的时候外圈虚线慢转 */
+.cx-jvm[data-stage="ready"] .cx-jvm-core { animation: cx-core 2.8s ease-in-out infinite; }
+.cx-jvm[data-stage="run"] .cx-jvm-core { animation: cx-core 1.2s ease-in-out infinite; }
+.cx-jvm[data-stage="down"] .cx-jvm-core, .cx-jvm[data-stage="idle"] .cx-jvm-core, .cx-jvm[data-stage="config"] .cx-jvm-core { color: rgba(235, 235, 245, .45); }
+.cx-jvm[data-stage="boot"] .cx-jvm-core > svg { display: none; }
+.cx-jvm[data-stage="boot"] .cx-jvm-core::after { content: "⠋"; font-size: 28px; line-height: 1; color: var(--cx-tone);
+  text-shadow: 0 0 10px ${tint("var(--cx-tone)", 70)}; animation: cx-braille .8s linear infinite; }
+.cx-jvm[data-stage="boot"] .cx-jvm-core::before { content: ""; position: absolute; inset: 0; border-radius: inherit;
+  background: conic-gradient(from 0deg, transparent 0 70%, ${tint("var(--cx-tone)", 70)} 100%); animation: cx-turn 1.4s linear infinite;
+  -webkit-mask: radial-gradient(circle, transparent 56%, #000 58%); mask: radial-gradient(circle, transparent 56%, #000 58%); }
+.cx-jvm[data-stage="idle"] .cx-jvm-core::before, .cx-jvm[data-stage="config"] .cx-jvm-core::before { content: ""; position: absolute; inset: 5px;
+  border-radius: 50%; border: 1.5px dashed ${tint("var(--cx-tone)", 75)}; animation: cx-turn 10s linear infinite; }
+/* 开机六格（pi 的实心格）：做完的实心青绿，正在走的那格闪着状态色的光，出错的那格往外泛红圈，没轮到的空心 */
+.cx-jvm-bar { position: relative; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 5px; height: 8px; }
+.cx-jvm-seg { position: relative; border-radius: 2px; overflow: hidden; background: ${tint("var(--cosmic-pi-line)", 70)};
+  transition: background-color .35s ${GENTLE}; }
+.cx-jvm-seg[data-s="done"] { background: var(--cx-done, var(--cx-tone)); }
+.cx-jvm[data-stage="boot"], .cx-jvm[data-stage="bad"], .cx-jvm[data-stage="warn"] { --cx-done: var(--cosmic-pi-accent); }
+.cx-jvm[data-stage="ready"] .cx-jvm-seg[data-s="done"], .cx-jvm[data-stage="run"] .cx-jvm-seg[data-s="done"] { box-shadow: 0 0 6px ${tint("var(--cx-tone)", 60)}; }
+.cx-jvm-seg[data-s="now"] { background: ${tint("var(--cx-tone)", 35)}; }
+.cx-jvm-seg[data-s="now"]::after, .cx-jvm-bar[data-sweep]::after { content: ""; position: absolute; inset: 0; width: 60%;
+  background: linear-gradient(90deg, transparent, var(--cx-tone), transparent); animation: cx-slide 1.2s cubic-bezier(.45, 0, .55, 1) infinite; }
+.cx-jvm-bar[data-sweep]::after { width: 30%; border-radius: 2px; }
+@keyframes cx-slide { from { transform: translateX(-100%); } to { transform: translateX(340%); } }
+.cx-jvm-seg[data-s="fail"] { background: var(--cx-tone); animation: cx-ping 1.3s ease-out infinite; }
+.cx-jvm[data-stage="idle"] .cx-jvm-seg, .cx-jvm[data-stage="config"] .cx-jvm-seg { animation: cx-wait 2.6s calc(var(--i) * .22s) ease-in-out infinite; }
+/* 就绪：六格从左到右亮一遍 */
+.cx-jvm[data-stage="ready"] .cx-jvm-seg { animation: cx-lit .5s calc(var(--i) * 60ms) ${GENTLE} both; }
+@keyframes cx-lit { from { filter: brightness(2.2); transform: scaleY(1.6); } }
+
+/* 工程卡：标题一行，下面两行两列：工程、ISV、账套、用户 */
+.cx-proj { flex-direction: column; gap: 14px; padding: 18px 20px; }
+.cx-proj-top { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.cx-proj-tile { width: 30px; height: 30px; }
+.cx-proj-tile > svg { width: 17px; height: 17px; }
+.cx-proj-tile[data-empty] { background: none; box-shadow: none; color: ${LABEL3}; border: 1.5px dashed ${LABEL3}; animation: cx-breathe 2.4s ease-in-out infinite; }
+.cx-proj-tile[data-empty]::after { content: none; }
+.cx-proj-ask { margin-left: auto; padding: 2px 9px; border-radius: 999px; font-size: 12px; line-height: 16px; font-weight: 600; white-space: nowrap;
+  color: var(--cosmic-pi-glow); background: ${tint("var(--cosmic-pi-glow)", 14)}; }
+.cx-proj-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px 16px; }
+.cx-proj-cell { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.cx-proj-label { font-size: 11px; line-height: 14px; color: ${LABEL2}; }
+.cx-proj-value { min-width: 0; font-size: 14px; line-height: 20px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cx-proj-value[data-wait] { align-self: flex-start; padding: 0 8px; border-radius: 6px; font-weight: 500; color: ${LABEL3};
+  background: linear-gradient(90deg, ${C("fill-4")} 0%, ${tint("var(--cosmic-pi-glow)", 22)} 50%, ${C("fill-4")} 100%); background-size: 200% 100%;
+  animation: cx-shimmer 1.8s linear infinite; }
+
 /* 应用图标：无色玻璃，60pt、圆角 22.37%，图形用正文色；悬停浮起一点，按下去缩小，像系统里点图标 */
 .cx-apps { display: flex; justify-content: center; flex-wrap: wrap; gap: 16px 40px; }
 .cx-app { display: flex; flex-direction: column; align-items: center; gap: 8px; width: 76px; padding: 2px 0; border: 0;
@@ -1042,43 +1152,49 @@ button.cx-widget:active { transform: scale(.97); }
 .cx-app:active .cx-app-icon { transform: scale(.9); background-color: ${C("fill-2")}; transition-duration: .12s; }
 .cx-app:focus-visible .cx-app-icon { box-shadow: 0 0 0 3px ${tint(C("glow"), 60)}, var(--cosmic-widget-shadow); }
 .cx-app-label { max-width: 100%; font-size: 12px; line-height: 16px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-/* 开场：像解锁回到主屏——小组件和图标从稍大处收拢、淡入，一个接一个；方块字逐列解码出来，阴影随后淡入，一道光扫过 */
+
+/* 开场：卡片和图标从稍大处收拢、淡入；方块字逐列解码（乱码 → 锁定闪白 → 青绿），阴影随后淡入，名牌最后一行行出来 */
 .cx-home:not([data-settled]) .cx-widget { animation: cx-zoom .6s ${GENTLE} both; }
-.cx-home:not([data-settled]) .cx-widget:nth-child(2) { animation-delay: .06s; }
-.cx-home:not([data-settled]) .cx-widget:nth-child(3) { animation-delay: .12s; }
+.cx-home:not([data-settled]) .cx-row > .cx-widget { animation-delay: .08s; }
+.cx-home:not([data-settled]) .cx-row > .cx-widget + .cx-widget { animation-delay: .14s; }
 .cx-home:not([data-settled]) .cx-app { animation: cx-zoom .55s calc(.16s + var(--cx-i) * 40ms) ${GENTLE} both; }
-.cx-home:not([data-settled]) .cx-wm-reveal { animation: cx-reveal .6s .15s steps(16) both; }
-.cx-home:not([data-settled]) .cx-wm-blocks { animation: cx-decode .6s .15s steps(6) both; }
-.cx-home:not([data-settled]) .cx-wm-shade { animation: cx-fade .5s .7s ${GENTLE} both; }
-.cx-home:not([data-settled]) .cx-wm-beam { animation: cx-beam .9s .75s ${GENTLE} both; }
-/* JVM 卡片：命令打出来、方格依次点亮、结果淡入；工程卡片：代码一行一行打出来 */
-.cx-home:not([data-settled]) .cx-type { animation: cx-type .45s .3s steps(13) both; }
-.cx-home:not([data-settled]) .cx-log-line { animation: cx-type .4s calc(.55s + var(--i) * 90ms) steps(12) both; }
-.cx-home:not([data-settled]) .cx-log-out { animation: cx-fade .3s .95s ${GENTLE} both; }
-.cx-home:not([data-settled]) .cx-code-line { animation: cx-type .4s calc(.3s + var(--i) * 120ms) steps(14) both; }
-/* 定下来以后隔一阵扫一遍光 */
+.cx-home:not([data-settled]) .cx-wm-noise { animation: cx-noise var(--t) steps(1) both; }
+.cx-home:not([data-settled]) .cx-wm-blocks { animation: cx-lock .45s var(--t) both, cx-gone var(--t) linear; }
+.cx-home:not([data-settled]) .cx-wm-shade { animation: cx-fade .3s calc(var(--t) + .15s) both; }
+.cx-home:not([data-settled]) .cx-wm-beam { animation: cx-beam .9s 1.2s ${GENTLE} both; }
+.cx-home:not([data-settled]) .cx-plate > * { animation: cx-rise .45s calc(.7s + var(--k, 0) * 90ms) ${SNAPPY} both; }
+/* 定下来以后：隔一阵扫一遍光，两行轮流故障闪 */
 .cx-home[data-settled]:not([data-boot="loading"]):not([data-boot="down"]) .cx-wm-beam { animation: cx-beam-idle 9s 2s ${GENTLE} infinite; }
-/* 跟着开机走：还在走时字暗着呼吸、光标快闪；没就绪也不在走就变灰变淡 */
-.cx-home[data-boot="loading"] .cx-wm-blocks { animation: cx-breathe 1.8s ease-in-out infinite; }
-.cx-home[data-boot="loading"] .cx-caret { animation-duration: .5s; }
-.cx-home[data-boot="down"] .cx-wm { filter: grayscale(1); opacity: .45; }
-.cx-home[data-boot="down"] .cx-caret { animation: none; opacity: .35; background: ${LABEL3}; box-shadow: none; }
-/* 就绪那一刻：字亮一下、光扫一遍，JVM 结果行跳一下 */
-.cx-home[data-ignite] .cx-wm { animation: cx-glow .7s ${GENTLE}; }
+.cx-home[data-settled]:not([data-boot="loading"]):not([data-boot="down"]) .cx-wm-g0 { animation: cx-glitch 3.4s 1s steps(1) infinite; }
+.cx-home[data-settled]:not([data-boot="loading"]):not([data-boot="down"]) .cx-wm-g1 { animation: cx-glitch 5.3s 2.7s steps(1) infinite; }
+/* 跟着开机走：还在走时整块暗着、从左往右一波波呼吸；没就绪也不在走就暗着不动 */
+.cx-home[data-settled][data-boot="loading"] .cx-wm-blocks { animation: cx-breath 2.6s calc(var(--x) * 19ms) ease-in-out infinite; }
+.cx-home[data-settled][data-boot="loading"] .cx-wm-shade { opacity: .5; }
+.cx-home[data-boot="down"] .cx-wm-blocks { opacity: .36; }
+.cx-home[data-boot="down"] .cx-wm-shade { opacity: .4; }
+/* 就绪那一刻：从左到右点火、光扫一遍，JVM 的核跳一下 */
+.cx-home[data-ignite] .cx-wm-blocks { animation: cx-ignite .7s calc(var(--x) * 14ms) ${GENTLE} both; }
 .cx-home[data-ignite] .cx-wm-beam { animation: cx-beam .7s ${GENTLE}; }
-.cx-home[data-ignite] .cx-log-out { animation: cx-out-flash .5s ${SNAPPY}; }
-@container (max-width: 560px) {
-  .cx-widgets { grid-template-columns: minmax(0, 1fr); }
+.cx-home[data-ignite] .cx-jvm-core { animation: cx-pop .5s ${SNAPPY}; }
+@container (max-width: 620px) {
+  .cx-w-brand { flex-direction: column; align-items: flex-start; gap: 14px; }
+  .cx-plate { padding-left: 0; border-left: 0; }
+  .cx-row { grid-template-columns: minmax(0, 1fr); }
   .cx-apps { column-gap: 20px; }
 }
-/* 窗口矮：只留大组件和图标，JVM 状态在输入框的小标签里也看得到 */
+/* 窗口矮：卡片收紧；再矮就只留品牌卡和图标，JVM 状态在输入框的小标签里也看得到 */
 @media (max-height: 760px) {
-  .cx-w-jvm, .cx-w-project { display: none; }
-  .cx-w-brand { height: auto; gap: 12px; }
+  .cx-w-brand { padding: 16px 20px; }
+  .cx-jvm, .cx-proj { gap: 10px; padding: 14px 16px; }
+  .cx-jvm-core { width: 40px; height: 40px; }
+}
+@media (max-height: 620px) {
+  .cx-row { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .cx-home *, .cx-home, .cx-log-mark::before, .cx-wall, .cx-wall::before, .cx-wall::after, .cx-dot, .cjvm-panel, .cw-card { animation: none !important; }
-  .cjvm-btn, .cjvm-chip, .cx-app-icon, .cx-widget { transition: none; }
+  .cx-home, .cx-home *, .cx-home *::before, .cx-home *::after, .cx-wall, .cx-wall::before, .cx-wall::after, .cx-dot, .cjvm-panel, .cw-card { animation: none !important; }
+  .cx-home .cx-caret { opacity: 0; }
+  .cjvm-btn, .cjvm-chip, .cx-app-icon, .cx-widget, .cx-jvm-seg { transition: none; }
 }
 
 /* ── 状态小圆点：系统绿 / 靛蓝 / 蓝 / 橙 / 红，闲着是空心圈；准备中、执行中是系统那种八根辐条的加载圈 ── */
@@ -1368,7 +1484,7 @@ button.cw-choice:active:not(:disabled) { transform: scale(.96); }
 			);
 		}
 
-		const projectName = (root) => (root ? root.replace(/\\/g, "/").split("/").filter(Boolean).pop() : "工程认不出来");
+		const projectName = (root) => (root ? root.replace(/\\/g, "/").split("/").filter(Boolean).pop() : "未识别的工程");
 		const STEP_TAG = { wait: "wait", run: "busy", ok: "ok", skip: "skip", fail: "fail" };
 
 		/**
@@ -1394,7 +1510,7 @@ button.cw-choice:active:not(:disabled) { transform: scale(.96); }
 						? "不是苍穹工程"
 						: boot?.phase === "config"
 							? "配置不全"
-							: "还没认出工程";
+							: "未识别工程";
 
 			const rect = anchor?.getBoundingClientRect?.();
 			const position =
@@ -1476,9 +1592,9 @@ button.cw-choice:active:not(:disabled) { transform: scale(.96); }
 									{ className: "cjvm-row-label" },
 									step.label,
 									step.state === "skip"
-										? h("small", null, "不用做")
+										? h("small", null, "已跳过")
 										: step.state === "wait" && boot.done
-											? h("small", null, "没走到")
+											? h("small", null, "未执行")
 											: null,
 								),
 								h("span", { className: "cjvm-row-time" }, step.seconds == null ? "" : `${step.seconds}s`),
@@ -1506,7 +1622,7 @@ button.cw-choice:active:not(:disabled) { transform: scale(.96); }
 				machine === undefined
 					? h("p", { key: "loading", className: "cjvm-note" }, "正在读本机进程…")
 					: machine.jvms.length === 0
-						? h("p", { key: "none", className: "cjvm-note" }, "本机没有 cosmic 起的 JVM")
+						? h("p", { key: "none", className: "cjvm-note" }, "本机暂无 cosmic 启动的 JVM")
 						: h(
 								"div",
 								{ key: "list", className: "cjvm-procs" },
@@ -1552,7 +1668,7 @@ button.cw-choice:active:not(:disabled) { transform: scale(.96); }
 								}),
 							),
 				machine && !machine.processesListed
-					? h("p", { key: "partial", className: "cjvm-note" }, "没查到进程清单，只列心跳答得上的")
+					? h("p", { key: "partial", className: "cjvm-note" }, "未能读取进程清单，仅列出有心跳响应的 JVM")
 					: null,
 			);
 
@@ -1601,7 +1717,7 @@ button.cw-choice:active:not(:disabled) { transform: scale(.96); }
 				h(
 					"div",
 					{ className: "cjvm-sub", title: project?.root },
-					project ? ["工程 ", h("b", { key: "n" }, project.name)] : "这个会话的工作目录还没认出苍穹工程",
+					project ? ["工程 ", h("b", { key: "n" }, project.name)] : "当前会话的工作目录未识别为苍穹工程",
 				),
 				stats.length > 0
 					? section("stats", null, null, h("div", { key: "s", className: "cjvm-stats" }, ...stats))
@@ -1725,7 +1841,7 @@ button.cw-choice:active:not(:disabled) { transform: scale(.96); }
 					setMessage(answer.result?.text || null);
 					if (answer.view) setView((before) => ({ ...answer.view, machine: before?.machine }));
 				} catch (error) {
-					setMessage(`没发出去：${String(error?.message ?? error)}`);
+					setMessage(`发送失败：${String(error?.message ?? error)}`);
 				}
 				setBusy(false);
 				void refresh(true);
@@ -1736,7 +1852,7 @@ button.cw-choice:active:not(:disabled) { transform: scale(.96); }
 					const answer = await jvmCall(sessionId, { action: "stop-pid", pid });
 					setMessage(answer.result?.text || null);
 				} catch (error) {
-					setMessage(`没发出去：${String(error?.message ?? error)}`);
+					setMessage(`发送失败：${String(error?.message ?? error)}`);
 				}
 				setBusy(false);
 				void refresh(true);
@@ -1751,7 +1867,7 @@ button.cw-choice:active:not(:disabled) { transform: scale(.96); }
 						className: "cjvm-chip",
 						"data-cosmic-jvm-chip": chip.tone,
 						"aria-expanded": open,
-						title: `${chip.text}（点开看详情）`,
+						title: `${chip.text}（点击查看详情）`,
 						style: tone(TONE[chip.tone]),
 						onMouseDown: (event) => event.stopPropagation(),
 						onClick: () => {
@@ -2094,19 +2210,24 @@ button.cw-choice:active:not(:disabled) { transform: scale(.96); }
 		// ── 首页：iPhone 主屏的排法 ──
 		//
 		//   ┌──────────── 壁纸（柔和的彩色光斑，深浅两版）────────────┐
-		//   │ ╭ 大组件 ─────────────────╮ ╭ 苍穹 JVM ╮ ╭ 工程 ───╮ │
-		//   │ │ [图标] COSMIC  FAST·AI   │ │  ◯ 圆环  │ │ 名字     │ │
-		//   │ │ 下午好 · 11月23日 星期一  │ │  就绪    │ │ 运行时   │ │
-		//   │ ╰──────────────────────────╯ ╰──────────╯ ╰──────────╯ │
-		//   │            ▢写插件   ▢查元数据   ▢排查问题   ▢真跑业务             │
+		//   │ ╭ 品牌卡 ───────────────────────────────────────────╮ │
+		//   │ │ ██████╗ ██████╗ …（pi 版方块大字）  │ F A S T · A I       │ │
+		//   │ │                                     │ 金蝶云·苍穹开发智能体 │ │
+		//   │ │                                     │ ❯ 构建，在真实环境中验证│ │
+		//   │ ╰───────────────────────────────────────────────────╯ │
+		//   │ ╭ JVM 卡 ─────────────────╮ ╭ 工程卡 ────────────────╮ │
+		//   │ │ (核) 苍穹 JVM · 启动中   │ │ 工程 …       ISV …      │ │
+		//   │ │ ■■▌□□□  编译探针宿主 3/6 │ │ 账套 …       用户 …     │ │
+		//   │ ╰─────────────────────────╯ ╰────────────────────────╯ │
+		//   │            ▢写插件   ▢查元数据   ▢排查问题   ▢真跑业务     │
 		//   │ ╭──────────── 输入框（玻璃，当 Dock）────────────╮      │
 		//   └──────────────────────────────────────────────────────┘
 		//
-		// 壁纸挂在 conversation.hero.frame（只在首页铺），组件和图标挂在品牌位（dsh 首页标题那一行，名牌独占一行）。
-		// 小组件浮在壁纸上，用一层轻玻璃；它们之间不叠玻璃。JVM 和工程两块的数据来自输入框里的 JVM 小标签（首页拿不到会话），
-		// 点 JVM 那块打开小标签的详情面板。应用图标点一下把一句起手的话填进输入框，光标停在末尾接着写。
-		// 动画全在样式表里（transform / opacity / filter），这里只按时机切几个 data-* 属性。
-		const INTRO_MS = 1300;
+		// 壁纸挂在 conversation.hero.frame（只在首页铺），卡片和图标挂在品牌位（dsh 首页标题那一行，名牌独占一行）。
+		// 卡片浮在壁纸上，用一层轻玻璃；它们之间不叠玻璃。两张状态卡的数据来自输入框里的 JVM 小标签（首页拿不到会话），
+		// 点 JVM 卡打开小标签的详情面板（配置不全时两张卡都改成把 /cosmic-env 填进输入框）。应用图标点一下把一句起手的话填进输入框。
+		// 动画全在样式表里（transform / opacity / filter），这里只按时机切几个 data-* 属性；文字只留状态词和这一步的名字。
+		const INTRO_MS = 2200;
 		const IGNITE_MS = 700;
 		const reducedMotion = () =>
 			typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -2137,26 +2258,6 @@ button.cw-choice:active:not(:disabled) { transform: scale(.96); }
 			return ignite;
 		}
 
-		/** 现在几点：问候语和日期跟着走，一分钟对一次。 */
-		function useMinute() {
-			const [now, setNow] = React.useState(() => new Date());
-			React.useEffect(() => {
-				const timer = setInterval(() => setNow(new Date()), 60_000);
-				return () => clearInterval(timer);
-			}, []);
-			return now;
-		}
-		const WEEKDAY = "日一二三四五六";
-		function greetingOf(now) {
-			const hour = now.getHours();
-			if (hour < 5) return "夜深了";
-			if (hour < 11) return "早上好";
-			if (hour < 13) return "中午好";
-			if (hour < 18) return "下午好";
-			return "晚上好";
-		}
-		const dateOf = (now) => `${now.getMonth() + 1}月${now.getDate()}日 星期${WEEKDAY[now.getDay()]}`;
-
 		/** 首页铺壁纸：只在首页（空会话、不是嵌在别处的对话）铺，进了会话就撤掉。 */
 		function HeroFrame({ hero, children }) {
 			return h(
@@ -2178,7 +2279,7 @@ button.cw-choice:active:not(:disabled) { transform: scale(.96); }
 			{
 				id: "meta",
 				label: "查元数据",
-				starter: "查一下这张单据的字段和元数据：",
+				starter: "查询这张单据的字段和元数据：",
 				glyph: [
 					h("circle", { key: "a", cx: 10.5, cy: 10.5, r: 5.5 }),
 					h("path", { key: "b", d: "m14.6 14.6 4.9 4.9" }),
@@ -2197,7 +2298,7 @@ button.cw-choice:active:not(:disabled) { transform: scale(.96); }
 			{
 				id: "run",
 				label: "真跑业务",
-				starter: "在测试环境真跑一遍：",
+				starter: "在测试环境中实际运行一遍：",
 				glyph: [h("path", { key: "a", d: "M8.5 6v12l9.5-6z", strokeLinejoin: "round" })],
 			},
 		];
@@ -2252,174 +2353,193 @@ button.cw-choice:active:not(:disabled) { transform: scale(.96); }
 			);
 		}
 
-		// ── JVM 卡片：一段终端里的启动日志 ──
-		//   苍穹 JVM                              ●
-		//   $ jvm status
-		//   ✓ 检查常驻 JVM                     1s     ┐
-		//   ✓ 编译探针宿主                     3s     │ 日志窗口三行：新的一步出来，旧的往上滚走
-		//   ⠹ 启动苍穹 JVM                     9s     ┘ 正在走的那步是转圈的盲文点
-		//   → 启动中 · 第 4/6 步▌
-		// 用的是开机的真实步骤（JVM 小标签报过来的），不是装饰。没有步骤可列（JVM 早就在跑、没连上工程）时写一行说明。
-		const LOG_ROWS = 3;
-		const LOG_MARK = { ok: "✓", skip: "–", fail: "✗", wait: "·", run: "" };
-		function logLinesOf(jvm) {
-			if (!jvm) return [{ key: "none", state: "wait", label: "还没连上苍穹工程" }];
-			const steps = jvm.steps.filter((step) => step.state !== "wait");
-			if (steps.length > 0) return steps;
-			if (jvm.tone === "ok" || jvm.tone === "run") return [{ key: "live", state: "ok", label: "常驻 JVM 已在运行" }];
-			if (jvm.tone === "busy") return [{ key: "live", state: "run", label: jvm.headline }];
-			return [{ key: "live", state: jvm.tone === "bad" ? "fail" : "wait", label: jvm.headline }];
+		// ── 首页两张状态卡：左边苍穹 JVM（开机动画，起好了写「就绪」），右边工程（工程、ISV、账套、用户）──
+		//   ╭ JVM ─────────────────────╮  ╭ 工程 ───────────────────────╮
+		//   │ (核)  苍穹 JVM            │  │ [□] 工程信息                  │
+		//   │       启动中              │  │ 工程 demo_proj   ISV  demox    │
+		//   │ ▮▮▮▯▯▯  编译探针宿主 3/6   │  │ 账套 demo_acct   用户 demo_user │
+		//   ╰──────────────────────────╯  ╰─────────────────────────────╯
+		// JVM 卡下面那一排六格是开机的真实六步（JVM 小标签报过来的，不是装饰）：做完的实心，正在走的那格闪光，
+		// 出错的那格标红；就绪后六格全亮、核心一呼一吸。没选工作区、配置不全时是等的样子：外圈虚线慢转、格子挨个轻亮。
+		// 配置不全（账套、用户还没选）时点任一张卡把 /cosmic-env 填进输入框，向导填完宿主自己重走一趟。
+		const BOOT_SEGMENTS = 6;
+		const STATION_STATE = { ok: "done", skip: "done", run: "now", fail: "fail", wait: "wait" };
+		const ASK_USER = ["account", "user"];
+
+		function glyph(size, ...shapes) {
+			return h(
+				"svg",
+				{
+					viewBox: "0 0 24 24",
+					width: size,
+					height: size,
+					fill: "none",
+					stroke: "currentColor",
+					strokeWidth: 2,
+					strokeLinecap: "round",
+					strokeLinejoin: "round",
+					"aria-hidden": true,
+				},
+				...shapes,
+			);
+		}
+		const FOLDER = () =>
+			glyph(
+				22,
+				h("path", {
+					key: "a",
+					d: "M3 7.5a2 2 0 0 1 2-2h4.2l2 2.5H19a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z",
+				}),
+			);
+		const ENGINE = () =>
+			glyph(
+				24,
+				h("rect", { key: "a", x: 6, y: 6, width: 12, height: 12, rx: 2.5 }),
+				h("path", { key: "b", d: "M10 2.5v3M14 2.5v3M10 18.5v3M14 18.5v3M2.5 10h3M2.5 14h3M18.5 10h3M18.5 14h3" }),
+			);
+
+		/** 两张卡共用的判断：处在哪一段、缺哪几项、点了做什么。jvm 是 jvmHome 的样子，没有就是还没选工作区。 */
+		function homeStateOf(jvm) {
+			const stage = jvm ? jvm.stage : "idle";
+			const missing = jvm?.missing ?? [];
+			const askUser = stage === "config" && missing.some((field) => ASK_USER.includes(field));
+			return { stage, missing, askUser, waiting: stage === "idle" || stage === "config" };
+		}
+
+		/** 开机六格：每格的状态。就绪、执行中全亮；等的时候全是空格；重启、同步这类没有步骤可列，整排走一道光。 */
+		function segmentsOf(jvm, stage) {
+			const steps = jvm?.steps ?? [];
+			const count = steps.length || BOOT_SEGMENTS;
+			return Array.from({ length: count }, (_unused, index) => {
+				const step = steps[index];
+				let state = step ? (STATION_STATE[step.state] ?? "wait") : "wait";
+				if (stage === "ready" || stage === "run") state = "done";
+				if (stage === "idle" || stage === "config" || stage === "down") state = "wait";
+				return { key: step?.key ?? String(index), label: step?.label ?? "", state };
+			});
 		}
 
 		function JvmWidget({ jvm }) {
-			const color = jvm ? (TAG[jvm.tone]?.color ?? TONE.idle) : TONE.idle;
-			const lines = logLinesOf(jvm);
-			const hidden = Math.max(0, lines.length - LOG_ROWS);
-			// 只给卡片出来以后才冒出的新一步做打字动画；已有的行本身就可见，不靠动画跑完才露出来
-			const seen = React.useRef(null);
-			React.useEffect(() => {
-				seen.current = new Set(lines.map((line) => line.key));
-			});
-			const waiting = jvm?.tone === "busy";
+			const home = homeStateOf(jvm);
+			const { stage } = home;
+			const segments = segmentsOf(jvm, stage);
+			const sweep = stage === "boot" && (jvm?.steps ?? []).length === 0;
+			const headline = jvm?.headline ?? "未连接";
+			const note =
+				stage === "idle"
+					? "请选择苍穹工程所在的工作区"
+					: home.askUser
+						? "选择账套和用户后自动启动"
+						: (jvm?.note ?? "");
+			const color = home.waiting ? "var(--cosmic-pi-glow)" : (TONE[jvm.tone] ?? TONE.idle);
+			const act = home.askUser ? () => startWith("/cosmic-env") : stage === "idle" ? null : (jvm.open ?? null);
 			const body = [
 				h(
 					"span",
-					{ key: "head", className: "cx-w-head" },
-					h("span", { className: "cx-w-cap" }, "苍穹 JVM"),
-					h(Tag, { kind: jvm ? jvm.tone : "idle" }),
-				),
-				h(
-					"span",
-					{ key: "cmd", className: "cx-term-cmd" },
-					h("span", { className: "cx-type" }, h("i", null, "$"), " jvm status"),
-				),
-				h(
-					"span",
-					{ key: "log", className: "cx-log" },
+					{ key: "top", className: "cx-jvm-top" },
+					h("span", { className: "cx-jvm-core", "aria-hidden": true }, ENGINE()),
 					h(
 						"span",
-						{ className: "cx-log-roll", style: { transform: `translateY(${-hidden * 17}px)` } },
-						...lines.map((line, at) =>
-							h(
-								"span",
-								{
-									key: line.key,
-									className: "cx-log-line",
-									"data-state": line.state,
-									style: { "--i": at },
-									"data-new": seen.current && !seen.current.has(line.key) ? "" : undefined,
-								},
-								h("span", { className: "cx-log-mark" }, LOG_MARK[line.state] ?? "·"),
-								h("span", { className: "cx-log-label" }, line.label),
-								h("span", { className: "cx-log-time" }, line.seconds == null ? "" : `${line.seconds}s`),
-							),
-						),
+						{ className: "cx-jvm-text" },
+						h("span", { className: "cx-card-title" }, "苍穹 JVM"),
+						h("span", { key: headline, className: "cx-jvm-state" }, headline),
 					),
 				),
 				h(
 					"span",
-					{ key: "out", className: "cx-log-out" },
-					h("i", null, "→"),
-					h("b", null, jvm?.headline ?? "未连接"),
-					h("span", null, jvm ? ` · ${jvm.note}` : " · 选好苍穹工程会自动启动"),
-					waiting ? h("span", { className: "cx-caret cx-caret-sm" }) : null,
+					{ key: "bar", className: "cx-jvm-bar", "data-sweep": sweep ? "" : undefined, "aria-hidden": true },
+					...segments.map((segment, index) =>
+						h("span", {
+							key: segment.key,
+							className: "cx-jvm-seg",
+							"data-s": segment.state,
+							style: { "--i": index },
+							title: segment.label || undefined,
+						}),
+					),
 				),
+				h("span", { key: note, className: "cx-jvm-note" }, note),
 			];
-			const style = tone(color);
-			if (!jvm) return h("div", { className: "cx-widget cx-w-jvm", "data-w": 1, style }, ...body);
+			const props = {
+				className: "cx-widget cx-jvm",
+				"data-stage": stage,
+				style: tone(color),
+				"aria-label": `苍穹 JVM：${headline}${note ? `，${note}` : ""}`,
+			};
+			if (!act) return h("div", props, ...body);
 			return h(
 				"button",
 				{
+					...props,
 					type: "button",
-					className: "cx-widget cx-w-jvm",
-					"data-w": 1,
-					style,
-					title: "打开苍穹 JVM 详情",
-					onClick: () => jvm.open?.(),
+					title: home.askUser ? "选择账套和用户（/cosmic-env）" : "查看苍穹 JVM 详情",
+					onClick: act,
 				},
 				...body,
 			);
 		}
 
-		// ── 工程卡片：像编辑器里的一段代码 ──
-		//   1  const project = {
-		//   2    name: "zlgd_ygpt2.0",
-		//   3    runtime: "vdsh-0.1.0",
-		//   4    account: "张三 @ demo",
-		//   5  }  // 本地测试环境
-		// 左边行号；一条「当前行」高亮慢慢往下走（pi 版首页那段代码装饰的「亮光逐行扫过」），开场一行一行打出来。
-		const LINE_MS = 1600;
-		function codeLinesOf(project) {
-			const punct = (text) => h("span", { className: "cx-c-p" }, text);
-			const head = [
-				h("span", { key: "k", className: "cx-c-k" }, "const"),
-				" ",
-				h("span", { key: "v", className: "cx-c-v" }, "project"),
-				" ",
-				punct("= "),
-			];
-			if (!project)
-				return [
-					[...head, h("span", { key: "n", className: "cx-c-k" }, "null"), punct(";")],
-					[h("span", { key: "c", className: "cx-c-c" }, "// 在下面选一个工作区")],
-				];
-			const field = (key, value) => [
-				"  ",
-				h("span", { key: "f", className: "cx-c-f" }, key),
-				punct(": "),
-				h("span", { key: "s", className: "cx-c-s" }, `"${value}"`),
-				punct(","),
-			];
-			const account = project.user || project.account ? `${project.user ?? "?"} @ ${project.account ?? "?"}` : null;
-			return [
-				[...head, punct("{")],
-				field("name", project.name),
-				...(project.keyId ? [field("runtime", project.keyId)] : []),
-				...(account ? [field("account", account)] : []),
-				[punct("}"), h("span", { key: "c", className: "cx-c-c" }, "  // 本地测试环境")],
-			];
+		/** 工程卡的一格：没选工作区、缺的那项是闪着浅光的占位；读不到的写「未配置」。 */
+		function projectCellOf(home, project, field) {
+			if (home.stage === "idle") return { wait: true, text: "待选择" };
+			if (home.stage === "config" && home.missing.includes(field)) return { wait: true, text: "待选择" };
+			const value = project?.[field] ?? null;
+			return { wait: false, text: value ?? "未配置" };
 		}
 
 		function ProjectWidget({ jvm }) {
-			const lines = codeLinesOf(jvm?.project ?? null);
-			const still = React.useMemo(reducedMotion, []);
-			const [current, setCurrent] = React.useState(0);
-			React.useEffect(() => {
-				if (still) return;
-				const timer = setInterval(() => setCurrent((line) => line + 1), LINE_MS);
-				return () => clearInterval(timer);
-			}, [still]);
-			const active = still ? -1 : current % lines.length;
-			return h(
-				"div",
-				{ className: "cx-widget cx-w-project", "data-w": 2 },
+			const home = homeStateOf(jvm);
+			const project = jvm?.project ?? null;
+			const name = project?.name ?? jvm?.folder ?? null;
+			const cells = [
+				["工程", name === null ? { wait: true, text: "待选择" } : { wait: false, text: name }, project?.root],
+				["ISV", projectCellOf(home, project, "isv")],
+				["账套", projectCellOf(home, project, "account")],
+				["用户", projectCellOf(home, project, "user")],
+			];
+			const body = [
 				h(
 					"span",
-					{ className: "cx-w-head" },
-					h("span", { className: "cx-w-cap" }, "工程"),
-					h("span", { className: "cx-w-file" }, "project.ts"),
+					{ key: "top", className: "cx-proj-top" },
+					h("span", { className: "cx-proj-tile", "data-empty": jvm ? undefined : "" }, FOLDER()),
+					h("span", { className: "cx-card-title" }, "工程信息"),
+					home.askUser ? h("span", { className: "cx-proj-ask" }, "选择账套和用户") : null,
 				),
 				h(
 					"span",
-					{ className: "cx-code" },
-					...lines.map((parts, at) =>
+					{ key: "grid", className: "cx-proj-grid" },
+					...cells.map(([label, cell, full]) =>
 						h(
 							"span",
-							{
-								key: at,
-								className: "cx-code-line",
-								style: { "--i": at },
-								"data-on": at === active ? "" : undefined,
-							},
-							h("span", { className: "cx-code-no" }, at + 1),
-							h("span", { className: "cx-code-text" }, ...parts),
+							{ key: label, className: "cx-proj-cell", title: `${label}：${full ?? cell.text}` },
+							h("span", { className: "cx-proj-label" }, label),
+							h("span", { className: "cx-proj-value", "data-wait": cell.wait ? "" : undefined }, cell.text),
 						),
 					),
 				),
+			];
+			const props = {
+				className: "cx-widget cx-proj",
+				"data-stage": home.stage,
+				"aria-label": cells.map(([label, cell]) => `${label} ${cell.text}`).join("，"),
+			};
+			if (!home.askUser) return h("div", props, ...body);
+			return h(
+				"button",
+				{
+					...props,
+					type: "button",
+					title: "选择账套和用户（/cosmic-env）",
+					onClick: () => startWith("/cosmic-env"),
+				},
+				...body,
 			);
 		}
 
-		/** 首页：大组件（方块字 + 提示行）占一整行，下面 JVM、工程两张卡片并排，再下面一排应用图标。只在首页（空会话）出现。 */
+		/** 标语拆成两截：逗号前是平常的字，逗号后是重点（pi 版首页那一行提示符就这么排）。 */
+		const TAGLINE_CUT = PRODUCT_TAGLINE.indexOf("，") + 1;
+
+		/** 首页：品牌卡（方块大字 + 名牌）占一整行，下面并排 JVM 卡和工程卡，再下面一排应用图标。只在首页（空会话）出现。 */
 		function HeroMark() {
 			ensureStyle();
 			const still = React.useMemo(reducedMotion, []);
@@ -2427,7 +2547,18 @@ button.cw-choice:active:not(:disabled) { transform: scale(.96); }
 			const boot = useBootState();
 			const jvm = jvmShared.use();
 			const ignite = useIgnite(boot);
-			const now = useMinute();
+			const plate = [
+				h("span", { key: "tag", className: "cx-plate-tag" }, PRODUCT_LOGO_TAG),
+				h("span", { key: "sub", className: "cx-plate-sub" }, PRODUCT_SUBTITLE),
+				h(
+					"span",
+					{ key: "line", className: "cx-plate-line" },
+					h("i", null, "❯"),
+					h("span", null, PRODUCT_TAGLINE.slice(0, TAGLINE_CUT)),
+					h("b", null, PRODUCT_TAGLINE.slice(TAGLINE_CUT)),
+					h("span", { className: "cx-caret" }),
+				),
+			].map((item, index) => React.cloneElement(item, { style: { "--k": index } }));
 			return h(
 				"div",
 				{
@@ -2443,30 +2574,11 @@ button.cw-choice:active:not(:disabled) { transform: scale(.96); }
 					{ className: "cx-widgets" },
 					h(
 						"div",
-						{ className: "cx-widget cx-w-brand", "data-w": 0 },
-						h(
-							"div",
-							{ className: "cx-w-top" },
-							h(Wordmark, { height: 64 }),
-							h("small", { className: "cx-w-date" }, dateOf(now)),
-						),
-						h(
-							"div",
-							{ className: "cx-w-meta" },
-							h("span", { className: "cx-w-tag" }, PRODUCT_LOGO_TAG),
-							h("span", null, PRODUCT_SUBTITLE),
-						),
-						// 终端那样的一行：提示符、问候和口号，末尾一个块状光标
-						h(
-							"div",
-							{ className: "cx-prompt" },
-							h("span", { className: "cx-prompt-mark" }, "❯"),
-							h("span", { className: "cx-prompt-text" }, h("b", null, `${greetingOf(now)}，`), PRODUCT_TAGLINE),
-							h("span", { className: "cx-caret" }),
-						),
+						{ className: "cx-widget cx-w-brand", title: PRODUCT_LOGO_NAME },
+						h(Wordmark, { height: 72 }),
+						h("div", { className: "cx-plate" }, ...plate),
 					),
-					h(JvmWidget, { jvm }),
-					h(ProjectWidget, { jvm }),
+					h("div", { className: "cx-row" }, h(JvmWidget, { jvm }), h(ProjectWidget, { jvm })),
 				),
 				h("div", { className: "cx-apps" }, ...APPS.map((app, index) => h(AppIcon, { key: app.id, app, index }))),
 			);
@@ -2688,7 +2800,7 @@ button.cw-choice:active:not(:disabled) { transform: scale(.96); }
 			React.useEffect(() => {
 				if (busy !== null && card?.state === "continued") {
 					setBusy(null);
-					setError("连接换过一次，刚才那一下没送到，再点一次");
+					setError("连接已重建，上次操作未送达，请重试");
 				}
 			}, [card?.state]);
 			React.useEffect(() => {
@@ -2716,7 +2828,7 @@ button.cw-choice:active:not(:disabled) { transform: scale(.96); }
 				recorded !== undefined
 					? approved
 						? { tag: "ok", text: "已确认写入" }
-						: { tag: "skip", text: "没写" }
+						: { tag: "skip", text: "未写入" }
 					: busy === "approve"
 						? { tag: "run", text: "写入中" }
 						: busy === "reject"
@@ -2822,7 +2934,7 @@ button.cw-choice:active:not(:disabled) { transform: scale(.96); }
 										"div",
 										{ className: "cw-section-title" },
 										`AI 替你定的 ${view.decisions.length} 处做法`,
-										h("small", null, "需求没说；要另一种就点它，不写并告诉 AI"),
+										h("small", null, "需求未明确；如需其他做法，点击对应项，将不写入并告知 AI"),
 									),
 									...view.decisions.map((decision, index) =>
 										h(
@@ -2986,7 +3098,7 @@ button.cw-choice:active:not(:disabled) { transform: scale(.96); }
 					"div",
 					{ className: "cc-head" },
 					h("span", { className: "cc-name" }, `/${last.name}`),
-					h("span", { className: "cc-state" }, failed ? "没做成" : "完成"),
+					h("span", { className: "cc-state" }, failed ? "失败" : "完成"),
 					h("span", { className: "cc-gap" }),
 					h(
 						"button",
@@ -3062,7 +3174,8 @@ button.cw-choice:active:not(:disabled) { transform: scale(.96); }
 						signal,
 					});
 					const value = await response.json().catch(() => ({}));
-					if (!response.ok || typeof value.text !== "string") throw new Error(value.error || `引用 ${ref} 没换成`);
+					if (!response.ok || typeof value.text !== "string")
+						throw new Error(value.error || `引用 ${ref} 解析失败`);
 					return value.text;
 				},
 			},

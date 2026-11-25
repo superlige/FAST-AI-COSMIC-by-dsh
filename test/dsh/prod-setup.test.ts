@@ -69,7 +69,7 @@ describe("生产排障配置向导", () => {
 		const { kernel, fs } = fakeKernel();
 		const { ask, asked, shown } = scripted(
 			["10.0.0.1", "80a", "8000", "demo", "reader", "secret"],
-			["opengauss", "先不配"],
+			["opengauss", "暂不配置"],
 		);
 		const outcome = await configureProd(kernel, ask, okCheck, { revise: false, askMonitor: true });
 		expect(outcome.kind).toBe("ready");
@@ -88,7 +88,7 @@ describe("生产排障配置向导", () => {
 				? { ok: false, error: new KernelError("PROD_QUERY_FAILED", "生产库报错：password authentication failed") }
 				: okCheck(_draft, answers);
 		const first = fakeKernel();
-		const retry = scripted([...DB_ANSWERS, ...DB_ANSWERS], ["opengauss", "重填数据库连接", "opengauss", "先不配"]);
+		const retry = scripted([...DB_ANSWERS, ...DB_ANSWERS], ["opengauss", "重填数据库连接", "opengauss", "暂不配置"]);
 		expect((await configureProd(first.kernel, retry.ask, flaky, { revise: false, askMonitor: true })).kind).toBe(
 			"ready",
 		);
@@ -98,17 +98,17 @@ describe("生产排障配置向导", () => {
 		const anyway = fakeKernel();
 		const written = await configureProd(
 			anyway.kernel,
-			scripted([...DB_ANSWERS], ["opengauss", "照样写入", "先不配"]).ask,
+			scripted([...DB_ANSWERS], ["opengauss", "仍然写入", "暂不配置"]).ask,
 			failing,
 			{ revise: false, askMonitor: true },
 		);
-		expect(written.text).toContain("试连没连上");
+		expect(written.text).toContain("试连失败");
 		expect(anyway.fs.exists(FILE)).toBe(true);
 
 		const giveUp = fakeKernel();
 		const stopped = await configureProd(
 			giveUp.kernel,
-			scripted([...DB_ANSWERS], ["opengauss", "不写了"]).ask,
+			scripted([...DB_ANSWERS], ["opengauss", "放弃写入"]).ask,
 			failing,
 			{
 				revise: false,
@@ -123,14 +123,14 @@ describe("生产排障配置向导", () => {
 		const declined = fakeKernel();
 		const no = await configureProd(
 			declined.kernel,
-			scripted([...DB_ANSWERS], ["opengauss", "先不配"], false).ask,
+			scripted([...DB_ANSWERS], ["opengauss", "暂不配置"], false).ask,
 			okCheck,
 			{
 				revise: false,
 				askMonitor: true,
 			},
 		);
-		expect(no).toEqual({ kind: "stopped", text: "没确认，生产排障配置没写。" });
+		expect(no).toEqual({ kind: "stopped", text: "未确认，生产排障配置未写入。" });
 		expect(declined.fs.exists(FILE)).toBe(false);
 		const quit = fakeKernel();
 		expect(
@@ -149,7 +149,7 @@ describe("生产排障配置向导", () => {
 		fs.put(FILE, JSON.stringify({ db: { host: "h", port: 8000, database: "d", user: "u", password: "p" } }));
 		const { kernel } = fakeKernel(fs);
 		let checked = 0;
-		const { ask, asked } = scripted(["https://m/monitor/eye", "viewer", "x"], ["配 monitor 账号"]);
+		const { ask, asked } = scripted(["https://m/monitor/eye", "viewer", "x"], ["配置 monitor 账号"]);
 		const outcome = await configureProd(
 			kernel,
 			ask,
@@ -194,7 +194,7 @@ describe("cosmic_prod 第一次用时自己弹生产排障配置向导", () => {
 	it("并行的两个调用只弹一个向导", async () => {
 		const { kernel } = fakeKernel();
 		const state = initialProdSetupPromptState();
-		const { ask, asked } = scripted([...DB_ANSWERS], ["opengauss", "先不配"]);
+		const { ask, asked } = scripted([...DB_ANSWERS], ["opengauss", "暂不配置"]);
 		const [a, b] = await Promise.all([
 			ensureProdConfig(kernel, state, ask, okCheck, live),
 			ensureProdConfig(kernel, state, ask, okCheck, live),
@@ -223,7 +223,7 @@ describe("cosmic_prod 第一次用时自己弹生产排障配置向导", () => {
 			prodReport: () => ({ ok: false }),
 		} as unknown as CosmicKernel;
 		const host = new CosmicHost(kernel);
-		const { ask } = scripted([...DB_ANSWERS], ["opengauss", "先不配"]);
+		const { ask } = scripted([...DB_ANSWERS], ["opengauss", "暂不配置"]);
 		host.askInCall = () => ask;
 		const call: CallContext = {
 			tool: "cosmic_prod",

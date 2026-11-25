@@ -46,7 +46,7 @@ dsh 的工具流水线
 | `src/dsh/` | 接 dsh 的那层：插件入口 `index.ts`（挂工具、钩子、系统提示段、技能、命令）、`tools/` 每个工具一个文件、`hooks.ts` 门槛、`write.ts` 写元数据一次调用写完、`host.ts` 工具共用的打开工程 / 编译新鲜度 / 输出预算 / 失败计数、`define.ts` 参数换成 dsh 认的 JSON Schema、`session.ts` 每会话状态、`commands.ts` 给人敲的命令、`setup.ts` 工程配置向导、`jvm.ts` 本机进程列表、`jvm-board.ts` JVM 状态板、`present.ts` 界面卡片标题、`brand.ts` 品牌行的宿主半边、`codex-login.ts` 设置页登录 ChatGPT 的宿主半边、`fixed-text.ts` 发给模型的固定文字一处拼出、`probes.ts` 产品内置的已发布探针清单 |
 | `src/agent/` | 接 dsh 那层用的纯函数：`prompt/system-prompt.ts` 系统提示和完成情况模板、`state/write-report.ts` 确认单、`state/prod-state.ts` 生产查询的证据编号、`tools/` 输出预算、知识卡片、读写账、写法检查、工具名清单 |
 | `cordis.patch.yml` | 组合包：一个预设「苍穹」（挂产品工具）、关掉 dsh 自带的四个预设、官方品牌行和三处往外发数据的行、插品牌行 |
-| `client/brand.js` | 界面：iOS 27 风格和动效、登录 ChatGPT、JVM 小标签、写入确认卡片、输入框 `@` 引用；不经编译 |
+| `client/brand.js` | 界面：iOS 27 风格、首页、登录 ChatGPT、JVM 小标签、写入确认卡片、`@` 引用；不经编译 |
 | `packaging/presets/production.env` | 桌面打包配置：应用 ID、关自动更新、强制更新地址填一个连不上的 |
 | `src/kernel/commands/` | 每个命令一个文件：`fast` 编译、`lint` 前检、`probe` 跑探针、`run` 免界面跑业务、`impact` 反查、`meta` 改元数据、`knowledge` 查知识、`doctor` 体检、`build` 重建编译参数、`deploy` 部署、`node` 调试节点、`probe-server` 常驻进程启停、`prod` 生产只读排障、`sources` 认源码、`user-lookup` 查用户 |
 | `src/kernel/config/` | 认工程根、读 `config.json`、解析 gradle、首次配置向导 |
@@ -112,8 +112,8 @@ dsh 的工具流水线
 | 临时探针只读 | 写 API 黑名单 + 源码扫描；没查过签名的平台调用先拦下 | `kernel/policy/{write-apis,probe-scan,api-precheck}.ts` |
 | 写元数据 | 一次调用写完：写调用附 `report` → 预演 → 按预演排确认单 → 弹给用户（界面画成逐处对比的卡片）→ 确认后带确认号落库 → 回读；弹不了确认就不写。落库范围就是预演报出的写入目标清单，JVM 里的 IsvGuard 逐个比对。布局写入的规矩（回读分三层报数、「写了一半」、派生布局逐张重建、`layouts=`、可见性和锁定、拆分表、必录条件和校验）见 `FormLayoutWriteProbe.java` 文件头和技能文档 `metadata-entity-write.md`；业务规则按 id 原位改条件、计算公式、启用（目标 `实体.规则id`） | `dsh/write.ts`、`agent/state/write-report.ts`、`kernel/policy/{write-plan,shared-write,write-form}.ts`、`client/brand.js` |
 | 模型配置和登录 | 组合包配好 codex（pi-ai 自带 9 个加手工补的 gpt-6.2-sol）和 Command Code GOAT 网关（密钥由用户在设置页填，引用名 `COMMANDCODE_GOAT_API_KEY`），DeepSeek 用自带卡片填密钥、不用账号登录（左下角是设置）；codex 卡片上有「登录 ChatGPT」「退出登录」，浏览器登完自动回来，没回来可贴地址栏地址 | `cordis.patch.yml`、`dsh/codex-login.ts`、`dsh/brand.ts`、`client/brand.js` |
-| JVM 小标签 | 输入框旁：进会话就后台起 JVM，写起到哪步；点开看进程、每步用时、原因，能启停本会话和本机别的 JVM。同工程共用；没构建不起；别的预设的会话不画 | `dsh/jvm-board.ts`、`client/brand.js` |
-| 输入框 `@` 引用 | 敲 `@` 加编号或中文名找单据、表单、布局、分录、字段（`单据.分录.词` 逐层钻）；发送时换成一段 `<cosmic-ref>`，写明它在元数据里的准确位置。数据来源、写什么见 `kernel/impact/mention.ts` 文件头 | `kernel/impact/mention.ts`、`kernel/commands/mention.ts`、`dsh/mention.ts`、`client/brand.js` |
+| JVM 小标签 | 进会话就后台起 JVM，输入框旁和首页显示起到哪步（配置不全时等初始化，填完重起）；点开看进程、每步用时、原因，能启停 JVM。同工程共用；没构建不起；别的预设不画 | `dsh/jvm-board.ts`、`client/brand.js` |
+| 输入框 `@` 引用 | 敲 `@` 加编号或中文名找单据、表单、布局、分录、字段（`单据.分录.词` 逐层钻）；发送时换成一段 `<cosmic-ref>`，写明它在元数据里的准确位置，会话标题里换回 `@名字`。数据来源见 `kernel/impact/mention.ts` 文件头 | `kernel/impact/mention.ts`、`kernel/commands/mention.ts`、`dsh/{mention,session-title}.ts`、`client/brand.js` |
 | 界面卡片 | 每次产品工具调用在界面上显示一行看得懂的标题（「真跑业务：op demo_bill save」），写入和只读用不同图标；只给界面看，不发给模型 | `dsh/present.ts` |
 | 组合包产物 | 产品插件连同 typebox 合成一个 `tools.js`（装进桌面版后在 node_modules 下，Node 不给那里的 .ts 去类型），带知识包、品牌、预设；编完检查没有对 dsh 包的运行时引用、能被 Node 直接加载、过产物审计 | `scripts/build-bundle.mjs` |
 | 安装包 | dsh 检出目录复制一份，套补丁（预装组合包、壳和安装程序换名换图、界面字典里插件改不了的几处、跳过 DeepSeek 欢迎页、图标、和另装的 dsh 隔离），调 dsh 自己的不签名打包；补丁逐条核对原文次数，套完扫一遍 | `scripts/package-desktop.mjs` |

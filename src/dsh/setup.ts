@@ -69,15 +69,15 @@ async function askAccount(
 	const candidates = found.ok ? found.value.candidates : [];
 	if (candidates.length === 0) {
 		const why = found.ok
-			? `这个环境没列出任何账套（探针原文：${found.value.outputFile}）`
-			: `列账套没做成：${errorLine(found.error)}`;
+			? `当前环境未列出任何账套（探针原文：${found.value.outputFile}）`
+			: `列出账套失败：${errorLine(found.error)}`;
 		const typed = await typeAccount(ask, why);
 		return typed === undefined ? undefined : { account: typed, note: "" };
 	}
 	const labels = candidates.map((one) => `${one.number} · ${one.name || "(无名称)"} · id=${one.id}`);
 	const chosen = await ask.choose(
-		"工程配置 · 选一个账套（数据中心）",
-		"这个环境里的账套都在下面；选中的写进工程配置的 account，以后探针、真跑业务都连它",
+		"工程配置 · 选择账套（数据中心）",
+		"以下是当前环境的全部账套；选中的账套将写入工程配置的 account，之后的探针和真跑业务都连接它",
 		[...labels, TYPE_ACCOUNT],
 	);
 	if (chosen === undefined) return undefined;
@@ -97,7 +97,7 @@ async function askUser(
 	root: string,
 	answers: ProjectConfigAnswers,
 ): Promise<{ id: string; note: string } | undefined> {
-	const hint = "手机号（也认用户名或姓名）；已知 id 就写 id:1234567";
+	const hint = "请输入手机号（也支持用户名或姓名）；已知 id 可直接输入 id:1234567";
 	let problem = "";
 	for (let tries = 0; tries < MAX_TRIES; tries += 1) {
 		const raw = await ask.text("工程配置 · 用户", problem === "" ? hint : `${problem}\n${hint}`);
@@ -116,12 +116,12 @@ async function askUser(
 			...(answers.account === undefined ? {} : { account: answers.account }),
 		});
 		if (!found.ok) {
-			problem = `查用户没做成：${errorLine(found.error)}`;
+			problem = `查询用户失败：${errorLine(found.error)}`;
 			continue;
 		}
 		const candidates = found.value.candidates;
 		if (candidates.length === 0) {
-			problem = `没有匹配「${keyword}」的可用用户，换个关键字，或用 id:1234567 直接指定`;
+			problem = `没有匹配「${keyword}」的可用用户，请更换关键字，或输入 id:1234567 直接指定`;
 			continue;
 		}
 		const labels = candidates.map(
@@ -129,10 +129,10 @@ async function askUser(
 				`${String(index + 1)}) ${one.name || "(无姓名)"} · ${one.username || one.number || "(无用户名)"} · ${one.phoneMask || "无手机号"} · id=${one.id}`,
 		);
 		const chosen = await ask.choose(
-			"工程配置 · 选一个用户",
+			"工程配置 · 选择用户",
 			found.value.truncated
-				? "命中已达上限，还有没列出来的；换更准的关键字可缩小。选中的人写进工程配置的 user"
-				: "选中的人写进工程配置的 user，以后写入的修改人记在这个人名下",
+				? "匹配结果已达上限，部分用户未列出，可使用更精确的关键字缩小范围。选中的用户将写入工程配置的 user"
+				: "选中的用户将写入工程配置的 user，之后写入数据的修改人记为该用户",
 			[...labels, RETRY_USER],
 		);
 		if (chosen === undefined) return undefined;
@@ -147,23 +147,42 @@ async function askUser(
 	return undefined;
 }
 
+const configuredListeners = new Set<(root: string) => void>();
+
+/**
+ * 工程配置齐了（向导写完、或者本来就齐）时通知：JVM 状态板据此把停在「配置不全」的会话重新走一趟，
+ * 首页的等初始化动画才会接着往下走。返回退订函数。
+ */
+export function onProjectConfigured(listener: (root: string) => void): () => void {
+	configuredListeners.add(listener);
+	return () => {
+		configuredListeners.delete(listener);
+	};
+}
+
 /**
  * 认工程 → 诊断 → 工程里认不出来的项交还给模型 → 账套、用户问人 → 写 → 再诊断。
  * 配置本来就齐的直接 ready，不问人。
  */
 export async function configureProject(kernel: Kernel, ask: Ask, cwd: string): Promise<SetupOutcome> {
+	const outcome = await configureSteps(kernel, ask, cwd);
+	if (outcome.kind === "ready") for (const listener of configuredListeners) listener(outcome.root);
+	return outcome;
+}
+
+async function configureSteps(kernel: Kernel, ask: Ask, cwd: string): Promise<SetupOutcome> {
 	if (kernel.discover === undefined || kernel.initializeConfig === undefined)
-		return { kind: "stopped", text: "这个宿主不支持工程配置向导" };
+		return { kind: "stopped", text: "当前宿主不支持工程配置向导" };
 	const discovered = await kernel.discover(cwd);
-	if (!discovered.ok) return { kind: "stopped", text: `没认出苍穹工程：${errorLine(discovered.error)}` };
+	if (!discovered.ok) return { kind: "stopped", text: `未识别苍穹工程：${errorLine(discovered.error)}` };
 	const root = discovered.value.root;
 	const diagnosed = await kernel.doctor(root);
-	if (!diagnosed.ok) return { kind: "stopped", text: `环境诊断没做成：${errorLine(diagnosed.error)}` };
+	if (!diagnosed.ok) return { kind: "stopped", text: `环境诊断失败：${errorLine(diagnosed.error)}` };
 	const report = diagnosed.value;
 	if (report.parseError !== null)
 		return {
 			kind: "stopped",
-			text: `配置 JSON 已损坏，没有覆盖：${report.parseErrorFile ?? report.projectConfigFile}\n${report.parseError}`,
+			text: `配置 JSON 已损坏，未覆盖：${report.parseErrorFile ?? report.projectConfigFile}\n${report.parseError}`,
 		};
 	if (report.ok) return { kind: "ready", root, text: "" };
 
@@ -174,38 +193,38 @@ export async function configureProject(kernel: Kernel, ask: Ask, cwd: string): P
 		return {
 			kind: "stopped",
 			text:
-				`${fromProject.join("、")} 是从工程文件里认的，这个工程没认出来。` +
-				`在会话里让模型排查（它读工程文件，用 cosmic_doctor action=config 写进去），或手工写进 ${report.projectConfigFile}。`,
+				`${fromProject.join("、")} 需要从工程文件中识别，当前工程未能识别。` +
+				`请在会话中让模型排查（模型读取工程文件，用 cosmic_doctor action=config 写入），或手工写入 ${report.projectConfigFile}。`,
 		};
 
 	const answers: ProjectConfigAnswers = {};
 	const notes: string[] = [];
 	if (missing.includes("account")) {
 		const picked = await askAccount(ask, kernel, root);
-		if (picked === undefined) return { kind: "stopped", text: "工程配置没填完（停在「账套」），没写。" };
+		if (picked === undefined) return { kind: "stopped", text: "工程配置未完成（停在「账套」），未写入。" };
 		answers.account = picked.account;
 		if (picked.note !== "") notes.push(picked.note);
 	}
 	if (missing.includes("user")) {
 		const picked = await askUser(ask, kernel, root, answers);
-		if (picked === undefined) return { kind: "stopped", text: "工程配置没填完（停在「用户」），没写。" };
+		if (picked === undefined) return { kind: "stopped", text: "工程配置未完成（停在「用户」），未写入。" };
 		answers.user = picked.id;
 		if (picked.note !== "") notes.push(picked.note);
 	}
 	const written = await kernel.initializeConfig(root, answers, report.modules.declared);
-	if (!written.ok) return { kind: "stopped", text: `工程配置没写成：${errorLine(written.error)}` };
+	if (!written.ok) return { kind: "stopped", text: `工程配置写入失败：${errorLine(written.error)}` };
 	const again = await kernel.doctor(root);
 	if (!again.ok)
-		return { kind: "stopped", text: `配置已写入 ${written.value.file}，但再诊断没做成：${errorLine(again.error)}` };
+		return { kind: "stopped", text: `配置已写入 ${written.value.file}，但重新诊断失败：${errorLine(again.error)}` };
 	if (!again.value.ok)
 		return {
 			kind: "stopped",
-			text: `配置已写入 ${written.value.file}，环境还没好：${again.value.nextActions.join("；")}`,
+			text: `配置已写入 ${written.value.file}，环境仍有问题：${again.value.nextActions.join("；")}`,
 		};
 	return {
 		kind: "ready",
 		root,
-		text: `工程配置已写入 ${written.value.file}（补了 ${written.value.writtenFields.join("、")}）${notes.length > 0 ? `：${notes.join("，")}` : ""}`,
+		text: `工程配置已写入 ${written.value.file}（补充了 ${written.value.writtenFields.join("、")}）${notes.length > 0 ? `：${notes.join("，")}` : ""}`,
 	};
 }
 
